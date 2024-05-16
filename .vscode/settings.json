@@ -2,6 +2,10 @@
     "files.associations": {
         "*.c": "c",
         "*.cpp": "cpp",
-        "platform.h": "c"
+        "platform.h": "c",
+        "errno.h": "c",
+        "error.h": "c",
+        "string.h": "c",
+        "types.h": "c"
     }
 }
