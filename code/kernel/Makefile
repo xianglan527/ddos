@@ -5,6 +5,7 @@ SRCS_PATH += \
 		code/kernel/driver \
 		code/kernel/libs \
 		code/kernel/util \
+		code/kernel/kernel \
 
 
 CFLAGS += \
@@ -13,3 +14,4 @@ CFLAGS += \
 		-I./code/kernel/driver \
 		-I./code/kernel/libs \
 		-I./code/kernel/util \
+		-I./code/kernel/kernel \

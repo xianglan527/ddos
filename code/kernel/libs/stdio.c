@@ -1,6 +1,7 @@
 #include "uart.h"
 #include "stdio.h"
 #include "printf.h"
+#include "console.h"
 
 static void cputch(int c, int *cnt){
     uart_putc(c);
@@ -33,4 +34,11 @@ int cputs(const char *str){
         cputch(c, &cnt);
     cputch('\n', &cnt);
     return cnt;
+}
+
+int getchar(void){
+    int c;
+    while((c = cons_getc()) == 0)
+        ;
+    return c;
 }

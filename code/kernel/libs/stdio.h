@@ -7,4 +7,5 @@ int vcprintf(const char *fmt, va_list ap);
 int cprintf(const char *fmt, ...);
 void cputchar(int c);
 int cputs(const char *str);
+int getchar(void);
 #endif

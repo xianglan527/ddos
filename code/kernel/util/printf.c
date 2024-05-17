@@ -87,13 +87,17 @@ void vprintfmt(void (*putch)(int, void *), void *putdat, const char *fmt, va_lis
                 }
                 goto reswitch;
             case 'l': lflag++; goto reswitch;
-            case 'c':
+            case 'c': putch(va_arg(ap, int), putdat); break;
+
+            // error message
+            case 'e':
                 err = va_arg(ap, int);
-                if (err < 0) err = -err;
-                if (err > MAXERROR || (p = error_string[err]) == nullptr)
+                if (err < 0) { err = -err; }
+                if (err > MAXERROR || (p = error_string[err]) == NULL) {
                     printfmt(putch, putdat, "error %d", err);
-                else
+                } else {
                     printfmt(putch, putdat, "%s", p);
+                }
                 break;
             case 's':
                 if((p = va_arg(ap, char *)) == nullptr)

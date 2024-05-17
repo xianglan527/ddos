@@ -1,3 +1,6 @@
+#include "assert.h"
+#include "console.h"
+#include "error.h"
 #include "platform.h"
 #include "stdio.h"
 #include "uart.h"
@@ -12,7 +15,15 @@ void test(void) {
     cprintf("  version is: 0x%08x\n", version);
     cprintf("  pointer is: %p\n", &version);
     cprintf("  %s\n", hello);
+    cprintf("  error is %e\n", E_UNSPECIFIED);
     cprintf("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
+
+    char *buf = readline("------>>");
+    cprintf("------<<%s\n", buf);
+
+    assert(1 == 1);
+    warn("warning...");
+    assert(1 != 1);
 }
 
 void start_kernel(void) {

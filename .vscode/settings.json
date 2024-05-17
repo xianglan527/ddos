@@ -6,6 +6,9 @@
         "errno.h": "c",
         "error.h": "c",
         "string.h": "c",
-        "types.h": "c"
+        "types.h": "c",
+        "uart.h": "c",
+        "stdio.h": "c",
+        "libc-header-start.h": "c"
     }
 }

@@ -51,3 +51,10 @@ int uart_putc(char ch) {
 void uart_puts(char *s) {
     while (*s) { uart_putc(*s++); }
 }
+
+int uart_getc(void){
+    if(uart_read_reg(LSR) & 0x01)
+        return uart_read_reg(RHR);
+    else 
+        return -1;
+}
