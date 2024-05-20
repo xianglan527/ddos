@@ -88,18 +88,18 @@ QEMUGDB = -gdb tcp::$(GDBPORT)
 
 all: ${KERNEL_ELF}
 
-qemu: all
+qemu: clean all
 	$(QEMU) $(QEMUOPTS)
 
 .gdbinit: .gdbinit.tmpl-riscv
 	sed "s/:1234/:$(GDBPORT)/" < $^ > $@
 
-qemu-gdb: ${KERNEL_ELF} .gdbinit
+qemu-gdb: clean ${KERNEL_ELF} .gdbinit
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	@echo "$(QEMUGDB)"
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)	
 
-debug: all
+debug: clean all
 	@echo "Press Ctrl-C and then input 'quit' to exit GDB and QEMU"
 	@echo "-------------------------------------------------------"
 	@${QEMU} ${QEMUOPTS} -s -S &
