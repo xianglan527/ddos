@@ -1,0 +1,60 @@
+Date : 2024-05-20 18:00:47
+Directory : c:\Users\45228\Desktop\share\ddos\code
+Total : 26 files,  564 codes, 91 comments, 128 blanks, all 783 lines
+
+Languages
++----------+------------+------------+------------+------------+------------+
+| language | files      | code       | comment    | blank      | total      |
++----------+------------+------------+------------+------------+------------+
+| C        |         16 |        332 |         24 |         56 |        412 |
+| C++      |          9 |        230 |         67 |         72 |        369 |
+| Makefile |          1 |          2 |          0 |          0 |          2 |
++----------+------------+------------+------------+------------+------------+
+
+Directories
++------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                             | files      | code       | comment    | blank      | total      |
++------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                |         26 |        564 |         91 |        128 |        783 |
+| kernel                                                           |         26 |        564 |         91 |        128 |        783 |
+| kernel (Files)                                                   |          1 |          2 |          0 |          0 |          2 |
+| kernel\boot                                                      |          1 |         22 |         10 |         14 |         46 |
+| kernel\config                                                    |          3 |          1 |          0 |          0 |          1 |
+| kernel\driver                                                    |          2 |         15 |          3 |          5 |         23 |
+| kernel\kernel                                                    |         11 |        395 |         77 |         90 |        562 |
+| kernel\libs                                                      |          2 |          8 |          0 |          1 |          9 |
+| kernel\util                                                      |          6 |        121 |          1 |         18 |        140 |
++------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++------------------------------------------------------------------+----------+------------+------------+------------+------------+
+| filename                                                         | language | code       | comment    | blank      | total      |
++------------------------------------------------------------------+----------+------------+------------+------------+------------+
+| c:\Users\45228\Desktop\share\ddos\code\kernel\Makefile           | Makefile |          2 |          0 |          0 |          2 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\boot\start.c       | C        |         22 |         10 |         14 |         46 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\config\config.h    | C++      |          5 |          0 |          1 |          6 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\config\platform.h  | C        |         -5 |          0 |         -1 |         -6 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\config\types.h     | C        |          1 |          0 |          0 |          1 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\uart.c      | C        |         14 |          3 |          5 |         22 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\uart.h      | C        |          1 |          0 |          0 |          1 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\console.c   | C        |         89 |          2 |          8 |         99 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\console.h   | C++      |          8 |          0 |          1 |          9 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\main.c      | C        |         33 |          0 |          4 |         37 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\memlayout.h | C++      |         26 |         36 |         12 |         74 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\plic.c      | C        |         21 |          5 |          5 |         31 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\plic.h      | C++      |          9 |          0 |          1 |         10 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\proc.c      | C        |          6 |          0 |          1 |          7 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\proc.h      | C++      |          6 |          0 |          2 |          8 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\risv.h      | C++      |        137 |         31 |         45 |        213 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\trap.c      | C        |         47 |          3 |          8 |         58 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\trap.h      | C++      |         13 |          0 |          3 |         16 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\libs\stdio.c       | C        |          7 |          0 |          1 |          8 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\libs\stdio.h       | C        |          1 |          0 |          0 |          1 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\assert.h      | C++      |         16 |          0 |          4 |         20 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\panic.c       | C        |         32 |          0 |          6 |         38 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\panic.h       | C++      |         10 |          0 |          3 |         13 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\printf.c      | C        |          2 |          1 |          1 |          4 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\string.c      | C        |         57 |          0 |          4 |         61 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\string.h      | C        |          4 |          0 |          0 |          4 |
+| Total                                                            |          |        564 |         91 |        128 |        783 |
++------------------------------------------------------------------+----------+------------+------------+------------+------------+

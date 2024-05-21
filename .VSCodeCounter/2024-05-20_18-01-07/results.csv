@@ -1,0 +1,13 @@
+"filename", "language", "C++", "C", "comment", "blank", "total"
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\console.c", "C", 0, 89, 2, 8, 99
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\console.h", "C++", 8, 0, 0, 1, 9
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\main.c", "C", 0, 33, 0, 4, 37
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\memlayout.h", "C++", 26, 0, 36, 12, 74
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\plic.c", "C", 0, 21, 5, 5, 31
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\plic.h", "C++", 9, 0, 0, 1, 10
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\proc.c", "C", 0, 6, 0, 1, 7
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\proc.h", "C++", 6, 0, 0, 2, 8
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\risv.h", "C++", 137, 0, 31, 45, 213
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\trap.c", "C", 0, 47, 3, 8, 58
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\trap.h", "C++", 13, 0, 0, 3, 16
+"Total", "-", 199, 196, 77, 90, 562

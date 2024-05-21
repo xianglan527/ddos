@@ -70,7 +70,7 @@ void uart_intr(void) {
 
 int cons_getc(void) { 
     int c;
-    uart_intr();
+    // uart_intr();
     if(cons.rpos != cons.wpos){
         c = cons.buf[cons.rpos++ % CONSOLE_BUF_SIZE];
         return c;

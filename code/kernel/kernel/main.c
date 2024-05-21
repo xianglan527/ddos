@@ -13,17 +13,21 @@ void test(void) {
     char *hello = "Hello, qemu and risc-v!";
     cprintf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
     cprintf("  version is: %d\n", version);
-    cprintf("  version is: 0x%08x\n", version);
+    cprintf("  version is: %d        version is: 0x%08x\n", version, version);
     cprintf("  pointer is: %p\n", &version);
     cprintf("  %s\n", hello);
     cprintf("  error is %e\n", E_UNSPECIFIED);
     cprintf("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
 
-    char *buf = readline("------>>");
-    cprintf("------<<%s\n", buf);
+   
 
     assert(1 == 1);
     warn("warning...");
+    // int i = 1 / 0;
+    *(char *)0 = 4;
+    int i = *(char *)0;
+    char *buf = readline("------>>");
+    cprintf("------<<%s\n", buf);
     assert(1 != 1);
 }
 
