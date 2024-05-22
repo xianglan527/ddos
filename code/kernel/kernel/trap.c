@@ -58,7 +58,7 @@ void clockintr() {
 
 static void print_ticks() { cprintf("ticks is :%d\n", ticks); }
 
-Trap_eum devintr() {
+Trap_eum trap_work() {
     uint64_t scause = r_scause();
 
     if ((scause & 0x8000000000000000L) && (scause & 0xff) == 9) {
@@ -99,13 +99,13 @@ Trap_eum devintr() {
 }
 
 void kerneltrap() {
-    Trap_eum which_dev;
+    Trap_eum trap_enum;
     uint64_t sepc = r_sepc();
     uint64_t sstatus = r_sstatus();
     uint64_t scause = r_scause();
     if ((sstatus & SSTATUS_SPP) == 0) panic("kerneltrap: not from supervisor mode");
     if (intr_get() != 0) panic("kerneltrap: interrupts enabled");
-    if ((which_dev = devintr()) == TRAP_OTHER) {
+    if ((trap_enum = trap_work()) == TRAP_OTHER) {
         cprintf("scause %p\n", scause);
         cprintf("sepc=%p stval=%p\n", sepc, r_stval());
         panic("kerneltrap");

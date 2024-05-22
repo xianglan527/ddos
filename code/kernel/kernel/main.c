@@ -7,6 +7,8 @@
 #include "plic.h"
 #include "trap.h"
 #include "risv.h"
+#include "proc.h"
+#include "usertest.h"
 
 void test(void) {
     int version = 20240516;
@@ -36,6 +38,9 @@ void main(){
     plic_init_hart();
     trap_init_hart();
     intr_on();
+    proc_init();
+    os_main();
+    scheduler();
     test();
     while(1);
 }
