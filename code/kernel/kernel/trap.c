@@ -104,10 +104,21 @@ void kerneltrap() {
     uint64_t sstatus = r_sstatus();
     uint64_t scause = r_scause();
     if ((sstatus & SSTATUS_SPP) == 0) panic("kerneltrap: not from supervisor mode");
+    int bool = intr_get();
     if (intr_get() != 0) panic("kerneltrap: interrupts enabled");
     if ((trap_enum = trap_work()) == TRAP_OTHER) {
         cprintf("scause %p\n", scause);
         cprintf("sepc=%p stval=%p\n", sepc, r_stval());
         panic("kerneltrap");
     }
+    if(trap_enum == TRAP_SOFT_INT && myproc() != 0 && myproc()->state == RUNNING){
+        intr_on();  // Since interrupts are disabled when entering the trap, enable them again here.
+        yield();
+    }
+        
+    // the yield() may have caused some traps to occur,
+    // so restore trap registers for use by kernelvec.S's sepc instruction.
+    w_sepc(sepc);
+    w_sstatus(sstatus);
+    // intr_on();
 }

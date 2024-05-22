@@ -15,15 +15,21 @@ void proc_init(void) {
     for (int i = 0; i < NPROC; i++) { proc[i].state = UNUSED; }
 }
 
-void task_create(void (*start_routin)(void)) {
+
+void task_create(void (*start_routin)(Proc)) {
     if (_top < NPROC - 1) {
         proc[_top].state = RUNNABLE;
-        snprintf(proc[_top].name, sizeof(proc[_top].name), "task__%d", _top);
+        snprintf(proc[_top].name, sizeof(proc[_top].name), "process_%d", _top);
         proc[_top].context.ra = (uint64_t)start_routin;
         proc[_top].context.sp = (uint64_t)&task_stack[_top][STACK_SIZE];
+        proc[_top].context.a0 = (uint64_t)&proc[_top];
         _top++;
     } else
         panic("Exceeded maximum number of processes");
+}
+int fun527(int i){
+    int j = i;
+    return j;
 }
 
 int cpuid() {
@@ -65,12 +71,13 @@ void scheduler(void){
     Cpu *c = mycpu();
     c->proc = 0;
     while(1){
-        intr_off();
+        intr_on();
         for(p = proc; p < &proc[NPROC]; p++){
             if(p->state == RUNNABLE){
                 p->state = RUNNING;
                 c->proc = p;
                 swtch(&c->context, &p->context);
+                // intr_on();  // Since interrupts are disabled when entering the trap, enable them again here.
                 c->proc = 0;
             }
         }   

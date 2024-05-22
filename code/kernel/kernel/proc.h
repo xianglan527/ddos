@@ -9,6 +9,14 @@ typedef struct context Context;
 struct context {
     uint64_t ra;
     uint64_t sp;
+    uint64_t a0;
+    uint64_t a1;
+    uint64_t a2;
+    uint64_t a3;
+    uint64_t a4;
+    uint64_t a5;
+    uint64_t a6;
+    uint64_t a7;
 
     // callee-saved
     uint64_t s0;
@@ -45,6 +53,6 @@ void yield(void);
 void sched(void);
 Proc *myproc(void);
 Cpu *mycpu(void);
-void task_create(void (*start_routin)(void));
+void task_create(void (*start_routin)(Proc));
 void proc_init(void);
 #endif

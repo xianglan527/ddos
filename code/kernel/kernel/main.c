@@ -37,7 +37,7 @@ void main(){
     plic_init();
     plic_init_hart();
     trap_init_hart();
-    intr_on();
+    // intr_on();
     proc_init();
     os_main();
     scheduler();

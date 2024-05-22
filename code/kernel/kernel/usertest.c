@@ -2,23 +2,26 @@
 #include "proc.h"
 #include "stdio.h"
 #include "usertest.h"
+#include "risv.h"
 #define DELAY 1000
 
-void user_task0(void) {
-    cprintf("Task 0: Created!\n");
+void user_task0(Proc p) {
+    cprintf("process name is :%s Created!\n", p.name);
     while (1) {
-        cprintf("Task 0: Running...\n");
+        int bool = intr_get();
+        cprintf("%s running \n", p.name);
         task_delay(DELAY);
-        yield();
+        // yield();
     }
 }
 
-void user_task1(void) {
-    cprintf("Task 1: Created!\n");
+void user_task1(Proc p) {
+    cprintf("process name is :%s Created!\n", p.name);
     while (1) {
-        cprintf("Task 1: Running...\n");
+        int bool = intr_get();
+        cprintf("%s running \n", p.name);
         task_delay(DELAY);
-        yield();
+        // yield();
     }
 }
 
