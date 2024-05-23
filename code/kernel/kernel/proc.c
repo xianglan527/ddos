@@ -1,16 +1,30 @@
 #include "proc.h"
-
 #include "assert.h"
 #include "config.h"
 #include "printf.h"
 #include "riscv.h"
+#include "string.h"
 
 Cpu cpus[NCPU];
 Proc proc[NPROC];
-uint8_t __attribute__((aligned(16))) task_stack[NPROC][STACK_SIZE];
+uint8_t __attribute__((aligned(16))) task_kernel_stack[NPROC][STACK_SIZE];
+uint8_t __attribute__((aligned(16))) task_usert_stack[NPROC][STACK_SIZE];
+Trapframe trapframes[NPROC];
+ulong next_pid = 1;
+Spinlock pid_lock;
 static int _top = 0;
 
 void swtch(struct context *, struct context *);
+
+ulong alloc_pid(){
+    ulong pid;
+    acquire(&pid_lock);
+    pid = next_pid;
+    next_pid++;
+    release(&pid_lock);
+    return pid;
+}
+
 void proc_init(void) {
     Proc *p;
     for (p = proc; p < &proc[NPROC]; p++) { 
@@ -19,22 +33,42 @@ void proc_init(void) {
     }
 }
 
+// void fork_ret(void){
+//     release(&myproc()->lock);
+//     // user_trap_ret();
+// }
 
-void task_create(void (*start_routin)(Proc *)) {
-    if (_top < NPROC - 1) {
-        proc[_top].state = RUNNABLE;
-        snprintf(proc[_top].name, sizeof(proc[_top].name), "process_%d", _top);
-        proc[_top].context.ra = (uint64_t)start_routin;
-        proc[_top].context.sp = (uint64_t)&task_stack[_top][STACK_SIZE];
-        proc[_top].context.a0 = (uint64_t)&proc[_top];
-        _top++;
-    } else
-        panic("Exceeded maximum number of processes");
+
+Proc *alloc_proc(void (*start_routin)(void)) {
+    Proc *p;
+    for(p = proc; p < &proc[NPROC]; p++){
+        acquire(&p->lock);
+        if(p->state == UNUSED)
+            goto found;
+        else{
+            release(&p->lock);
+        }
+    }
+    panic("Exceeded maximum number of processes");
+    return nullptr;
+
+found:
+    p->pid = alloc_pid();
+    p->state = RUNNABLE;
+    int index = p - proc;
+    p->trapframe = &trapframes[index];
+    memset(&p->context, 0, sizeof(p->context));
+    snprintf(p->name, sizeof(p->name), "process_%d", index);
+    p->context.ra = (uint64_t)start_routin;
+    p->context.sp = (uint64_t)&task_kernel_stack[index][STACK_SIZE];
+    release(&p->lock);
+    return p;
 }
-int fun527(int i){
-    int j = i;
-    return j;
-}
+
+// void user_init(void (*start_routin)(void)) {
+//     struct proc *p;
+//     // p = alloc_proc();
+// }
 
 int cpuid() {
     int id = r_tp();
@@ -84,12 +118,12 @@ void scheduler(void){
                 p->state = RUNNING;
                 c->proc = p;
                 swtch(&c->context, &p->context);
-                // intr_on();  // Since interrupts are disabled when entering the trap, enable them again here.
                 c->proc = 0;
             }
             release(&p->lock);
         }   
     } 
 }
+
 
 

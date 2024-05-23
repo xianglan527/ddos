@@ -5,7 +5,8 @@
 #include "stdio.h"
 #define DELAY 1000
 
-void user_task0(Proc *p) {
+void user_task0() {
+    Proc *p = myproc();
     release(&p->lock);
     cprintf("process name is :%s Created!\n", p->name);
     while (1) {
@@ -16,7 +17,8 @@ void user_task0(Proc *p) {
     }
 }
 
-void user_task1(Proc *p) {
+void user_task1() {
+    Proc *p = myproc();
     release(&p->lock);
     cprintf("process name is :%s Created!\n", p->name);
     while (1) {
@@ -27,7 +29,8 @@ void user_task1(Proc *p) {
     }
 }
 
-void user_task2(Proc *p) {
+void user_task2() {
+    Proc *p = myproc();
     release(&p->lock);
     cprintf("process name is :%s Created!\n", p->name);
     while (1) {
@@ -38,7 +41,8 @@ void user_task2(Proc *p) {
     }
 }
 
-void user_task3(Proc *p) {
+void user_task3() {
+    Proc *p = myproc();
     release(&p->lock);
     cprintf("process name is :%s Created!\n", p->name);
     while (1) {
@@ -51,8 +55,8 @@ void user_task3(Proc *p) {
 
 /* NOTICE: DON'T LOOP INFINITELY IN main() */
 void os_main(void) {
-    task_create(user_task0);
-    task_create(user_task1);
-    task_create(user_task2);
-    task_create(user_task3);
+    alloc_proc(user_task0);
+    alloc_proc(user_task1);
+    alloc_proc(user_task2);
+    alloc_proc(user_task3);
 }

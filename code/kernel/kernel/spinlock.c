@@ -45,7 +45,8 @@ void acquire(Spinlock *lk){
 }
 
 void release(struct spinlock *lk) {
-    if (!holding(lk)) panic("release");
+    if (!holding(lk)) 
+        panic("release");
     lk->cpu = 0;
     __sync_synchronize();
     __sync_lock_release(&lk->locked);
