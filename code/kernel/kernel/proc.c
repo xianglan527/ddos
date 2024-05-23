@@ -3,7 +3,7 @@
 #include "assert.h"
 #include "config.h"
 #include "printf.h"
-#include "risv.h"
+#include "riscv.h"
 
 Cpu cpus[NCPU];
 Proc proc[NPROC];
@@ -12,11 +12,15 @@ static int _top = 0;
 
 void swtch(struct context *, struct context *);
 void proc_init(void) {
-    for (int i = 0; i < NPROC; i++) { proc[i].state = UNUSED; }
+    Proc *p;
+    for (p = proc; p < &proc[NPROC]; p++) { 
+        p->state = UNUSED; 
+        initlock(&p->lock, "proc");
+    }
 }
 
 
-void task_create(void (*start_routin)(Proc)) {
+void task_create(void (*start_routin)(Proc *)) {
     if (_top < NPROC - 1) {
         proc[_top].state = RUNNABLE;
         snprintf(proc[_top].name, sizeof(proc[_top].name), "process_%d", _top);
@@ -56,8 +60,10 @@ void sched(void){
 
 void yield(void) {
     Proc *p = myproc();
+    acquire(&p->lock);
     p->state = RUNNABLE;
     sched();
+    release(&p->lock);
 }
 
 void task_delay(volatile int count) {
@@ -73,6 +79,7 @@ void scheduler(void){
     while(1){
         intr_on();
         for(p = proc; p < &proc[NPROC]; p++){
+            acquire(&p->lock);
             if(p->state == RUNNABLE){
                 p->state = RUNNING;
                 c->proc = p;
@@ -80,6 +87,7 @@ void scheduler(void){
                 // intr_on();  // Since interrupts are disabled when entering the trap, enable them again here.
                 c->proc = 0;
             }
+            release(&p->lock);
         }   
     } 
 }

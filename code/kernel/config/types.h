@@ -9,7 +9,7 @@
 #define nullptr ((void *)0)
 #endif
 
-typedef int bool;
+typedef unsigned int bool;
 
 typedef unsigned long ulong;
 typedef unsigned int uint;
@@ -29,5 +29,9 @@ typedef long long intptr_t;
 typedef uint64_t uintptr_t;
 
 typedef uintptr_t size_t;
+
+typedef struct {
+    volatile int value;
+} atomic_t;
 
 #endif /* __CONFIG_TYPES_H__*/

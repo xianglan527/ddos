@@ -1,10 +1,16 @@
 #include "panic.h"
+#include "spinlock.h"
 
-static bool is_panic = 0;
+bool is_panic = 0;
+extern struct {
+    Spinlock lock;
+    int locking;
+} pr;
 
 void __panic(const char *file, int line, const char *fmt, ...){
     if(is_panic)
         goto panic_dead;
+    pr.locking = 0;
     is_panic = 1;
     va_list ap;
     va_start(ap, fmt);

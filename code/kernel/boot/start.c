@@ -4,15 +4,15 @@
 #include "config.h"
 #include "stdio.h"
 #include "uart.h"
-#include "risv.h"
+#include "riscv.h"
 #include "memlayout.h"
 
 void main();
 void timerinit();
 
-__attribute__((aligned(16))) char stack0[4096 * MAXNUM_CPU];
+__attribute__((aligned(16))) char stack0[NCPU];
 
-uint64_t timer_scratch[MAXNUM_CPU][5];
+uint64_t timer_scratch[NCPU][5];
 
 extern void timervec();
 

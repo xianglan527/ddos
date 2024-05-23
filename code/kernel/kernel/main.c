@@ -6,9 +6,11 @@
 #include "assert.h"
 #include "plic.h"
 #include "trap.h"
-#include "risv.h"
+#include "riscv.h"
 #include "proc.h"
 #include "usertest.h"
+
+volatile static int started = 0;
 
 void test(void) {
     int version = 20240516;
@@ -34,13 +36,25 @@ void test(void) {
 }
 
 void main(){
-    plic_init();
-    plic_init_hart();
-    trap_init_hart();
-    // intr_on();
-    proc_init();
-    os_main();
+    if(cpuid() == 0){
+        cprintf("xv6 kernel is booting\n");
+        printf_init();
+        plic_init();
+        plic_init_hart();
+        trap_init_hart();
+        // intr_on();
+        proc_init();
+        os_main();
+        started = 1;
+        // test();
+        // while (1);
+        __sync_synchronize();
+    }else{
+        while (started == 0);
+        __sync_synchronize();
+        cprintf("hart %d starting\n", cpuid());
+        plic_init_hart();
+        trap_init_hart();
+    }
     scheduler();
-    test();
-    while(1);
 }

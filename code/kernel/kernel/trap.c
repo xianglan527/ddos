@@ -4,7 +4,7 @@
 #include "console.h"
 #include "memlayout.h"
 #include "plic.h"
-#include "risv.h"
+#include "riscv.h"
 #include "stdio.h"
 #include "uart.h"
 #include "config.h"

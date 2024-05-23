@@ -11,6 +11,10 @@
         "stdio.h": "c",
         "libc-header-start.h": "c",
         "assert.h": "c",
-        "config.h": "c"
+        "config.h": "c",
+        "riscv.h": "c",
+        "spinlock.h": "c",
+        "type_traits": "cpp",
+        "proc.h": "c"
     }
 }

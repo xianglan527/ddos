@@ -2,8 +2,10 @@
 #define __KERNEL_PROC_H__
 #include "stdarg.h"
 #include "types.h"
+#include "spinlock.h"
 typedef enum proc_state Proc_state;
 enum proc_state { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+
 
 typedef struct context Context;
 struct context {
@@ -36,14 +38,17 @@ struct context {
 typedef struct proc Proc;
 struct proc {
     char name[64];
+    struct spinlock lock;
     Proc_state state;
     Context context;
 };
 
 typedef struct cpu Cpu;
 struct cpu {
-    struct proc *proc;       // The process running on this cpu, or null.
-    struct context context;  // swtch() here to enter scheduler().
+    Proc *proc;       // The process running on this cpu, or null.
+    Context context;  // swtch() here to enter scheduler().
+    int noff;         // Depth of push_off() nesting.
+    int intena;       // Were interrupts enabled before push_off()?
 };
 
 int cpuid();
@@ -53,6 +58,6 @@ void yield(void);
 void sched(void);
 Proc *myproc(void);
 Cpu *mycpu(void);
-void task_create(void (*start_routin)(Proc));
+void task_create(void (*start_routin)(Proc *));
 void proc_init(void);
 #endif

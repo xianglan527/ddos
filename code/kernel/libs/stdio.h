@@ -8,4 +8,5 @@ int cprintf(const char *fmt, ...);
 void cputchar(int c);
 int cputs(const char *str);
 int getchar(void);
+void printf_init(void);
 #endif
