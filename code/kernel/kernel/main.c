@@ -39,6 +39,7 @@ void main(){
     if(cpuid() == 0){
         cprintf("xv6 kernel is booting\n");
         printf_init();
+        trap_tick_init();
         plic_init();
         plic_init_hart();
         trap_init_hart();

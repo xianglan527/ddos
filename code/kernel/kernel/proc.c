@@ -4,6 +4,7 @@
 #include "printf.h"
 #include "riscv.h"
 #include "string.h"
+#include "trap.h"
 
 Cpu cpus[NCPU];
 Proc proc[NPROC];
@@ -30,16 +31,19 @@ void proc_init(void) {
     for (p = proc; p < &proc[NPROC]; p++) { 
         p->state = UNUSED; 
         initlock(&p->lock, "proc");
+        p->kstack = (uint64_t)task_kernel_stack[p - proc];
     }
 }
 
-// void fork_ret(void){
-//     release(&myproc()->lock);
-//     // user_trap_ret();
-// }
 
 
-Proc *alloc_proc(void (*start_routin)(void)) {
+void fork_ret(void){
+    release(&myproc()->lock);
+    user_trap_ret();
+}
+
+
+Proc *alloc_proc() {
     Proc *p;
     for(p = proc; p < &proc[NPROC]; p++){
         acquire(&p->lock);
@@ -54,21 +58,23 @@ Proc *alloc_proc(void (*start_routin)(void)) {
 
 found:
     p->pid = alloc_pid();
-    p->state = RUNNABLE;
     int index = p - proc;
     p->trapframe = &trapframes[index];
     memset(&p->context, 0, sizeof(p->context));
-    snprintf(p->name, sizeof(p->name), "process_%d", index);
-    p->context.ra = (uint64_t)start_routin;
-    p->context.sp = (uint64_t)&task_kernel_stack[index][STACK_SIZE];
-    release(&p->lock);
+    p->context.ra = (uint64_t)fork_ret;
+    p->context.sp = (uint64_t)(p->kstack + STACK_SIZE);
     return p;
 }
 
-// void user_init(void (*start_routin)(void)) {
-//     struct proc *p;
-//     // p = alloc_proc();
-// }
+void user_init(void (*start_routin)(void)) {
+    struct proc *p;
+    p = alloc_proc();
+    snprintf(p->name, sizeof(p->name), "process_%d", p - proc);
+    p->state = RUNNABLE;
+    p->trapframe->epc = (uint64_t)start_routin;      // user program counter
+    p->trapframe->sp = (uint64_t)&task_usert_stack[p - proc][STACK_SIZE];
+    release(&p->lock);
+}
 
 int cpuid() {
     int id = r_tp();

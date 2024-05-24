@@ -15,6 +15,7 @@
         "riscv.h": "c",
         "spinlock.h": "c",
         "type_traits": "cpp",
-        "proc.h": "c"
+        "proc.h": "c",
+        "console.h": "c"
     }
 }

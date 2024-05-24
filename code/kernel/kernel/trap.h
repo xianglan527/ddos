@@ -14,4 +14,7 @@ enum trap_enum{
 
 void trap_init_hart(void);
 void kerneltrap();
+void user_trap_ret();
+void trap_tick_init(void);
+void usertrap(void);
 #endif

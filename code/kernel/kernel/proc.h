@@ -82,6 +82,7 @@ struct proc {
     Context context;
     Trapframe *trapframe;
     ulong pid;
+    uint64_t kstack;
 };
 
 typedef struct cpu Cpu;
@@ -99,6 +100,7 @@ void yield(void);
 void sched(void);
 Proc *myproc(void);
 Cpu *mycpu(void);
-Proc *alloc_proc(void (*start_routin)(void));
+Proc *alloc_proc(void);
 void proc_init(void);
+void user_init(void (*start_routin)(void));
 #endif
