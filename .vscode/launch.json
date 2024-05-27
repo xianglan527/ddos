@@ -5,7 +5,7 @@
       "name": "xv6debug",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/code/kernel/kernel_output/kernel.elf",
+      "program": "${workspaceFolder}/code/kernel/output/kernel.elf",
       "args": [],
       "stopAtEntry": true,
       "cwd": "${workspaceFolder}",

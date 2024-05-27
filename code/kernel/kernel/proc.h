@@ -103,4 +103,5 @@ Cpu *mycpu(void);
 Proc *alloc_proc(void);
 void proc_init(void);
 void user_init(void (*start_routin)(void));
+void user_lock_init(void);
 #endif

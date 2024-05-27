@@ -1,9 +1,5 @@
-#ifndef __KERNEL_SYSCALL_H__
-#define __KERNEL_SYSCALL_H__
-#include "stdarg.h"
-#include "types.h"
-
-// System call numbers
+#ifndef __TEST_SYSDEF_H__
+#define __TEST_SYSDEF_H__
 #define SYS_fork 1
 #define SYS_exit 2
 #define SYS_wait 3
@@ -27,7 +23,4 @@
 #define SYS_close 21
 #define SYS_sti 22
 #define SYS_cli 23
-int arg_int(int n, int *ip);
-int arg_addr(int n, uint64_t *ip);
-void syscall(void);
 #endif

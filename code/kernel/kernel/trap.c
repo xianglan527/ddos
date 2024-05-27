@@ -130,7 +130,7 @@ void kerneltrap() {
 }
 
 void usertrap(void) {
-    Trap_eum trap_enum;
+    Trap_eum trap_enum = TRAP_OTHER;
     if ((r_sstatus() & SSTATUS_SPP) != 0) panic("usertrap: not from user mode");
     w_stvec((uint64_t)kernelvec);
     Proc* p = myproc();
@@ -141,11 +141,13 @@ void usertrap(void) {
         intr_on();
         syscall();
     }
-    if ((trap_enum = trap_work()) == TRAP_OTHER) {
+    else if ((trap_enum = trap_work()) == TRAP_OTHER) {
         cprintf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
         cprintf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     }
-    if (trap_enum == TRAP_SOFT_INT && myproc() != 0 && myproc()->state == RUNNING) { yield(); }
+    else if (trap_enum == TRAP_SOFT_INT && myproc() != 0 && myproc()->state == RUNNING) { 
+        yield(); 
+    }
     user_trap_ret();
 }
 
@@ -158,12 +160,14 @@ void user_trap_ret() {
     p->trapframe->kernel_sp = p->kstack + STACK_SIZE;
     p->trapframe->kernel_trap = (uint64_t)usertrap;
     p->trapframe->kernel_hartid = r_tp();
+    p->trapframe->tp = r_tp();
 
     uint64_t x = r_sstatus();
     x &= ~SSTATUS_SPP;
     x |= SSTATUS_SPIE;
+    if(r_scause() == 8 && p->trapframe->a7 == SYS_cli)
+        x &= ~SSTATUS_SPIE;
     w_sstatus(x);
-
     w_sepc(p->trapframe->epc);
 
     uint64_t fn = (uint64_t)userret;

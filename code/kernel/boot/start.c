@@ -26,9 +26,9 @@ void start_kernel(void) {
 
     w_satp(0);
 
-    uart_init();
+    // uart_init();
     // uart_puts("Hello, DDOS!\n");
-    cputs("Hello, DDOS!");
+    // cputs("Hello, DDOS!");
 
     w_medeleg(0xffff);
     w_mideleg(0xffff);

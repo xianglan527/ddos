@@ -4,11 +4,13 @@
 #include "stdio.h"
 #include "string.h"
 #include "assert.h"
+#include "spinlock.h"
 
 #define BACKSPACE 0x100
 #define C(x) ((x) - '@')  // Control-x
 
 static struct {
+    Spinlock lock;
     uint8_t buf[CONSOLE_BUF_SIZE];
     size_t rpos;
     size_t wpos;
@@ -96,4 +98,21 @@ char *readline(const char *prompt){
              return nullptr;
         }
     }
+}
+
+int console_write(bool user_src, intptr_t src, int n){
+    acquire(&cons.lock);
+    int i;
+    intptr_t *sr = (intptr_t *)src;
+    for(i = 0; i < n; i++){
+        char c = *(sr + i);
+        uart_putc(c);
+    }
+    release(&cons.lock);
+    return i;
+}
+
+void console_init(void){
+    initlock(&cons.lock, "cons");
+    uart_init();
 }

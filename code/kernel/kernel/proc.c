@@ -5,6 +5,7 @@
 #include "riscv.h"
 #include "string.h"
 #include "trap.h"
+#include "spinlock.h"
 
 Cpu cpus[NCPU];
 Proc proc[NPROC];
@@ -14,6 +15,7 @@ Trapframe trapframes[NPROC];
 ulong next_pid = 1;
 Spinlock pid_lock;
 static int _top = 0;
+Spinlock user_lock;
 
 void swtch(struct context *, struct context *);
 
@@ -131,5 +133,8 @@ void scheduler(void){
     } 
 }
 
+void user_lock_init(void){
+    initlock(&user_lock, "user_lock");
+}
 
 

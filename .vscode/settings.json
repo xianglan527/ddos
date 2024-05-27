@@ -16,6 +16,8 @@
         "spinlock.h": "c",
         "type_traits": "cpp",
         "proc.h": "c",
-        "console.h": "c"
+        "console.h": "c",
+        "uprintf.h": "c",
+        "memory": "c"
     }
 }

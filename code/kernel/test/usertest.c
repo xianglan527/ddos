@@ -1,57 +1,57 @@
 #include "usertest.h"
-#include "spinlock.h"
 #include "proc.h"
+#include "uprintf.h"
 #include "riscv.h"
-#include "stdio.h"
-#include "config.h"
+
+#define DELAY 1000
 
 void user_task0() {
-    // Proc *p = myproc();
+    Proc *p = myproc();
     // release(&p->lock);
     // cprintf("process name is :%s Created!\n", p->name);
     while (1) {
-        // cprintf("%s running \n", p->name);
-        // task_delay(DELAY);
-        asm volatile("ecall");
+        printf("%s running 0\n", p->name);
+        task_delay(DELAY);
+        // asm volatile("ecall");
         // bool intr = intr_get();
         // yield();
     }
 }
 
 void user_task1() {
-    // Proc *p = myproc();
+    Proc *p = myproc();
     // release(&p->lock);
     // cprintf("process name is :%s Created!\n", p->name);
     while (1) {
-        // cprintf("%s running \n", p->name);
-        // task_delay(DELAY);
-        asm volatile("ecall");
+        printf("%s running 1\n", p->name);
+        task_delay(DELAY);
+        // asm volatile("ecall");
         // bool intr = intr_get();
         // yield();
     }
 }
 
 void user_task2() {
-    // Proc *p = myproc();
+    Proc *p = myproc();
     // release(&p->lock);
     // cprintf("process name is :%s Created!\n", p->name);
     while (1) {
-        // cprintf("%s running \n", p->name);
-        // task_delay(DELAY);
-        asm volatile("ecall");
+        printf("%s running 2\n", p->name);
+        task_delay(DELAY);
+        // asm volatile("ecall");
         // bool intr = intr_get();
         // yield();
     }
 }
 
 void user_task3() {
-    // Proc *p = myproc();
+    Proc *p = myproc();
     // release(&p->lock);
     // cprintf("process name is :%s Created!\n", p->name);
     while (1) {
-        // cprintf("%s running \n", p->name);
-        // task_delay(DELAY);
-        asm volatile("ecall");
+        printf("%s running 3\n", p->name);
+        task_delay(DELAY);
+        // asm volatile("ecall");
         // bool intr = intr_get();
         // yield();
     }

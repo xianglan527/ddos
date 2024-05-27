@@ -1,10 +1,57 @@
 #include "syscall.h"
-#include "stdio.h"
-#include "proc.h"
+#include "assert.h"
 #include "config.h"
+#include "proc.h"
+#include "stdio.h"
 
-void syscall(void){
+// void syscall(void) {
+//     Proc *p = myproc();
+//     cprintf("%s running \n", p->name);
+//     task_delay(DELAY);
+// }
+#define NELEM(x) (sizeof(x) / sizeof((x)[0]))
+
+extern uint64_t sys_write(void);
+extern uint64_t sys_sti(void);
+extern uint64_t sys_cli(void);
+
+static uint64_t arg_raw(int n) {
     Proc *p = myproc();
-    cprintf("%s running \n", p->name);
-    task_delay(DELAY);
+    switch (n) {
+        case 0: return p->trapframe->a0;
+        case 1: return p->trapframe->a1;
+        case 2: return p->trapframe->a2;
+        case 3: return p->trapframe->a3;
+        case 4: return p->trapframe->a4;
+        case 5: return p->trapframe->a5;
+    }
+    panic("arg_raw");
+    return -1;
+}
+
+int arg_int(int n, int *ip){
+    *ip = arg_raw(n);
+    return 0;
+}
+
+int arg_addr(int n, uint64_t *ip){
+    *ip = arg_raw(n);
+    return 0;
+}
+
+static uint64_t (*syscalls[])(void) = {
+    [SYS_write] = sys_write,
+    [SYS_sti] = sys_sti,
+    [SYS_cli] = sys_cli,
+};
+
+void syscall(void) {
+    Proc *p = myproc();
+    int num = p->trapframe->a7;
+    if (num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+        p->trapframe->a0 = syscalls[num]();
+    } else {
+        cprintf("%d %s: unknown sys call %d\n", p->pid, p->name, num);
+        p->trapframe->a0 = -1;
+    }
 }

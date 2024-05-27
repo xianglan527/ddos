@@ -1,5 +1,5 @@
-#ifndef __UTIL_STDIO_H__
-#define __UTIL_STDIO_H__
+#ifndef __UTIL_PRINTF_H__
+#define __UTIL_PRINTF_H__
 
 #include "stdarg.h"
 #include "types.h"

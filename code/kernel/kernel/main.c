@@ -23,32 +23,33 @@ void test(void) {
     cprintf("  error is %e\n", E_UNSPECIFIED);
     cprintf("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
 
-   
-
-    assert(1 == 1);
-    warn("warning...");
-    // int i = 1 / 0;
-    *(char *)0 = 4;
-    int i = *(char *)0;
     char *buf = readline("------>>");
     cprintf("------<<%s\n", buf);
-    assert(1 != 1);
+
+    // assert(1 == 1);
+    // warn("warning...");
+    // // int i = 1 / 0;
+    // *(char *)0 = 4;
+    // int i = *(char *)0;
+
+    // assert(1 != 1);
 }
 
 void main(){
     if(cpuid() == 0){
+        console_init();
         cprintf("xv6 kernel is booting\n");
         printf_init();
         trap_tick_init();
         plic_init();
         plic_init_hart();
         trap_init_hart();
-        // intr_on();
+        intr_on();
         proc_init();
+        // test();
         os_main();
         started = 1;
-        // test();
-        // while (1);
+        user_lock_init();
         __sync_synchronize();
     }else{
         while (started == 0);
@@ -58,4 +59,5 @@ void main(){
         trap_init_hart();
     }
     scheduler();
+    // while(1);
 }
