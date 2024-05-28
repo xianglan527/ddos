@@ -92,9 +92,10 @@ Trap_eum trap_work() {
     } else if ((scause & 0x8000000000000000L) == 0) {
         int excep_code = scause & 0xff;
 #ifdef PRINT_KERNEL_INFO
+        cprintf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
         cprintf("excpetion : %s\n", exception_msg[excep_code]);
         cprintf("trap_work: unexpected scause %p pid=%d\n", r_scause(), myproc()->pid);
-        cprintf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+
 #endif
         uint64_t epc = r_sepc();
         epc += 4;

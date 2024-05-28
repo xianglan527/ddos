@@ -18,6 +18,11 @@
         "proc.h": "c",
         "console.h": "c",
         "uprintf.h": "c",
-        "memory": "c"
+        "memory": "c",
+        "atomic.h": "c",
+        "*.tcc": "cpp",
+        "fstream": "cpp",
+        "istream": "cpp",
+        "ostream": "cpp"
     }
 }
