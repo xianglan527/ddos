@@ -60,7 +60,7 @@ static inline void list_del_init(List_entry *listelem){
 }
 
 static inline bool list_empty(List_entry *list){
-    return list->next = list;
+    return list->next == list;
 }
 
 static inline List_entry *list_next(List_entry *listelem){

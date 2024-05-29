@@ -39,17 +39,17 @@ typedef size_t ppn_t;
 #define ROUNDDOWN(a, n)                \
     ({                                 \
         size_t __a = (size_t)(a);      \
-        (typedef(a))(__a - __a % (n)); \
+        (typeof(a))(__a - __a % (n)); \
     })
 
 #define ROUNDUP(a, n)                                        \
     ({                                                       \
         size_t __n = (size_t)(n);                            \
-        (typedef(a))(ROUNDDOWN((size_t)(a) + __n - 1, __n)); \
+        (typeof(a))(ROUNDDOWN((size_t)(a) + __n - 1, __n)); \
     })
 
 #define offsetof(type, member) \
-        ((size_t)(&(type *)0)->member))
+        ((size_t)(&((type *)0)->member))
 
 #define to_struct(ptr, type, member) ((type *)((char *)(ptr) - offsetof(type, member)))
 

@@ -1,5 +1,5 @@
 #include "trap.h"
-#include "syscall.h"
+
 #include "assert.h"
 #include "config.h"
 #include "console.h"
@@ -8,6 +8,7 @@
 #include "proc.h"
 #include "riscv.h"
 #include "stdio.h"
+#include "syscall.h"
 #include "uart.h"
 
 // 0: Instruction address misaligned
@@ -71,10 +72,10 @@ Trap_eum trap_work() {
         int irq = plic_claim();
 
         if (irq == UART0_IRQ) {
-#ifdef PRINT_KERNEL_INFO
-            // char c;
-            // c = uart_getc();
-            // cprintf(" \n serial num is:%03x : serial char is %c\n", c, c);
+#ifdef PRINT_UART_CHAR
+            char c;
+            c = uart_getc();
+            cprintf(" \n serial num is:%03x : serial char is %c\n", c, c);
 #endif
             uart_intr();
         } else if (irq) {
@@ -83,19 +84,20 @@ Trap_eum trap_work() {
         if (irq) plic_complete(irq);
         return TRAP_INT;
     } else if (scause == 0x8000000000000001L) {
-        if (cpuid() == 0) clockintr();
-#ifdef PRINT_KERNEL_INFO
-// print_ticks();
+        if (cpuid() == 0) {
+            clockintr();
+#ifdef PRINT_TRICKS
+            print_ticks();
 #endif
+        }
         w_sip(r_sip() & ~2);
         return TRAP_SOFT_INT;
     } else if ((scause & 0x8000000000000000L) == 0) {
         int excep_code = scause & 0xff;
-#ifdef PRINT_KERNEL_INFO
+#ifdef PRINT_TRAP_EXCEPTION
         cprintf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
         cprintf("excpetion : %s\n", exception_msg[excep_code]);
         cprintf("trap_work: unexpected scause %p pid=%d\n", r_scause(), myproc()->pid);
-
 #endif
         uint64_t epc = r_sepc();
         epc += 4;
@@ -137,17 +139,15 @@ void usertrap(void) {
     Proc* p = myproc();
     p->trapframe->epc = r_sepc();
     if (intr_get() != 0) panic("usertrap: interrupts enabled");
-    if(r_scause() == 8){
+    if (r_scause() == 8) {
         p->trapframe->epc += 4;
         intr_on();
         syscall();
-    }
-    else if ((trap_enum = trap_work()) == TRAP_OTHER) {
+    } else if ((trap_enum = trap_work()) == TRAP_OTHER) {
         cprintf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
         cprintf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    }
-    else if (trap_enum == TRAP_SOFT_INT && myproc() != 0 && myproc()->state == RUNNING) { 
-        yield(); 
+    } else if (trap_enum == TRAP_SOFT_INT && myproc() != 0 && myproc()->state == RUNNING) {
+        yield();
     }
     user_trap_ret();
 }
@@ -166,8 +166,7 @@ void user_trap_ret() {
     uint64_t x = r_sstatus();
     x &= ~SSTATUS_SPP;
     x |= SSTATUS_SPIE;
-    if(r_scause() == 8 && p->trapframe->a7 == SYS_cli)
-        x &= ~SSTATUS_SPIE;
+    if (r_scause() == 8 && p->trapframe->a7 == SYS_cli) x &= ~SSTATUS_SPIE;
     w_sstatus(x);
     w_sepc(p->trapframe->epc);
 

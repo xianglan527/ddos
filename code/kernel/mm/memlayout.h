@@ -1,7 +1,8 @@
-#ifndef __KERNEL_MEMLAYOUT_H__
-#define __KERNEL_MEMLAYOUT_H__
+#ifndef __MM_MEMLAYOUT_H__
+#define __MM_MEMLAYOUT_H__
 #include "stdarg.h"
 #include "types.h"
+#include "riscv.h"
 
 // Physical memory layout
 
@@ -50,7 +51,8 @@
 // for use by the kernel and user pages
 // from physical address 0x80000000 to PHYSTOP.
 #define KERNBASE 0x80000000L
-#define PHYSTOP (KERNBASE + 128 * 1024 * 1024)
+#define PHYMEMSIZE (128 * 1024 * 1024)
+#define PHYSTOP (KERNBASE + PHYMEMSIZE)
 
 // map the trampoline page to the highest address,
 // in both user and kernel space.

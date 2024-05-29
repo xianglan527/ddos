@@ -9,6 +9,7 @@
 #include "riscv.h"
 #include "proc.h"
 #include "usertest.h"
+#include "pmm.h"
 
 volatile static int started = 0;
 
@@ -39,6 +40,7 @@ void main(){
     if(cpuid() == 0){
         console_init();
         cprintf("xv6 kernel is booting\n");
+        pmm_init();
         printf_init();
         trap_tick_init();
         plic_init();

@@ -7,6 +7,7 @@ K_SRCS_PATH += \
 		code/kernel/util \
 		code/kernel/kernel \
 		code/kernel/test \
+		code/kernel/mm \
 
 
 CFLAGS += \
@@ -17,3 +18,4 @@ CFLAGS += \
 		-I./code/kernel/util \
 		-I./code/kernel/kernel \
 		-I./code/kernel/test \
+		-I./code/kernel/mm \

@@ -210,4 +210,9 @@ static inline void sfence_vma() {
     asm volatile("sfence.vma zero, zero");
 }
 
+#define PGSIZE 4096
+#define PGSHIFT 12
+
+#define MAXVA (1L << (9 + 9 + 12 - 1))
+
 #endif

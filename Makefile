@@ -18,8 +18,8 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
-XCFLAGS =
-DEFS +=
+XCFLAGS = 
+DEFS += -DPRINT_KERNEL_INFO
 
 CFLAGS += -Wall -O0 -Werror -fno-omit-frame-pointer -ggdb
 CFLAGS += -Wno-unused-function -Wno-unused-variable 
@@ -101,7 +101,7 @@ K_compile_c: $(K_SRCS_C)
 K_compile_S: $(K_SRCS_ASM)
 	$(foreach src, $(K_SRCS_ASM), $(call K_compile_asm_file, $(src));)
 
-	# 生成所有C文件的目标文件
+# 生成所有C文件的目标文件
 U_compile_c: $(K_SRCS_C)
 	$(foreach src, $(K_SRCS_C), $(call K_compile_c_file, $(src));)
 

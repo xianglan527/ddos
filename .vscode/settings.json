@@ -23,6 +23,14 @@
         "*.tcc": "cpp",
         "fstream": "cpp",
         "istream": "cpp",
-        "ostream": "cpp"
+        "ostream": "cpp",
+        "pmm.h": "c",
+        "array": "c",
+        "compare": "c",
+        "functional": "c",
+        "ranges": "c",
+        "tuple": "c",
+        "utility": "c",
+        "defaultpmm.h": "c"
     }
 }
