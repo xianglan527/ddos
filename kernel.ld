@@ -19,5 +19,5 @@ SECTIONS
     .bss : {
         *(.bss)
     }
-    PROVIDE(end = .);
+    PROVIDE(kernel_end = .);
 }

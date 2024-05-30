@@ -210,9 +210,25 @@ static inline void sfence_vma() {
     asm volatile("sfence.vma zero, zero");
 }
 
+static inline void sfence_vma_addr(void *addr) { asm volatile("sfence.vma %0" ::"r"(addr) : "memory"); }
+
 #define PGSIZE 4096
 #define PGSHIFT 12
 
-#define MAXVA (1L << (9 + 9 + 12 - 1))
+// #define PGROUNDUP(sz) (((sz) + PGSIZE - 1) & ~(PGSIZE - 1))
+// #define PGROUNDDOWN(a) (((a)) & ~(PGSIZE - 1))
+
+#define PGROUNDDOWN(a)                    \
+    ({                                    \
+        size_t __a = (size_t)(a);         \
+        (typeof(a))(__a & ~(PGSIZE - 1)); \
+    })
+
+#define PGROUNDUP(a)                                     \
+    ({                                                   \
+        size_t __a = (size_t)(a);                        \
+        (typeof(a))((__a + PGSIZE - 1) & ~(PGSIZE - 1)); \
+    })
+
 
 #endif
