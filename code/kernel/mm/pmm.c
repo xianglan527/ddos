@@ -3,14 +3,35 @@
 #include "defaultPmm.h"
 #include "string.h"
 #include "error.h"
+#include "config.h"
 
 const Pmm_manager *pmm_manager;
+
+extern char kernel_etext[];
 
 Page *pages;
 
 size_t npage = 0;
 
 pagetable_t *kernel_pagetable;
+
+static void vmprint_helper(pagetable_t *pagetable, int level) {
+    if (level > 3) return;
+    for (int i = 0; i < 512; i++) {
+        pte_t pte = pagetable[i];
+        if (pte & PTE_V) {
+            int64_t child = PTE2PA(pte);
+            for (int j = 0; j < level; j++) cprintf(" ..");
+            cprintf("%d: pte %p pa %p\n", i, pte, child);
+            vmprint_helper((pagetable_t *)child, level + 1);
+        }
+    }
+}
+void vmprint(pagetable_t *pagetable) {
+    cprintf("page table %p\n", pagetable);
+    vmprint_helper(pagetable, 1);
+    return;
+}
 
 static void init_pmm_manager(void){
     pmm_manager = &default_pmm_manager;
@@ -65,8 +86,6 @@ pte_t *get_pte(pagetable_t *pagetable, uint64_t va, int alloc){
             int i= 0;
         }
     }
-    int qq = PX(0, va);
-    pte_t *pte_pp = &pagetable[PX(0, va)];
     return &pagetable[PX(0, va)];
 }
 
@@ -124,7 +143,7 @@ void free_pagetable(pagetable_t *pagetable, int level){
         pte_t pte = pagetable[i];
         if(pte & PTE_V){
             uint64_t child = PTE2PA(pte);
-            free_pagetable((pagetable_t *)child, level++);
+            free_pagetable((pagetable_t *)child, level+1);
         }
     }
     FreePage(pa2page((uintptr_t)pagetable));
@@ -177,11 +196,77 @@ pagetable_t *alloc_pagetable(){
     return pagetable;
 }
 
+static void mappages(pagetable_t *pagetable, uint64_t va, uint64_t size, uint64_t pa, int perm){
+    uint64_t a, last;
+    pte_t *pte;
+
+    a = PGROUNDDOWN(va);
+    last = PGROUNDDOWN(va + size - 1);
+    while(1){
+        pte = get_pte(pagetable, a, 1);
+        assert(pte != nullptr);
+        assert((*pte & PTE_V) == 0);
+        *pte = PA2PTE(pa) | perm | PTE_V;
+        if(a == last) return;
+        a += PGSIZE;
+        pa += PGSIZE;
+    }
+}
+
+void kvmmap(uint64_t va, uint64_t pa, uint64_t sz, int perm){
+    mappages(kernel_pagetable, va, sz, pa, perm);
+}
+
+static void check_kernel_pagetable(void){
+    int nkpage = PHYMEMSIZE / PGSIZE;
+    uintptr_t start = KERNBASE;
+    pte_t *ptep;
+    for(; start < PHYSTOP; start += PGSIZE){
+        ptep = get_pte(kernel_pagetable, start, 0);
+        assert(PTE2PA(*ptep) == start);
+    }
+    
+    Page *p;
+    p = AllocPage();
+    uintptr_t pp = page2pa(p);
+    assert(page_insert(kernel_pagetable, p, 0x100, PTE_R | PTE_W) == 0);
+    assert(page_ref(p) == 1);
+    assert(page_insert(kernel_pagetable, p, 0x100 + PGSIZE, PTE_R | PTE_W) == 0);
+    assert(page_ref(p) == 2);
+
+    // vmprint(kernel_pagetable);
+
+    const char *str = "ddos: hello world!";
+    strcpy((void *)0x100, str);
+    assert(strcmp((void *)0x100, (void *)(0x100 + PGSIZE)) == 0);
+
+    *(char *)(page2pa(p) + 0x100) = '\0';
+    assert(strlen((const char *)0x100) == 0);
+    FreePagetable(kernel_pagetable);
+    cprintf("check_kernel_pagetable() succeeded!\n");
+}
 
 void pmm_init(void){
     init_pmm_manager();
     page_init();
+#if KERNEL_TEST
     check_alloc_page();
     kernel_pagetable = alloc_pagetable();
     check_pagetable();
+
+    kernel_pagetable = alloc_pagetable();
+    kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
+    kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+    kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+    kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
+    // kvmmap(KERNBASE, KERNBASE, PHYMEMSIZE, PTE_R | PTE_W);
+    kvmmap(KERNBASE, KERNBASE, (uint64_t)kernel_etext - KERNBASE, PTE_R | PTE_X);
+
+    kvmmap((uint64_t)kernel_etext, (uint64_t)kernel_etext, PHYSTOP - (uint64_t)kernel_etext, PTE_R | PTE_W);
+
+    w_satp(MAKE_SATP(kernel_pagetable));
+    sfence_vma();
+    check_kernel_pagetable();
+#endif
+    while(1);
 }

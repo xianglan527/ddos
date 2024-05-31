@@ -93,7 +93,6 @@ static void basic_check(void){
     FreePage(p1);
     FreePage(p2);
 
-    uint64_t pp = nr_free;
 }
 
 static void default_check(void){

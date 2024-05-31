@@ -69,7 +69,7 @@ static inline int page_ref_dec(Page *page){
 extern Page *pages;
 extern size_t npage;
 
-#define MAXVA (1L << (9 + 9 + 12 - 1))
+#define MAXVA (1L << (9 + 9 + 9 + 12 - 1))
 
 #define PTE_V (1L << 0)
 #define PTE_R (1L << 1)
@@ -108,7 +108,6 @@ static inline ppn_t page2ppn(Page *page){
 static inline uintptr_t page2pa(Page *page) { return (page2ppn(page) << PGSHIFT) + PAGE_START; }
 
 static inline Page *pa2page(uintptr_t pa){
-    ulong pp = PPN(pa);
     if(PPN(pa) >= npage)
         panic("pa2page called with invalid pa");
     return &pages[PPN(pa)];

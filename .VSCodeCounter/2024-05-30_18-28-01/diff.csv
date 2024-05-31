@@ -1,0 +1,11 @@
+"filename", "language", "C", "Assembler file", "comment", "blank", "total"
+"c:\Users\45228\Desktop\share\ddos\code\kernel\config\config.h", "C", 1, 0, 0, 0, 1
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\main.c", "C", 5, 0, -5, 0, 0
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\riscv.h", "C", -1, 0, 0, -2, -3
+"c:\Users\45228\Desktop\share\ddos\code\kernel\mm\defaultPmm.c", "C", 0, 0, 0, 1, 1
+"c:\Users\45228\Desktop\share\ddos\code\kernel\mm\pmm.c", "C", 166, 0, -1, 26, 191
+"c:\Users\45228\Desktop\share\ddos\code\kernel\mm\pmm.h", "C", 27, 0, -1, 10, 36
+"c:\Users\45228\Desktop\share\ddos\code\kernel\output\kernel.asm", "Assembler file", 0, -8351, 0, -435, -8786
+"c:\Users\45228\Desktop\share\ddos\code\kernel\util\string.c", "C", 5, 0, 0, 1, 6
+"c:\Users\45228\Desktop\share\ddos\code\kernel\util\string.h", "C", 1, 0, 0, 0, 1
+"Total", "-", 204, -8351, -7, -399, -8553

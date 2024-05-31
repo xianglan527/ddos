@@ -5,6 +5,7 @@
 #define __PRINT_TRICKS 0
 #define __PRINT_UART_CHAR 0
 #define __PRINT_TRAP_EXCEPTION 1
+#define KERNEL_TEST 1
 
 #if defined(PRINT_KERNEL_INFO) && (__PRINT_TRICKS)
 #define PRINT_TRICKS

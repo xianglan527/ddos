@@ -53,6 +53,12 @@ int strncmp(const char *p, const char *q, size_t n) {
     return (uchar)*p - (uchar)*q;
 }
 
+char *strcpy(char *dst, const char *src){
+    char *p = dst;
+    while((*p++ = *src++) != '\0');
+    return dst;
+}
+
 char *strncpy(char *s, const char *t, size_t n) {
     char *os;
     os = s;

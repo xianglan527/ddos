@@ -13,7 +13,7 @@
 
 volatile static int started = 0;
 
-void test(void) {
+void basic_test(void) {
     int version = 20240516;
     char *hello = "Hello, qemu and risc-v!";
     cprintf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
@@ -27,13 +27,13 @@ void test(void) {
     char *buf = readline("------>>");
     cprintf("------<<%s\n", buf);
 
-    // assert(1 == 1);
-    // warn("warning...");
-    // // int i = 1 / 0;
-    // *(char *)0 = 4;
-    // int i = *(char *)0;
+    assert(1 == 1);
+    warn("warning...");
+    // int i = 1 / 0;
+    *(char *)0 = 4;
+    int i = *(char *)0;
 
-    // assert(1 != 1);
+    assert(1 != 1);
 }
 
 void main(){
@@ -48,7 +48,8 @@ void main(){
         trap_init_hart();
         intr_on();
         proc_init();
-        // test();
+        // pmm_init();
+        // basic_test();
         os_main();
         started = 1;
         user_lock_init();

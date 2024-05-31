@@ -61,7 +61,7 @@ KERNEL_ELF = ${KERNEL_PATH}/kernel.elf
 KERNEL_BIN = ${KERNEL_PATH}/kernel.bin
 
 ifndef CPUS
-CPUS := 4
+CPUS := 1
 endif
 
 QEMUOPTS = -machine virt -bios none -kernel ${KERNEL_ELF} -m 128M -smp $(CPUS) -nographic
