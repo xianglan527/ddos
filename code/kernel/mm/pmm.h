@@ -64,7 +64,7 @@ static inline int page_ref_dec(Page *page){
 
 #define AllocPage() alloc_pages(1)
 #define FreePage(page) free_pages(page, 1)
-#define FreePagetable(pagetable) free_pagetable(pagetable, 0);
+#define FreePagetable(pagetable) free_pagetable(pagetable, 1);
 
 extern Page *pages;
 extern size_t npage;
@@ -79,6 +79,7 @@ extern size_t npage;
 #define PTE_G (1L << 5)
 #define PTE_A (1L << 6)
 #define PTE_D (1L << 7)
+#define PTE_MASK ((1L << 6) - 1)
 
 #define PA2PTE(pa) ((((uint64_t)(pa)) >> 12) << 10)
 
@@ -91,6 +92,11 @@ extern size_t npage;
 #define PXMASK 0x1FF
 #define PXSHIFT(level) (PGSHIFT + (9 * (level)))
 #define PX(level, va) ((((uint64_t)(va)) >> PXSHIFT(level)) & PXMASK)
+
+#define PTNUM   512UL
+#define PT1PGSIZE (PTNUM *PTNUM * PGSIZE)
+#define PT2PGSIZE (PTNUM * PGSIZE)
+#define PT3PGSIZE PGSIZE
 
 typedef uint64_t pte_t;
 typedef uint64_t pde_t;
@@ -122,7 +128,24 @@ static inline void tlb_invalidate(pagetable_t *pagetable, uintptr_t va) {
     if (r_satp() == (uint64_t)pagetable) sfence_vma_addr((void *)va);
 }
 
+typedef enum vm_print_enum Vm_print_enum;
+enum vm_print_enum {
+    VM_PRINT_OUT,
+    VM_PRINT_START,
+    VM_PRINT_IN,
+};
+
 void pmm_init(void);
 Page *alloc_pages(size_t n);
 void free_pages(Page *base, size_t n);
+void kvmmap(uint64_t va, uint64_t pa, uint64_t sz, int perm);
+void kvm_init_hart();
+pagetable_t *alloc_pagetable();
+void uvm_unmap(pagetable_t *pagetable, uint64_t va, uint64_t npages, int free_page);
+void uvm_free(pagetable_t *pagetable, uint64_t sz);
+void print_va2pa(pagetable_t *pagetable, uint64_t va);
+void vm_map_print(pagetable_t *pagetable);
+void vm_pte_print(pagetable_t *pagetable);
+void vm_print(pagetable_t *pagetable);
+void copy_from_user2kernel(pagetable_t *pagetable, char *dst, uint64_t srcva, uint64_t len);
 #endif

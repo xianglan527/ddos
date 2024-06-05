@@ -20,7 +20,8 @@ static void printnum(void (*putch)(int, void *), void *putdat, uint64_t num, uns
     if (num >= base)
         printnum(putch, putdat, result, base, width - 1, padc);
     else {
-        while (--width > 0) putch(padc, putdat);
+        while (--width > 0) 
+            putch(padc, putdat);
     }
     putch("0123456789abcdef"[mod], putdat);
 }

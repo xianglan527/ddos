@@ -3,7 +3,6 @@
 #include "stdarg.h"
 #include "types.h"
 typedef struct cpu Cpu;
-
 typedef struct spinlock Spinlock;
 struct spinlock{
     bool locked;

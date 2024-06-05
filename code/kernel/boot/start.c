@@ -10,7 +10,7 @@
 void main();
 void timerinit();
 
-__attribute__((aligned(16))) char stack0[NCPU];
+__attribute__((aligned(16))) char stack0[STACK_SIZE * NCPU];
 
 uint64_t timer_scratch[NCPU][5];
 

@@ -31,7 +31,6 @@ void basic_test(void) {
     warn("warning...");
     // int i = 1 / 0;
     *(char *)0 = 4;
-    int i = *(char *)0;
 
     assert(1 != 1);
 }
@@ -41,6 +40,7 @@ void main(){
         console_init();
         cprintf("xv6 kernel is booting\n");
         pmm_init();
+        kvm_init_hart();
         printf_init();
         trap_tick_init();
         plic_init();
@@ -48,7 +48,6 @@ void main(){
         trap_init_hart();
         intr_on();
         proc_init();
-        // pmm_init();
         // basic_test();
         os_main();
         started = 1;
@@ -58,6 +57,7 @@ void main(){
         while (started == 0);
         __sync_synchronize();
         cprintf("hart %d starting\n", cpuid());
+        kvm_init_hart();
         plic_init_hart();
         trap_init_hart();
     }

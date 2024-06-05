@@ -6,7 +6,6 @@
 extern Spinlock user_lock;
 
 uint64_t sys_write(void) {
-    int fd;
     int n;
     uint64_t p;
     if (arg_int(2, &n) < 0 || arg_addr(1, &p) < 0) return -1;

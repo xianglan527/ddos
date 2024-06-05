@@ -4,6 +4,7 @@
 #include "printf.h"
 #include "spinlock.h"
 #include "uart.h"
+#include "proc.h"
 struct {
     Spinlock lock;
     int locking;

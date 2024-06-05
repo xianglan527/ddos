@@ -1,5 +1,5 @@
 #include "trap.h"
-
+#include "stdio.h"
 #include "assert.h"
 #include "config.h"
 #include "console.h"
@@ -31,6 +31,7 @@
 Spinlock tickslock;
 uint64_t ticks;
 extern char trampoline[], uservec[], userret[];
+extern pagetable_t* kernel_pagetable;
 
 void kernelvec();
 
@@ -155,9 +156,9 @@ void usertrap(void) {
 void user_trap_ret() {
     Proc* p = myproc();
     intr_off();
-    w_stvec((uint64_t)uservec);
+    w_stvec(TRAMPOLINE + (uservec - trampoline));
 
-    p->trapframe->kernel_satp = 0;  // not used now
+    p->trapframe->kernel_satp = r_satp();
     p->trapframe->kernel_sp = p->kstack + STACK_SIZE;
     p->trapframe->kernel_trap = (uint64_t)usertrap;
     p->trapframe->kernel_hartid = r_tp();
@@ -166,10 +167,23 @@ void user_trap_ret() {
     uint64_t x = r_sstatus();
     x &= ~SSTATUS_SPP;
     x |= SSTATUS_SPIE;
-    if (r_scause() == 8 && p->trapframe->a7 == SYS_cli) x &= ~SSTATUS_SPIE;
+    if (r_scause() == 8 && p->trapframe->a7 == SYS_cli) 
+        x &= ~SSTATUS_SPIE;
     w_sstatus(x);
     w_sepc(p->trapframe->epc);
 
-    uint64_t fn = (uint64_t)userret;
-    ((void (*)(uint64_t, uint16_t))fn)((uint64_t)p->trapframe, 0);
+    uint64_t satp = MAKE_SATP(p->pagetable);
+    uint64_t fn = TRAMPOLINE + (userret - trampoline);
+    // print_va2pa(kernel_pagetable, fn);
+    // vm_map_print(p->pagetable);
+    // vm_map_print(kernel_pagetable);
+    // vm_pte_print(p->pagetable);
+    // vm_print(p->pagetable);
+    // vm_print(p->pagetable);
+    // cprintf("-----------------------------\n");
+    // vm_print(kernel_pagetable);
+    // print_va2pa(p->pagetable, p->trapframe->epc);
+    // while(1);
+    ((void (*)(uint64_t, uint64_t))fn)(TRAPFRAME, satp);
+    cprintf("can get here\n");
 }

@@ -9,7 +9,7 @@
         # to a page boundary.
         #
 	; .section trampsec
-        .section .text
+        .section trampsec
 .globl trampoline
 trampoline:
 .align 4
@@ -75,9 +75,9 @@ uservec:
         ld t0, 16(a0)
 
         # restore kernel page table from p->trapframe->kernel_satp
-        ; ld t1, 0(a0)
-        ; csrw satp, t1
-        ; sfence.vma zero, zero
+        ld t1, 0(a0)
+        csrw satp, t1
+        sfence.vma zero, zero
 
         # a0 is no longer valid, since the kernel page
         # table does not specially map p->tf.
@@ -94,8 +94,8 @@ userret:
         # a1: user page table, for satp.
 
         # switch to the user page table.
-        ; csrw satp, a1
-        ; sfence.vma zero, zero
+        csrw satp, a1
+        sfence.vma zero, zero
 
         # put the saved user a0 in sscratch, so we
         # can swap it with our a0 (TRAPFRAME) in the last step.

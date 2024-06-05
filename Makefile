@@ -22,7 +22,7 @@ XCFLAGS =
 DEFS += -DPRINT_KERNEL_INFO
 
 CFLAGS += -Wall -O0 -Werror -fno-omit-frame-pointer -ggdb
-CFLAGS += -Wno-unused-function -Wno-unused-variable 
+CFLAGS += -Wno-unused-function
 CFLAGS += $(XCFLAGS)
 CFLAGS += -MD
 CFLAGS += -mcmodel=medany
@@ -52,6 +52,9 @@ ${USER_PATH}:
 # 使用foreach和wildcard函数来找到所有C文件和ASM文件
 K_SRCS_C := $(foreach dir,$(K_SRCS_PATH),$(wildcard $(dir)/*.c))
 K_SRCS_ASM := $(foreach dir,$(K_SRCS_PATH),$(wildcard $(dir)/*.S))
+ifneq ($(filter $K/test/usys.S,$(K_SRCS_ASM)), $K/test/usys.S)
+K_SRCS_ASM += $K/test/usys.S
+endif
 
 K_OBJS_ASM := $(addprefix ${KERNEL_PATH}/, $(patsubst %.S, %.o, $(notdir ${K_SRCS_ASM})))
 K_OBJS_C   := $(addprefix ${KERNEL_PATH}/, $(patsubst %.c, %.o, $(notdir ${K_SRCS_C})))
@@ -61,7 +64,7 @@ KERNEL_ELF = ${KERNEL_PATH}/kernel.elf
 KERNEL_BIN = ${KERNEL_PATH}/kernel.bin
 
 ifndef CPUS
-CPUS := 1
+CPUS := 4
 endif
 
 QEMUOPTS = -machine virt -bios none -kernel ${KERNEL_ELF} -m 128M -smp $(CPUS) -nographic
@@ -150,5 +153,5 @@ debug: clean ss all
 	@${GDB} ${KERNEL_ELF} -q -x gdbinit
 
 clean:
-	rm -rf .gdbinit $K/test/usys.S $(KERNEL_PATH)
+	rm -rf .gdbinit $K/test/usys.S $(KERNEL_PATH) kernel.p
 

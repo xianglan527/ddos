@@ -1,11 +1,15 @@
 #ifndef __KERNEL_PROC_H__
 #define __KERNEL_PROC_H__
+#include "pmm.h"
 #include "spinlock.h"
 #include "stdarg.h"
 #include "types.h"
+#include "config.h"
+
 typedef enum proc_state Proc_state;
 enum proc_state { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+// typedef struct spinlock Spinlock;
 typedef struct trapframe Trapframe;
 struct trapframe {
     /*   0 */ uint64_t kernel_satp;    // kernel page table
@@ -82,6 +86,7 @@ struct proc {
     Context context;
     Trapframe *trapframe;
     ulong pid;
+    pagetable_t *pagetable;
     uint64_t kstack;
 };
 
@@ -92,6 +97,9 @@ struct cpu {
     int noff;         // Depth of push_off() nesting.
     int intena;       // Were interrupts enabled before push_off()?
 };
+
+
+extern Cpu cpus[NCPU];
 
 int cpuid();
 void scheduler(void);
@@ -104,4 +112,6 @@ Proc *alloc_proc(void);
 void proc_init(void);
 void user_init(void (*start_routin)(void));
 void user_lock_init(void);
+void mappages(pagetable_t *pagetable, uint64_t va, uint64_t size, uint64_t pa, int perm);
+void either_copy_from_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len);
 #endif

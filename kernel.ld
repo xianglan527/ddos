@@ -4,11 +4,15 @@ SECTIONS
 {
     . = 0x80000000;
 
-    .text : {
-        *(.text .text.*)
-        . = ALIGN(0x1000);
-        PROVIDE(kernel_etext = .); 
-    }
+   .text : {
+    *(.text .text.*)
+    . = ALIGN(0x1000);
+    _trampoline = .;
+    *(trampsec)
+    . = ALIGN(0x1000);
+    ASSERT(. - _trampoline == 0x1000, "error: trampoline larger than one page");
+    PROVIDE(kernel_etext = .);
+  }
 
     .rodata : {
     . = ALIGN(16);

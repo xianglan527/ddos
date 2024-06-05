@@ -5,6 +5,7 @@
 #include "string.h"
 #include "assert.h"
 #include "spinlock.h"
+#include "proc.h"
 
 #define BACKSPACE 0x100
 #define C(x) ((x) - '@')  // Control-x
@@ -100,16 +101,17 @@ char *readline(const char *prompt){
     }
 }
 
-int console_write(bool user_src, intptr_t src, int n){
+
+int console_write(bool user_src, intptr_t src, int n) {
     acquire(&cons.lock);
     int i;
-    intptr_t *sr = (intptr_t *)src;
-    for(i = 0; i < n; i++){
-        char c = *(sr + i);
+    for (i = 0; i < n; i++) {
+        char c;
+        either_copy_from_user2kernel(&c, user_src, src + i, 1);
         uart_putc(c);
     }
     release(&cons.lock);
-    return i;
+    return n;
 }
 
 void console_init(void){
