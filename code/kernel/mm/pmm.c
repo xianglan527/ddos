@@ -1,7 +1,7 @@
 #include "pmm.h"
-
 #include "config.h"
 #include "defaultPmm.h"
+#include "buddyPmm.h"
 #include "error.h"
 #include "stdio.h"
 #include "string.h"
@@ -10,6 +10,7 @@ const Pmm_manager *pmm_manager;
 
 extern char kernel_etext[];
 extern char trampoline[];
+
 
 Page *pages;
 
@@ -160,7 +161,8 @@ void vm_print(pagetable_t *pagetable) {
 }
 
 static void init_pmm_manager(void) {
-    pmm_manager = &default_pmm_manager;
+    // pmm_manager = &default_pmm_manager;
+    pmm_manager = &buddy_pmm_manager;
     cprintf("memory management: %s\n", pmm_manager->name);
     pmm_manager->init();
 }
@@ -178,9 +180,17 @@ static void page_init(void) {
     init_memmap(pa2page(freemem), (endmem - freemem) / PGSIZE);
 }
 
-Page *alloc_pages(size_t n) { return pmm_manager->alloc_pages(n); }
+Page *alloc_pages(size_t n) { 
+    return pmm_manager->alloc_pages(n); 
+}
 
-void free_pages(Page *base, size_t n) { pmm_manager->free_pages(base, n); }
+void free_pages(Page *base, size_t n) {
+    pmm_manager->free_pages(base, n);
+}
+
+size_t nr_free_pages(void){
+    return pmm_manager->nr_free_pages();
+}
 
 static void check_alloc_page(void) {
     pmm_manager->check();

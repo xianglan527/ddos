@@ -1,15 +1,14 @@
 #include "pmm.h"
 
+static Spinlock page_lock;
 static Free_area free_area;
-
 #define free_list (free_area.free_list)
 #define nr_free (free_area.nr_free)
-#define free_lock (free_area.lock)
 
 static void default_init(void){
     list_init(&free_list);
     nr_free = 0;
-    initlock(&free_lock, "free_area");
+    initlock(&page_lock, "page_lock");
 }
 
 static void default_init_memmap(Page *base, size_t n){
@@ -25,25 +24,25 @@ static void default_init_memmap(Page *base, size_t n){
 
 static Page *default_alloc_pages(size_t n){
     List_entry *le;
-    acquire(&free_lock);
+    acquire(&page_lock);
     if((le = list_next(&free_list)) != &free_list){
         nr_free--;
         list_del(le);
-        release(&free_lock);
+    release(&page_lock);
         return le2page(le, page_link);
     }
-    release(&free_lock);
+    release(&page_lock);
     return nullptr;
 }
 
 static void default_free_pages(Page *base, size_t n){
+    acquire(&page_lock);
     assert(!PageReserved(base));
-    acquire(&free_lock);
     base->flags = 0;
     set_page_ref(base, 0);
     nr_free++;
     list_add(&free_list, &base->page_link);
-    release(&free_lock);
+    release(&page_lock);
 }
 
 static void basic_check(void){

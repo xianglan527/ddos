@@ -42,7 +42,7 @@ static inline void list_add_after(List_entry *listelem, List_entry *elem){
 }
 
 static inline void list_add(List_entry *listelem, List_entry *elem){
-    list_add_after(listelem, elem);
+    list_add_before(listelem, elem);
 }
 
 static inline void __list_del(List_entry *prev, List_entry *next){

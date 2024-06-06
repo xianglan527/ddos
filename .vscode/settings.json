@@ -31,6 +31,7 @@
         "ranges": "c",
         "tuple": "c",
         "utility": "c",
-        "defaultpmm.h": "c"
+        "defaultpmm.h": "c",
+        "buddypmm.h": "c"
     }
 }

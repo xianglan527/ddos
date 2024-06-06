@@ -22,7 +22,7 @@ XCFLAGS =
 DEFS += -DPRINT_KERNEL_INFO
 
 CFLAGS += -Wall -O0 -Werror -fno-omit-frame-pointer -ggdb
-CFLAGS += -Wno-unused-function
+CFLAGS += -Wno-unused-function -Wno-unused-variable
 CFLAGS += $(XCFLAGS)
 CFLAGS += -MD
 CFLAGS += -mcmodel=medany

@@ -15,13 +15,20 @@ struct page {
     Atomic ref;
     uint64_t flags;
     List_entry page_link;
+    uint property;
+    int zone_num;
 };
 
 #define PG_RESERVED 0
+#define PG_PROPERTY 1
 
 #define SetPageReserved(page) set_bit(PG_RESERVED, &(page)->flags)
 #define ClearPageReserved(page) clear_bit(PG_RESERVED, &(page)->flags)
 #define PageReserved(page) test_bit(PG_RESERVED, &(page)->flags)
+
+#define SetPageProperty(page) set_bit(PG_PROPERTY, &(page)->flags)
+#define ClearPageProperty(page) clear_bit(PG_PROPERTY, &(page)->flags)
+#define PageProperty(page) test_bit(PG_PROPERTY, &(page)->flags)
 
 #define le2page(le, member)     \
         to_struct((le), Page, member)
@@ -30,7 +37,6 @@ typedef struct free_area Free_area;
 struct free_area{
     List_entry free_list;
     size_t nr_free;
-    Spinlock lock;
 };
 
 typedef struct pmm_manager Pmm_manager;
@@ -138,6 +144,7 @@ enum vm_print_enum {
 void pmm_init(void);
 Page *alloc_pages(size_t n);
 void free_pages(Page *base, size_t n);
+size_t nr_free_pages(void);
 void kvmmap(uint64_t va, uint64_t pa, uint64_t sz, int perm);
 void kvm_init_hart();
 pagetable_t *alloc_pagetable();
