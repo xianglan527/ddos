@@ -4,10 +4,10 @@
 #include "atomic.h"
 #include "list.h"
 #include "memlayout.h"
+#include "riscv.h"
+#include "spinlock.h"
 #include "stdarg.h"
 #include "types.h"
-#include "spinlock.h"
-#include "riscv.h"
 
 extern char kernel_end[];
 typedef struct page Page;
@@ -21,6 +21,7 @@ struct page {
 
 #define PG_RESERVED 0
 #define PG_PROPERTY 1
+#define PG_SLAB     2
 
 #define SetPageReserved(page) set_bit(PG_RESERVED, &(page)->flags)
 #define ClearPageReserved(page) clear_bit(PG_RESERVED, &(page)->flags)
@@ -30,11 +31,14 @@ struct page {
 #define ClearPageProperty(page) clear_bit(PG_PROPERTY, &(page)->flags)
 #define PageProperty(page) test_bit(PG_PROPERTY, &(page)->flags)
 
-#define le2page(le, member)     \
-        to_struct((le), Page, member)
+#define SetPageSlab(page) set_bit(PG_SLAB, &(page)->flags)
+#define ClearPageSlab(page) clear_bit(PG_SLAB, &(page)->flags)
+#define PageSlab(page) test_bit(PG_SLAB, &(page)->flags)
+
+#define le2page(le, member) to_struct((le), Page, member)
 
 typedef struct free_area Free_area;
-struct free_area{
+struct free_area {
     List_entry free_list;
     size_t nr_free;
 };
@@ -52,21 +56,13 @@ struct pmm_manager {
 
 extern const Pmm_manager *pmm_manager;
 
-static inline int page_ref(Page *page){
-    return atomic_read(&page->ref);
-}
+static inline int page_ref(Page *page) { return atomic_read(&page->ref); }
 
-static inline void set_page_ref(Page *page, int val){
-    atomic_set(&page->ref, val);
-}
+static inline void set_page_ref(Page *page, int val) { atomic_set(&page->ref, val); }
 
-static inline int page_ref_inc(Page *page){
-    return atomic_add_return(&page->ref, 1);
-}
+static inline int page_ref_inc(Page *page) { return atomic_add_return(&page->ref, 1); }
 
-static inline int page_ref_dec(Page *page){
-    return atomic_sub_return(&page->ref, 1);
-}
+static inline int page_ref_dec(Page *page) { return atomic_sub_return(&page->ref, 1); }
 
 #define AllocPage() alloc_pages(1)
 #define FreePage(page) free_pages(page, 1)
@@ -99,8 +95,8 @@ extern size_t npage;
 #define PXSHIFT(level) (PGSHIFT + (9 * (level)))
 #define PX(level, va) ((((uint64_t)(va)) >> PXSHIFT(level)) & PXMASK)
 
-#define PTNUM   512UL
-#define PT1PGSIZE (PTNUM *PTNUM * PGSIZE)
+#define PTNUM 512UL
+#define PT1PGSIZE (PTNUM * PTNUM * PGSIZE)
 #define PT2PGSIZE (PTNUM * PGSIZE)
 #define PT3PGSIZE PGSIZE
 
@@ -113,16 +109,24 @@ typedef uint64_t pagetable_t;
 
 #define PPN(la) (((uintptr_t)((la) - PAGE_START)) >> PGSHIFT)
 
-static inline ppn_t page2ppn(Page *page){
-    return page - pages;
-}
+static inline ppn_t page2ppn(Page *page) { return page - pages; }
 
 static inline uintptr_t page2pa(Page *page) { return (page2ppn(page) << PGSHIFT) + PAGE_START; }
+// cause kernel virtual address equal physical address see:
+// kvmmap(KERNBASE, KERNBASE, (uint64_t)kernel_etext - KERNBASE, PTE_R |
+// PTE_X);kvmmap((uint64_t)kernel_etext, (uint64_t)kernel_etext, PHYSTOP - (uint64_t)kernel_etext, PTE_R |
+// PTE_W);
+static inline uintptr_t page2va(Page *page) {
+    return page2pa(page);
+}  
 
-static inline Page *pa2page(uintptr_t pa){
-    if(PPN(pa) >= npage)
-        panic("pa2page called with invalid pa");
+static inline Page *pa2page(uintptr_t pa) {
+    if (PPN(pa) >= npage) panic("pa2page called with invalid pa");
     return &pages[PPN(pa)];
+}
+
+static inline Page *kva2page(uintptr_t va){
+    return pa2page(va);
 }
 
 static inline Page *pte2page(pte_t pte) {

@@ -10,6 +10,7 @@
 #include "proc.h"
 #include "usertest.h"
 #include "pmm.h"
+#include "slab.h"
 
 volatile static int started = 0;
 
@@ -40,6 +41,7 @@ void main(){
         console_init();
         cprintf("xv6 kernel is booting\n");
         pmm_init();
+        slab_init();
         kvm_init_hart();
         printf_init();
         trap_tick_init();

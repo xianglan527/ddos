@@ -25,5 +25,6 @@
 #define STACK_SIZE 4096
 #define TIME_INTERVAL 1000000
 #define DELAY 1000
+#define SLAB_ALIGN 16
 
 #endif  // __CONFIG_CONFIG_H__
