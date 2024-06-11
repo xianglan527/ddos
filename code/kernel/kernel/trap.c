@@ -10,6 +10,7 @@
 #include "stdio.h"
 #include "syscall.h"
 #include "uart.h"
+#include "vmm.h"
 
 // 0: Instruction address misaligned
 // 1: Instruction access fault
@@ -66,6 +67,15 @@ void clockintr() {
 
 static void print_ticks() { cprintf("ticks is :%d\n", ticks); }
 
+static int pagetable_handler(void){
+    extern Mm_struct *check_mm_struct;
+    if(check_mm_struct != nullptr){
+        return do_pagatable_fault(check_mm_struct, r_stval());
+    }
+    panic("unhandled page fault.\n");
+    return 0;
+}
+
 Trap_eum trap_work() {
     uint64_t scause = r_scause();
 
@@ -96,13 +106,15 @@ Trap_eum trap_work() {
     } else if ((scause & 0x8000000000000000L) == 0) {
         int excep_code = scause & 0xff;
 #ifdef PRINT_TRAP_EXCEPTION
-        cprintf("excpetion : %s\n", exception_msg[excep_code]);
+            cprintf("excpetion : %s\n", exception_msg[excep_code]);
         cprintf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-        cprintf("trap_work: unexpected scause %p pid=%d\n", r_scause(), myproc()->pid);
+        if(myproc() != nullptr)
+            cprintf("trap_work: unexpected scause %p pid=%d\n", r_scause(), myproc()->pid);
+        else
+            cprintf("trap_work: unexpected scause %p\n", r_scause());
 #endif
-        uint64_t epc = r_sepc();
-        epc += 4;
-        w_sepc(epc);
+        if (excep_code == 13 || excep_code == 15) pagetable_handler();
+
         return TRAP_EXCEPTION;
     } else
         return TRAP_OTHER;
@@ -130,7 +142,6 @@ void kerneltrap() {
     // so restore trap registers for use by kernelvec.S's sepc instruction.
     w_sepc(sepc);
     w_sstatus(sstatus);
-    // intr_on();
 }
 
 void usertrap(void) {
@@ -174,16 +185,6 @@ void user_trap_ret() {
 
     uint64_t satp = MAKE_SATP(p->pagetable);
     uint64_t fn = TRAMPOLINE + (userret - trampoline);
-    // print_va2pa(kernel_pagetable, fn);
-    // vm_map_print(p->pagetable);
-    // vm_map_print(kernel_pagetable);
-    // vm_pte_print(p->pagetable);
-    // vm_print(p->pagetable);
-    // vm_print(p->pagetable);
-    // cprintf("-----------------------------\n");
-    // vm_print(kernel_pagetable);
-    // print_va2pa(p->pagetable, p->trapframe->epc);
-    // while(1);
     ((void (*)(uint64_t, uint64_t))fn)(TRAPFRAME, satp);
     cprintf("can get here\n");
 }

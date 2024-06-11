@@ -11,6 +11,7 @@
 #include "usertest.h"
 #include "pmm.h"
 #include "slab.h"
+#include "vmm.h"
 
 volatile static int started = 0;
 
@@ -49,6 +50,7 @@ void main(){
         plic_init_hart();
         trap_init_hart();
         intr_on();
+        vmm_init();
         proc_init();
         // basic_test();
         os_main();

@@ -9,6 +9,10 @@
 #include "stdarg.h"
 #include "types.h"
 
+typedef uint64_t pte_t;
+typedef uint64_t pde_t;
+typedef uint64_t pagetable_t;
+
 extern char kernel_end[];
 typedef struct page Page;
 struct page {
@@ -55,6 +59,7 @@ struct pmm_manager {
 };
 
 extern const Pmm_manager *pmm_manager;
+extern pagetable_t *kernel_pagetable;
 
 static inline int page_ref(Page *page) { return atomic_read(&page->ref); }
 
@@ -63,6 +68,8 @@ static inline void set_page_ref(Page *page, int val) { atomic_set(&page->ref, va
 static inline int page_ref_inc(Page *page) { return atomic_add_return(&page->ref, 1); }
 
 static inline int page_ref_dec(Page *page) { return atomic_sub_return(&page->ref, 1); }
+
+void free_pagetable(pagetable_t *pagetable, int level);
 
 #define AllocPage() alloc_pages(1)
 #define FreePage(page) free_pages(page, 1)
@@ -100,9 +107,6 @@ extern size_t npage;
 #define PT2PGSIZE (PTNUM * PGSIZE)
 #define PT3PGSIZE PGSIZE
 
-typedef uint64_t pte_t;
-typedef uint64_t pde_t;
-typedef uint64_t pagetable_t;
 
 #define PAGE_START (PGROUNDUP((uintptr_t)kernel_end))
 // #define PPN_START (PAGE_START >> PGSHIFT)
@@ -154,9 +158,12 @@ void kvm_init_hart();
 pagetable_t *alloc_pagetable();
 void uvm_unmap(pagetable_t *pagetable, uint64_t va, uint64_t npages, int free_page);
 void uvm_free(pagetable_t *pagetable, uint64_t sz);
+void page_remove(pagetable_t *pagetable, uintptr_t va);
 void print_va2pa(pagetable_t *pagetable, uint64_t va);
 void vm_map_print(pagetable_t *pagetable);
 void vm_pte_print(pagetable_t *pagetable);
 void vm_print(pagetable_t *pagetable);
 void copy_from_user2kernel(pagetable_t *pagetable, char *dst, uint64_t srcva, uint64_t len);
+void init_kernel_pagetable(void);
+Page *pagetable_alloc_page(pagetable_t *pagetable, uintptr_t va, uint32_t perm);
 #endif

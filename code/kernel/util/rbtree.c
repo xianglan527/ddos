@@ -232,7 +232,7 @@ void rb_delete(Rb_tree *tree, Rb_node *node){
         rb_delete_fixup(tree, x);
 }
 
-void rb_tree_destory(Rb_tree *tree){
+void rb_tree_destroy(Rb_tree *tree){
     kfree(tree->root);
     kfree(tree->nil);
     kfree(tree);
@@ -390,7 +390,7 @@ void check_rb_tree(void){
         rb_insert(tree, &all[i]->rb_link);
         check_tree(tree, root->left);
     }
-    rb_tree_destory(tree);
+    rb_tree_destroy(tree);
     for(i = 0; i < total; i++){
         kfree(all[i]);
     }

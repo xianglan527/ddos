@@ -284,6 +284,17 @@ void page_remove(pagetable_t *pagetable, uintptr_t va) {
     if (ptep != nullptr) page_remove_pte(pagetable, va, ptep);
 }
 
+Page *pagetable_alloc_page(pagetable_t *pagetable, uintptr_t va, uint32_t perm){
+    Page *page = AllocPage();
+    if(page != nullptr){
+        if(page_insert(pagetable, page, va, perm) != 0){
+            FreePage(page);
+            return nullptr;
+        }
+    }
+    return page;
+}
+
 void free_pagetable(pagetable_t *pagetable, int level) {
     if (level > 3) return;
     assert(page_ref(pa2page((uintptr_t)pagetable)) == 1);
@@ -467,6 +478,19 @@ static void check_print_pagetable(void) {
     while (1);
 }
 
+void init_kernel_pagetable(void){
+    kernel_pagetable = alloc_pagetable();
+    kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
+    kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+    kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+    kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
+    // kvmmap(KERNBASE, KERNBASE, PHYMEMSIZE, PTE_R | PTE_W);
+    kvmmap(KERNBASE, KERNBASE, (uint64_t)kernel_etext - KERNBASE, PTE_R | PTE_X);
+
+    kvmmap((uint64_t)kernel_etext, (uint64_t)kernel_etext, PHYSTOP - (uint64_t)kernel_etext, PTE_R | PTE_W);
+    kvmmap(TRAMPOLINE, (uint64_t)trampoline, PGSIZE, PTE_R | PTE_X);
+}
+
 void pmm_init(void) {
     init_pmm_manager();
     page_init();
@@ -476,15 +500,6 @@ void pmm_init(void) {
     check_pagetable();
     check_kernel_pagetable();
 #endif
-    kernel_pagetable = alloc_pagetable();
-    kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
-    kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W );
-    kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W );
-    kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
-    // kvmmap(KERNBASE, KERNBASE, PHYMEMSIZE, PTE_R | PTE_W);
-    kvmmap(KERNBASE, KERNBASE, (uint64_t)kernel_etext - KERNBASE, PTE_R | PTE_X);
-
-    kvmmap((uint64_t)kernel_etext, (uint64_t)kernel_etext, PHYSTOP - (uint64_t)kernel_etext, PTE_R | PTE_W);
-    kvmmap(TRAMPOLINE, (uint64_t)trampoline, PGSIZE, PTE_R | PTE_X);
+    init_kernel_pagetable();
     // while (1);
 }

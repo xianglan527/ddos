@@ -1,1 +1,3 @@
 code/kernel/output/
+.cache/
+.vscode/
