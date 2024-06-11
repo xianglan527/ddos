@@ -140,9 +140,9 @@ static inline void tlb_invalidate(pagetable_t *pagetable, uintptr_t va) {
 
 typedef enum vm_print_enum Vm_print_enum;
 enum vm_print_enum {
-    VM_PRINT_OUT,
-    VM_PRINT_START,
-    VM_PRINT_IN,
+    VM_PRINT_OUT,    // the state when the three-level page table entry is not yet encountered as valid.
+    VM_PRINT_START,  // the state encountered when the three-level page table entry is valid.
+    VM_PRINT_IN,     // the state when in contiguous virtual space (with identical PTE attributes)
 };
 
 void pmm_init(void);

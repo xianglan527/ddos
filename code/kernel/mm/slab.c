@@ -1,5 +1,5 @@
 #include "slab.h"
-
+#include "rbtree.h"
 #include "assert.h"
 #include "config.h"
 #include "list.h"
@@ -419,7 +419,7 @@ void check_slab(void) {
     kfree(v0);
 
 check_pass:
-
+    check_rb_tree();
     check_slab_empty();
     assert(slab_allocated() == 0);
     assert(nr_free_pages_store == nr_free_pages());
