@@ -335,7 +335,7 @@ void check_rb_tree(void){
         assert(mark[i] == 1);
     }
     for(i = 0; i < total; i++){
-        int j = (rand() % (total - i)) + i;
+        int j = (simulate_rand() % (total - i)) + i;
         struct check_data *z = all[i];
         all[i] = all[j];
         all[j] = z;

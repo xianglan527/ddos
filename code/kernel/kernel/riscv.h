@@ -212,6 +212,8 @@ static inline void sfence_vma() {
 
 static inline void sfence_vma_addr(void *addr) { asm volatile("sfence.vma %0" ::"r"(addr) : "memory"); }
 
+static inline void dsb(void) { asm volatile("fence iorw, iorw" : : : "memory"); }
+
 #define PGSIZE 4096
 #define PGSHIFT 12
 

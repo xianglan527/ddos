@@ -15,6 +15,7 @@ GDB = gdb-multiarch
 CC = $(TOOLPREFIX)gcc
 AS = $(TOOLPREFIX)as
 LD = $(TOOLPREFIX)ld
+DD = dd
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
@@ -67,7 +68,23 @@ ifndef CPUS
 CPUS := 4
 endif
 
+swap.img:
+	#${DD} if=/dev/zero of=$@ bs=64M count=1
+	${DD} if=/dev/urandom of=$@ bs=64M count=1
+
+fs.img:
+	#${DD} if=/dev/zero of=$@ bs=128M count=1
+	${DD} if=/dev/urandom of=$@ bs=128M count=1
+
+
 QEMUOPTS = -machine virt -bios none -kernel ${KERNEL_ELF} -m 128M -smp $(CPUS) -nographic
+QEMUOPTS += -global virtio-mmio.force-legacy=false
+QEMUOPTS += -device virtio-rng-device,bus=virtio-mmio-bus.0
+QEMUOPTS += -drive file=swap.img,if=none,format=raw,id=x0
+QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.1
+QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x1
+QEMUOPTS += -device virtio-blk-device,drive=x1,bus=virtio-mmio-bus.2
+
 
 # 添加C文件的编译规则
 define K_compile_c_file
@@ -135,18 +152,18 @@ QEMUGDB = -gdb tcp::$(GDBPORT)
 
 all: ${KERNEL_ELF}
 
-qemu: clean ss all
+qemu: clean ss all swap.img fs.img
 	$(QEMU) $(QEMUOPTS)
 
 .gdbinit: .gdbinit.tmpl-riscv
 	sed "s/:1234/:$(GDBPORT)/" < $^ > $@
 
-qemu-gdb: clean ss ${KERNEL_ELF} .gdbinit
+qemu-gdb: clean ss ${KERNEL_ELF} .gdbinit swap.img fs.img
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	@echo "$(QEMUGDB)"
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)	
 
-debug: clean ss all
+debug: clean ss all swap.img fs.img
 	@echo "Press Ctrl-C and then input 'quit' to exit GDB and QEMU"
 	@echo "-------------------------------------------------------"
 	@${QEMU} ${QEMUOPTS} -s -S &
@@ -154,4 +171,6 @@ debug: clean ss all
 
 clean:
 	rm -rf .gdbinit $K/test/usys.S $(KERNEL_PATH) kernel.p
+all-clean:
+	rm -rf .gdbinit $K/test/usys.S $(KERNEL_PATH) kernel.p *.img
 

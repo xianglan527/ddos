@@ -32,7 +32,8 @@
     "tuple": "c",
     "utility": "c",
     "defaultpmm.h": "c",
-    "buddypmm.h": "c"
+    "buddypmm.h": "c",
+    "memlayout.h": "c"
   },
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "g++",

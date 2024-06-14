@@ -1,28 +1,26 @@
 # Diff Summary
 
-Date : 2024-05-30 18:28:01
+Date : 2024-06-11 22:29:31
 
 Directory c:\\Users\\45228\\Desktop\\share\\ddos\\code
 
-Total : 9 files,  -8147 codes, -7 comments, -399 blanks, all -8553 lines
+Total : 7 files,  306 codes, -7 comments, 51 blanks, all 350 lines
 
 [Summary](results.md) / [Details](details.md) / Diff Summary / [Diff Details](diff-details.md)
 
 ## Languages
 | language | files | code | comment | blank | total |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| C | 8 | 204 | -7 | 36 | 233 |
-| Assembler file | 1 | -8,351 | 0 | -435 | -8,786 |
+| C | 6 | 268 | -7 | 40 | 301 |
+| C++ | 1 | 38 | 0 | 11 | 49 |
 
 ## Directories
 | path | files | code | comment | blank | total |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| . | 9 | -8,147 | -7 | -399 | -8,553 |
-| kernel | 9 | -8,147 | -7 | -399 | -8,553 |
+| . | 7 | 306 | -7 | 51 | 350 |
+| kernel | 7 | 306 | -7 | 51 | 350 |
 | kernel\\config | 1 | 1 | 0 | 0 | 1 |
-| kernel\\kernel | 2 | 4 | -5 | -2 | -3 |
-| kernel\\mm | 3 | 193 | -2 | 37 | 228 |
-| kernel\\output | 1 | -8,351 | 0 | -435 | -8,786 |
-| kernel\\util | 2 | 6 | 0 | 1 | 7 |
+| kernel\\kernel | 2 | 12 | -11 | 2 | 3 |
+| kernel\\mm | 4 | 293 | 4 | 49 | 346 |
 
 [Summary](results.md) / [Details](details.md) / Diff Summary / [Diff Details](diff-details.md)

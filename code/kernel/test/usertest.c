@@ -1,5 +1,4 @@
 #include "usertest.h"
-
 #include "atomic.h"
 #include "proc.h"
 #include "riscv.h"

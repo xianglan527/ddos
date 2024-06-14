@@ -1,5 +1,4 @@
 #include "trap.h"
-#include "stdio.h"
 #include "assert.h"
 #include "config.h"
 #include "console.h"
@@ -10,6 +9,7 @@
 #include "stdio.h"
 #include "syscall.h"
 #include "uart.h"
+#include "virtio_device.h"
 #include "vmm.h"
 
 // 0: Instruction address misaligned
@@ -67,11 +67,9 @@ void clockintr() {
 
 static void print_ticks() { cprintf("ticks is :%d\n", ticks); }
 
-static int pagetable_handler(void){
-    extern Mm_struct *check_mm_struct;
-    if(check_mm_struct != nullptr){
-        return do_pagatable_fault(check_mm_struct, r_stval());
-    }
+static int pagetable_handler(void) {
+    extern Mm_struct* check_mm_struct;
+    if (check_mm_struct != nullptr) { return do_pagatable_fault(check_mm_struct, r_stval()); }
     panic("unhandled page fault.\n");
     return 0;
 }
@@ -82,15 +80,20 @@ Trap_eum trap_work() {
     if ((scause & 0x8000000000000000L) && (scause & 0xff) == 9) {
         int irq = plic_claim();
 
-        if (irq == UART0_IRQ) {
+        switch (irq) {
+            case 1 ... VIRTIO_DEVICE_NUM: {
+                virtio_device_intr_handler(irq);
+            } break;
+            case UART0_IRQ: {
 #ifdef PRINT_UART_CHAR
-            char c;
-            c = uart_getc();
-            cprintf(" \n serial num is:%03x : serial char is %c\n", c, c);
+                char c;
+                c = uart_getc();
+                cprintf(" \n serial num is:%03x : serial char is %c\n", c, c);
 #endif
-            uart_intr();
-        } else if (irq) {
-            cprintf("unexpected interrupt irq=%d\n", irq);
+                uart_intr();
+            } break;
+
+            default: cprintf("unexpected interrupt irq=%d\n", irq); break;
         }
         if (irq) plic_complete(irq);
         return TRAP_INT;
@@ -106,9 +109,9 @@ Trap_eum trap_work() {
     } else if ((scause & 0x8000000000000000L) == 0) {
         int excep_code = scause & 0xff;
 #ifdef PRINT_TRAP_EXCEPTION
-            cprintf("excpetion : %s\n", exception_msg[excep_code]);
+        cprintf("excpetion : %s\n", exception_msg[excep_code]);
         cprintf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-        if(myproc() != nullptr)
+        if (myproc() != nullptr)
             cprintf("trap_work: unexpected scause %p pid=%d\n", r_scause(), myproc()->pid);
         else
             cprintf("trap_work: unexpected scause %p\n", r_scause());
@@ -178,8 +181,7 @@ void user_trap_ret() {
     uint64_t x = r_sstatus();
     x &= ~SSTATUS_SPP;
     x |= SSTATUS_SPIE;
-    if (r_scause() == 8 && p->trapframe->a7 == SYS_cli) 
-        x &= ~SSTATUS_SPIE;
+    if (r_scause() == 8 && p->trapframe->a7 == SYS_cli) x &= ~SSTATUS_SPIE;
     w_sstatus(x);
     w_sepc(p->trapframe->epc);
 

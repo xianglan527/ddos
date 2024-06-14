@@ -7,7 +7,9 @@
 void slab_init(void);
 
 void *kmalloc(size_t n);
+void *aligned_kmalloc(size_t size, size_t alignment);
 void kfree(void *objp);
+void aligned_kfree(void *aligned);
 
 size_t slab_allocated(void);
 

@@ -28,8 +28,10 @@
 #define UART0_IRQ 10
 
 // virtio mmio interface
-#define VIRTIO0 0x10001000
-#define VIRTIO0_IRQ 1
+#define VIRTIO_START_ADDR   0x10001000
+#define VIRTIO_END_ADDR     0x10008000
+#define VIRTIO_STEP_SIZE    0x1000
+#define VIRTIO_DEVICE_NUM ((VIRTIO_END_ADDR - VIRTIO_START_ADDR) / VIRTIO_STEP_SIZE + 1)
 
 // core local interruptor (CLINT), which contains the timer.
 #define CLINT 0x2000000L

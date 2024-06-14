@@ -241,6 +241,15 @@ void *kmalloc(size_t size) {
     return kmem_cache_alloc(slab_cache + (order - MIN_SIZE_ORDER));
 }
 
+
+void *aligned_kmalloc(size_t size, size_t alignment){
+    void *original = kmalloc(size + alignment - 1 +sizeof(void *));
+    if(original == nullptr) return nullptr;
+    void *aligned = (void *)(((size_t)original + alignment - 1 + sizeof(void *)) & ~(alignment - 1));
+    ((void **)aligned)[-1] = original;
+    return aligned;
+}
+
 static void kmem_cache_free(Kmem_cache *cachep, void *obj);
 
 static void kmem_slab_destroy(Kmem_cache *cachep, Slab *slabp) {
@@ -288,6 +297,8 @@ static void kmem_cache_free(Kmem_cache *cachep, void *objp) {
 }
 
 void kfree(void *objp) { kmem_cache_free(GET_PAGE_CACHE(kva2page((uintptr_t)objp)), objp); }
+
+void aligned_kfree(void *aligned) { kfree(((void **)aligned)[-1]); }
 
 static inline void check_slab_empty(void) {
     for (int i = 0; i < SLAB_CACHE_NUM; i++) {
@@ -417,6 +428,10 @@ void check_slab(void) {
         assert(GET_PAGE_CACHE(p0) == cachep0 && GET_PAGE_SLAB(p0) == slabp0);
     }
     kfree(v0);
+
+    v0 = aligned_kmalloc(527, 16);
+    assert((uintptr_t)v0 % 16 == 0);
+    aligned_kfree(v0);
 
 check_pass:
     check_rb_tree();

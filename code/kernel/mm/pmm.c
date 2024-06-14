@@ -410,7 +410,7 @@ static void check_kernel_pagetable(void) {
 
     kernel_pagetable = alloc_pagetable();
     kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
-    kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+    kvmmap(VIRTIO_START_ADDR, VIRTIO_START_ADDR, PGSIZE, PTE_R | PTE_W);
     kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
     kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
     // kvmmap(KERNBASE, KERNBASE, PHYMEMSIZE, PTE_R | PTE_W);
@@ -462,7 +462,7 @@ static void check_print_pagetable(void) {
     assert(page_insert(kernel_pagetable, p2, 513 * PGSIZE, 0) == 0);
     assert(page_insert(kernel_pagetable, p3, 2 * PGSIZE, 0) == 0);
     kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
-    kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+    kvmmap(VIRTIO_START_ADDR, VIRTIO_START_ADDR, PGSIZE, PTE_R | PTE_W);
     kvmmap(KERNBASE, KERNBASE, (uint64_t)kernel_etext - KERNBASE, PTE_R | PTE_X | PTE_G);
     vm_map_print(kernel_pagetable);
     vm_print(kernel_pagetable);
@@ -481,7 +481,7 @@ static void check_print_pagetable(void) {
 void init_kernel_pagetable(void){
     kernel_pagetable = alloc_pagetable();
     kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
-    kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+    kvmmap(VIRTIO_START_ADDR, VIRTIO_START_ADDR, VIRTIO_DEVICE_NUM * PGSIZE, PTE_R | PTE_W);
     kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
     kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
     // kvmmap(KERNBASE, KERNBASE, PHYMEMSIZE, PTE_R | PTE_W);

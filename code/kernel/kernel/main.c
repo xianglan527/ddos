@@ -1,17 +1,20 @@
-#include "console.h"
-#include "stdio.h"
-#include "types.h"
-#include "stdarg.h"
-#include "error.h"
 #include "assert.h"
+#include "virtio_device.h"
+#include "console.h"
+#include "error.h"
 #include "plic.h"
-#include "trap.h"
-#include "riscv.h"
-#include "proc.h"
-#include "usertest.h"
 #include "pmm.h"
+#include "proc.h"
+#include "riscv.h"
 #include "slab.h"
+#include "stdarg.h"
+#include "stdio.h"
+#include "trap.h"
+#include "types.h"
+#include "usertest.h"
 #include "vmm.h"
+#include "config.h"
+#include "rand.h"
 
 volatile static int started = 0;
 
@@ -32,10 +35,11 @@ void basic_test(void) {
     assert(1 == 1);
     warn("warning...");
     // int i = 1 / 0;
-    *(char *)0 = 4;
+    // *(char *)0 = 4;
 
-    assert(1 != 1);
+    // assert(1 != 1);
 }
+
 
 void main(){
     if(cpuid() == 0){
@@ -53,10 +57,11 @@ void main(){
         vmm_init();
         proc_init();
         // basic_test();
+        user_lock_init();
+        virtio_device_init();
+        __sync_synchronize();
         os_main();
         started = 1;
-        user_lock_init();
-        __sync_synchronize();
     }else{
         while (started == 0);
         __sync_synchronize();
