@@ -1,7 +1,6 @@
 #ifndef __VIRTIO_VIRTIO_H_
 #define __VIRTIO_VIRTIO_H_
 
-#define __DIRVER_UART_H__
 
 #include "types.h"
 

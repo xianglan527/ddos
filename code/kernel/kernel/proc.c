@@ -83,6 +83,12 @@ found:
 
 static void uvm_init(pagetable_t *pagetable){
     uintptr_t mem = page2pa(AllocPage());
+    // mappages(pagetable, UART0, PGSIZE, UART0, PTE_R | PTE_W | PTE_U);
+    // mappages(pagetable, VIRTIO_START_ADDR, VIRTIO_DEVICE_NUM * PGSIZE, VIRTIO_START_ADDR,
+    //          PTE_R | PTE_W | PTE_U);
+    // mappages(pagetable, CLINT, 0x10000, CLINT, PTE_R | PTE_W | PTE_U);
+    // mappages(pagetable, PLIC, 0x400000, PLIC, PTE_R | PTE_W | PTE_U);
+
     mappages(pagetable, PGSIZE, PGSIZE, mem, PTE_W|PTE_R|PTE_U|PTE_X);
     mappages(pagetable, KERNBASE, (uint64_t)kernel_etext - KERNBASE, KERNBASE, PTE_R | PTE_U | PTE_X);
     mappages(pagetable, (uint64_t)kernel_etext, PHYSTOP - (uint64_t)kernel_etext, (uint64_t)kernel_etext,

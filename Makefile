@@ -172,5 +172,5 @@ debug: clean ss all swap.img fs.img
 clean:
 	rm -rf .gdbinit $K/test/usys.S $(KERNEL_PATH) kernel.p
 all-clean:
-	rm -rf .gdbinit $K/test/usys.S $(KERNEL_PATH) kernel.p *.img
+	rm -rf .gdbinit $K/test/usys.S $(KERNEL_PATH) kernel.p *.img *.txt
 

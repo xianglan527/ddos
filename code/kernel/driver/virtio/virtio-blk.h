@@ -4,6 +4,7 @@
 #include "types.h"
 #include "virtio-ring.h"
 #include "list.h"
+#include "spinlock.h"
 
 #define BLK_QSIZE       (128)   // blk queue0 size
 #define SECTOR_SZIE     (512)   // blk sector size
@@ -67,6 +68,7 @@ struct virtio_blk {
 	char blk_name[64];
 	int idx;
     List_entry blk_list;
+	Spinlock blk_lock;
     uint8_t  status[BLK_QSIZE];
     void *info[BLK_QSIZE];
     // disk command headers.
@@ -79,10 +81,23 @@ struct virtio_blk {
 	uint16_t avail_idx;
 };
 
+#define BSIZE 1024  // block size
+// struct buf {
+//     int valid;  // has data been read from disk?
+//     int disk;   // does disk "own" buf?
+//     uint dev;
+//     uint blockno;
+//     struct sleeplock lock;
+//     uint refcnt;
+//     struct buf *prev;  // LRU cache list
+//     struct buf *next;
+//     uchar data[BSIZE];
+// };
+
 struct blk_buf {
-    uint32_t 	addr;       // bytes address
+    uint64_t 	addr;       // bytes address
     void  	*data;
-    uint32_t 	data_len;
+    uint64_t 	data_len;
     uint16_t  	is_write;
     uint16_t  	flag;
 };
@@ -91,5 +106,6 @@ int virtio_blk_add(uint32_t base, char *name,int idx);
 void virtio_blk_cfg(struct virtio_blk *blk);
 void virtio_blk_rw(struct blk_buf *b, char *blk_name);
 void virtio_blk_intr(int idx);
-
+struct virtio_blk *find_blk_by_name(char *name);
+struct virtio_blk *find_blk_by_index(int idx);
 #endif /* VIRTIO_BLK_H_ */

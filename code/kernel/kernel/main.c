@@ -15,6 +15,7 @@
 #include "vmm.h"
 #include "config.h"
 #include "rand.h"
+#include "swap.h"
 
 volatile static int started = 0;
 
@@ -60,6 +61,7 @@ void main(){
         user_lock_init();
         virtio_device_init();
         __sync_synchronize();
+        swap_init();
         os_main();
         started = 1;
     }else{

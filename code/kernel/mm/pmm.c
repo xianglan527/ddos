@@ -5,6 +5,7 @@
 #include "error.h"
 #include "stdio.h"
 #include "string.h"
+#include "swap.h"
 
 const Pmm_manager *pmm_manager;
 
@@ -256,10 +257,19 @@ Page *get_page(pagetable_t *pagetable, uintptr_t va, pte_t **ptep_store) {
 static void page_remove_pte(pagetable_t *pagetable, uintptr_t va, pte_t *ptep) {
     if (*ptep & PTE_V) {
         Page *page = pte2page(*ptep);
-        if (page_ref_dec(page) == 0) 
-            FreePage(page);
+        if(!PageSwap(page)){
+            if (page_ref_dec(page) == 0) FreePage(page);
+        }
+        else{
+            if(*ptep & PTE_D)
+                SetPageDirty(page);
+            page_ref_dec(page);
+        }
         *ptep = 0;
         tlb_invalidate(pagetable, va);
+    }else if(*ptep != 0){
+        swap_remove_entry(*ptep);
+        *ptep = 0;
     }
 }
 
@@ -267,16 +277,17 @@ int page_insert(pagetable_t *pagetable, Page *page, uintptr_t va, uint32_t perm)
     pte_t *ptep = get_pte(pagetable, va, 1);
     if (ptep == nullptr) return -E_NO_MEM;
     page_ref_inc(page);
-    if (*ptep & PTE_V) {
-        Page *p = pte2page(*ptep);
-        if (p == page)
-            page_ref_dec(page);
-        else
-            page_remove_pte(pagetable, va, ptep);
+    if(*ptep != 0){
+        if((*ptep & PTE_V) && pte2page(*ptep) == page){
+           page_ref_dec(page); 
+           goto out;
+        }
+        page_remove_pte(pagetable, va, ptep);
     }
+out:
     *ptep = PA2PTE(page2pa(page)) | PTE_V | perm;
     tlb_invalidate(pagetable, va);
-    return 0;
+    return 0; 
 }
 
 void page_remove(pagetable_t *pagetable, uintptr_t va) {

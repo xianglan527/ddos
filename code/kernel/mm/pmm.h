@@ -8,10 +8,9 @@
 #include "spinlock.h"
 #include "stdarg.h"
 #include "types.h"
+#include "swap.h"
 
-typedef uint64_t pte_t;
-typedef uint64_t pde_t;
-typedef uint64_t pagetable_t;
+
 
 extern char kernel_end[];
 typedef struct page Page;
@@ -21,11 +20,16 @@ struct page {
     List_entry page_link;
     uint property;
     int zone_num;
+    swap_entry_t index;
+    List_entry swap_link;
 };
 
 #define PG_RESERVED 0
 #define PG_PROPERTY 1
 #define PG_SLAB     2
+#define PG_DIRTY    3
+#define PG_SWAP     4
+#define PG_ACTIVE   5
 
 #define SetPageReserved(page) set_bit(PG_RESERVED, &(page)->flags)
 #define ClearPageReserved(page) clear_bit(PG_RESERVED, &(page)->flags)
@@ -38,6 +42,18 @@ struct page {
 #define SetPageSlab(page) set_bit(PG_SLAB, &(page)->flags)
 #define ClearPageSlab(page) clear_bit(PG_SLAB, &(page)->flags)
 #define PageSlab(page) test_bit(PG_SLAB, &(page)->flags)
+
+#define SetPageDirty(page) set_bit(PG_DIRTY, &((page)->flags))
+#define ClearPageDirty(page) clear_bit(PG_DIRTY, &((page)->flags))
+#define PageDirty(page) test_bit(PG_DIRTY, &((page)->flags))
+
+#define SetPageSwap(page) set_bit(PG_SWAP, &((page)->flags))
+#define ClearPageSwap(page) clear_bit(PG_SWAP, &((page)->flags))
+#define PageSwap(page) test_bit(PG_SWAP, &((page)->flags))
+
+#define SetPageActive(page) set_bit(PG_ACTIVE, &((page)->flags))
+#define ClearPageActive(page) clear_bit(PG_ACTIVE, &((page)->flags))
+#define PageActive(page) test_bit(PG_ACTIVE, &((page)->flags))
 
 #define le2page(le, member) to_struct((le), Page, member)
 
@@ -61,13 +77,13 @@ struct pmm_manager {
 extern const Pmm_manager *pmm_manager;
 extern pagetable_t *kernel_pagetable;
 
-static inline int page_ref(Page *page) { return atomic_read(&page->ref); }
+static inline long page_ref(Page *page) { return atomic_read(&page->ref); }
 
 static inline void set_page_ref(Page *page, int val) { atomic_set(&page->ref, val); }
 
-static inline int page_ref_inc(Page *page) { return atomic_add_return(&page->ref, 1); }
+static inline long page_ref_inc(Page *page) { return atomic_add_return(&page->ref, 1); }
 
-static inline int page_ref_dec(Page *page) { return atomic_sub_return(&page->ref, 1); }
+static inline long page_ref_dec(Page *page) { return atomic_sub_return(&page->ref, 1); }
 
 void free_pagetable(pagetable_t *pagetable, int level);
 
@@ -82,7 +98,7 @@ extern size_t npage;
 
 #define PTE_V (1L << 0)
 #define PTE_R (1L << 1)
-#define PTE_W (1L << 2)
+#define PTE_W (1L << 2 | PTE_R)
 #define PTE_X (1L << 3)
 #define PTE_U (1L << 4)
 #define PTE_G (1L << 5)
@@ -139,7 +155,8 @@ static inline Page *pte2page(pte_t pte) {
 }
 
 static inline void tlb_invalidate(pagetable_t *pagetable, uintptr_t va) {
-    if (r_satp() == (uint64_t)pagetable) sfence_vma_addr((void *)va);
+    if (r_satp() ==  MAKE_SATP(pagetable)) 
+        sfence_vma_addr((void *)va);
 }
 
 typedef enum vm_print_enum Vm_print_enum;
@@ -156,9 +173,11 @@ size_t nr_free_pages(void);
 void kvmmap(uint64_t va, uint64_t pa, uint64_t sz, int perm);
 void kvm_init_hart();
 pagetable_t *alloc_pagetable();
+pte_t *get_pte(pagetable_t *pagetable, uint64_t va, int alloc);
 void uvm_unmap(pagetable_t *pagetable, uint64_t va, uint64_t npages, int free_page);
 void uvm_free(pagetable_t *pagetable, uint64_t sz);
 void page_remove(pagetable_t *pagetable, uintptr_t va);
+int page_insert(pagetable_t *pagetable, Page *page, uintptr_t va, uint32_t perm);
 void print_va2pa(pagetable_t *pagetable, uint64_t va);
 void vm_map_print(pagetable_t *pagetable);
 void vm_pte_print(pagetable_t *pagetable);

@@ -1,0 +1,110 @@
+Date : 2024-06-14 17:13:47
+Directory : c:\Users\45228\Desktop\share\ddos\code
+Total : 70 files,  4804 codes, 435 comments, 878 blanks, all 6117 lines
+
+Languages
++----------+------------+------------+------------+------------+------------+
+| language | files      | code       | comment    | blank      | total      |
++----------+------------+------------+------------+------------+------------+
+| C        |         43 |      4,219 |        403 |        749 |      5,371 |
+| C++      |         23 |        537 |         30 |        112 |        679 |
+| Makefile |          3 |         29 |          0 |         11 |         40 |
+| Python   |          1 |         19 |          2 |          6 |         27 |
++----------+------------+------------+------------+------------+------------+
+
+Directories
++-----------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                        | files      | code       | comment    | blank      | total      |
++-----------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                           |         70 |      4,804 |        435 |        878 |      6,117 |
+| kernel                                                                      |         69 |      4,798 |        435 |        875 |      6,108 |
+| kernel (Files)                                                              |          1 |         19 |          0 |          4 |         23 |
+| kernel\boot                                                                 |          1 |         40 |         13 |         18 |         71 |
+| kernel\config                                                               |          2 |         42 |          3 |         13 |         58 |
+| kernel\driver                                                               |         14 |        823 |         85 |        168 |      1,076 |
+| kernel\driver (Files)                                                       |          3 |         61 |         12 |         19 |         92 |
+| kernel\driver\virtio                                                        |         11 |        762 |         73 |        149 |        984 |
+| kernel\kernel                                                               |         15 |        943 |         76 |        153 |      1,172 |
+| kernel\libs                                                                 |          3 |        137 |        114 |         35 |        286 |
+| kernel\mm                                                                   |         11 |      1,592 |         54 |        283 |      1,929 |
+| kernel\test                                                                 |          7 |        282 |         72 |         46 |        400 |
+| kernel\util                                                                 |         15 |        920 |         18 |        155 |      1,093 |
+| user                                                                        |          1 |          6 |          0 |          3 |          9 |
++-----------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++-----------------------------------------------------------------------------+----------+------------+------------+------------+------------+
+| filename                                                                    | language | code       | comment    | blank      | total      |
++-----------------------------------------------------------------------------+----------+------------+------------+------------+------------+
+| c:\Users\45228\Desktop\share\ddos\code\kernel\Makefile                      | Makefile |         19 |          0 |          4 |         23 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\boot\start.c                  | C        |         40 |         13 |         18 |         71 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\config\config.h               | C        |         32 |          1 |          9 |         42 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\config\error.h                | C        |         10 |          2 |          4 |         16 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\Makefile               | Makefile |          4 |          0 |          4 |          8 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\uart.c                 | C        |         50 |         12 |         14 |         76 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\uart.h                 | C        |          7 |          0 |          1 |          8 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\virtio\virtio-blk.c    | C        |        186 |         20 |         34 |        240 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\virtio\virtio-blk.h    | C++      |         72 |         13 |         11 |         96 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\virtio\virtio-mmio.c   | C        |        104 |         10 |         26 |        140 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\virtio\virtio-mmio.h   | C++      |         48 |          0 |          6 |         54 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\virtio\virtio-ring.c   | C        |         52 |          5 |         10 |         67 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\virtio\virtio-ring.h   | C++      |         41 |          9 |          9 |         59 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\virtio\virtio-rng.c    | C        |        101 |         14 |         23 |        138 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\virtio\virtio-rng.h    | C++      |         17 |          0 |          7 |         24 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\virtio\virtio.h        | C++      |         22 |          2 |          6 |         30 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\virtio\virtio_device.c | C        |        102 |          0 |         14 |        116 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\virtio\virtio_device.h | C++      |         17 |          0 |          3 |         20 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\console.c              | C        |        107 |          2 |         11 |        120 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\console.h              | C        |         10 |          0 |          1 |         11 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\main.c                 | C        |         63 |          5 |          7 |         75 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\plic.c                 | C        |         26 |          7 |          7 |         40 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\plic.h                 | C++      |          9 |          0 |          1 |         10 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\proc.c                 | C        |        144 |          1 |         21 |        166 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\proc.h                 | C        |        106 |          2 |          9 |        117 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\riscv.h                | C        |        151 |         33 |         52 |        236 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\spinlock.c             | C        |         48 |          0 |          6 |         54 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\spinlock.h             | C        |         18 |          0 |          1 |         19 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\syscall.c              | C        |         45 |          5 |          7 |         57 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\syscall.h              | C++      |         31 |          1 |          1 |         33 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\sysfile.c              | C        |         17 |          0 |          5 |         22 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\trap.c                 | C        |        151 |         20 |         21 |        192 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\trap.h                 | C++      |         17 |          0 |          3 |         20 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\libs\atomic.h                 | C        |         79 |        114 |         26 |        219 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\libs\stdio.c                  | C        |         47 |          0 |          8 |         55 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\libs\stdio.h                  | C        |         11 |          0 |          1 |         12 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\mm\buddyPmm.c                 | C        |        231 |          0 |         28 |        259 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\mm\buddyPmm.h                 | C++      |          8 |          0 |          3 |         11 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\mm\defaultPmm.c               | C        |         91 |          0 |         20 |        111 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\mm\defaultPmm.h               | C++      |          8 |          0 |          3 |         11 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\mm\memlayout.h                | C        |         30 |         36 |         12 |         78 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\mm\pmm.c                      | C        |        433 |          9 |         64 |        506 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\mm\pmm.h                      | C        |        128 |          5 |         36 |        169 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\mm\slab.c                     | C        |        376 |          0 |         68 |        444 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\mm\slab.h                     | C++      |         12 |          0 |          4 |         16 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\mm\vmm.c                      | C        |        237 |          4 |         34 |        275 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\mm\vmm.h                      | C++      |         38 |          0 |         11 |         49 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\test\sysdef.h                 | C++      |         26 |          0 |          0 |         26 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\test\uprintf.c                | C        |        178 |          3 |         20 |        201 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\test\uprintf.h                | C        |          6 |          0 |          5 |         11 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\test\user.h                   | C++      |          6 |          0 |          1 |          7 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\test\usertest.c               | C        |         43 |         67 |         14 |        124 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\test\usertest.h               | C++      |          4 |          0 |          0 |          4 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\test\usys.py                  | Python   |         19 |          2 |          6 |         27 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\assert.h                 | C        |         16 |          0 |          4 |         20 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\elf.h                    | C++      |         36 |          4 |          5 |         45 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\list.h                   | C++      |         58 |          0 |         17 |         75 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\panic.c                  | C        |         38 |          0 |          6 |         44 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\panic.h                  | C++      |         10 |          0 |          3 |         13 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\printf.c                 | C        |        164 |          3 |         14 |        181 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\printf.h                 | C++      |         15 |          0 |          6 |         21 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\rand.c                   | C        |         18 |          6 |          7 |         31 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\rand.h                   | C++      |          9 |          0 |          2 |         11 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\rbtree.c                 | C        |        344 |          4 |         52 |        400 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\rbtree.h                 | C++      |         26 |          0 |          6 |         32 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\stdarg.h                 | C++      |          7 |          1 |          4 |         12 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\string.c                 | C        |        120 |          0 |         13 |        133 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\string.h                 | C        |         17 |          0 |          2 |         19 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\types.h                  | C        |         42 |          0 |         14 |         56 |
+| c:\Users\45228\Desktop\share\ddos\code\user\Makefile                        | Makefile |          6 |          0 |          3 |          9 |
+| Total                                                                       |          |      4,804 |        435 |        878 |      6,117 |
++-----------------------------------------------------------------------------+----------+------------+------------+------------+------------+

@@ -180,6 +180,7 @@ void user_trap_ret() {
 
     uint64_t x = r_sstatus();
     x &= ~SSTATUS_SPP;
+    // x |= SSTATUS_SPP;
     x |= SSTATUS_SPIE;
     if (r_scause() == 8 && p->trapframe->a7 == SYS_cli) x &= ~SSTATUS_SPIE;
     w_sstatus(x);

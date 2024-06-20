@@ -7,20 +7,20 @@
 /* Atomic operations that C can't guarantee us. Useful for resource counting etc.. */
 
 typedef struct {
-    volatile int counter;
+    volatile long counter;
 } Atomic;
 
-static inline int atomic_read(const Atomic *v) __attribute__((always_inline));
-static inline void atomic_set(Atomic *v, int i) __attribute__((always_inline));
-static inline void atomic_add(Atomic *v, int i) __attribute__((always_inline));
-static inline void atomic_sub(Atomic *v, int i) __attribute__((always_inline));
-static inline bool atomic_sub_test_zero(Atomic *v, int i) __attribute__((always_inline));
+static inline long atomic_read(const Atomic *v) __attribute__((always_inline));
+static inline void atomic_set(Atomic *v, long i) __attribute__((always_inline));
+static inline void atomic_add(Atomic *v, long i) __attribute__((always_inline));
+static inline void atomic_sub(Atomic *v, long i) __attribute__((always_inline));
+static inline bool atomic_sub_test_zero(Atomic *v, long i) __attribute__((always_inline));
 static inline void atomic_inc(Atomic *v) __attribute__((always_inline));
 static inline void atomic_dec(Atomic *v) __attribute__((always_inline));
 static inline bool atomic_inc_test_zero(Atomic *v) __attribute__((always_inline));
 static inline bool atomic_dec_test_zero(Atomic *v) __attribute__((always_inline));
-static inline int atomic_add_return(Atomic *v, int i) __attribute__((always_inline));
-static inline int atomic_sub_return(Atomic *v, int i) __attribute__((always_inline));
+static inline long atomic_add_return(Atomic *v, long i) __attribute__((always_inline));
+static inline long atomic_sub_return(Atomic *v, long i) __attribute__((always_inline));
 
 static inline void set_bit(int nr, volatile void *addr) __attribute__((always_inline));
 static inline void clear_bit(int nr, volatile void *addr) __attribute__((always_inline));
@@ -36,7 +36,7 @@ static inline bool test_bit(int nr, volatile void *addr) __attribute__((always_i
  *
  * Atomically reads the value of @v.
  * */
-static inline int atomic_read(const Atomic *v) { return __atomic_load_n(&v->counter, __ATOMIC_SEQ_CST); }
+static inline long atomic_read(const Atomic *v) { return __atomic_load_n(&v->counter, __ATOMIC_SEQ_CST); }
 
 /* *
  * atomic_set - set atomic variable
@@ -45,7 +45,7 @@ static inline int atomic_read(const Atomic *v) { return __atomic_load_n(&v->coun
  *
  * Atomically sets the value of @v to @i.
  * */
-static inline void atomic_set(Atomic *v, int i) { __atomic_store_n(&v->counter, i, __ATOMIC_SEQ_CST); }
+static inline void atomic_set(Atomic *v, long i) { __atomic_store_n(&v->counter, i, __ATOMIC_SEQ_CST); }
 
 /* *
  * atomic_add - add integer to atomic variable
@@ -54,7 +54,7 @@ static inline void atomic_set(Atomic *v, int i) { __atomic_store_n(&v->counter, 
  *
  * Atomically adds @i to @v.
  * */
-static inline void atomic_add(Atomic *v, int i) { __atomic_fetch_add(&v->counter, i, __ATOMIC_SEQ_CST); }
+static inline void atomic_add(Atomic *v, long i) { __atomic_fetch_add(&v->counter, i, __ATOMIC_SEQ_CST); }
 
 /* *
  * atomic_sub - subtract integer from atomic variable
@@ -63,7 +63,7 @@ static inline void atomic_add(Atomic *v, int i) { __atomic_fetch_add(&v->counter
  *
  * Atomically subtracts @i from @v.
  * */
-static inline void atomic_sub(Atomic *v, int i) { __atomic_fetch_sub(&v->counter, i, __ATOMIC_SEQ_CST); }
+static inline void atomic_sub(Atomic *v, long i) { __atomic_fetch_sub(&v->counter, i, __ATOMIC_SEQ_CST); }
 
 /* *
  * atomic_sub_test_zero - subtract value from variable and test result
@@ -73,7 +73,7 @@ static inline void atomic_sub(Atomic *v, int i) { __atomic_fetch_sub(&v->counter
  * Atomically subtracts @i from @v and
  * returns true if the result is zero, or false for all other cases.
  * */
-static inline bool atomic_sub_test_zero(Atomic *v, int i) {
+static inline bool atomic_sub_test_zero(Atomic *v, long i) {
     return __atomic_sub_fetch(&v->counter, i, __ATOMIC_SEQ_CST) == 0;
 }
 
@@ -122,7 +122,7 @@ static inline bool atomic_dec_test_zero(Atomic *v) {
  *
  * Atomically adds @i to @v and returns @i + @v
  * */
-static inline int atomic_add_return(Atomic *v, int i) {
+static inline long atomic_add_return(Atomic *v, long i) {
     return __atomic_add_fetch(&v->counter, i, __ATOMIC_SEQ_CST);
 }
 
@@ -133,7 +133,7 @@ static inline int atomic_add_return(Atomic *v, int i) {
  *
  * Atomically subtracts @i from @v and returns @v - @i
  * */
-static inline int atomic_sub_return(Atomic *v, int i) {
+static inline long atomic_sub_return(Atomic *v, long i) {
     return __atomic_sub_fetch(&v->counter, i, __ATOMIC_SEQ_CST);
 }
 
@@ -215,4 +215,3 @@ static inline bool test_bit(int nr, volatile void *addr) {
 }
 
 #endif /* !__LIBS_ATOMIC_H__ */
-

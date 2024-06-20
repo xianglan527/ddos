@@ -16,5 +16,5 @@ enum device_type{
 
 void virtio_device_init(void);
 void virtio_device_intr_handler(int irq);
-
+int get_device_status_ok(int idx);
 #endif

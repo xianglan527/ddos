@@ -8,6 +8,7 @@
 #include "config.h"
 #include "rand.h"
 #include "virtio_device.h"
+#include "virtio.h"
 
 static void virtio_mmio_rng_test(void) {
     uint32_t buf[4] = {0};
@@ -113,4 +114,8 @@ void virtio_device_intr_handler(int irq){
     }break;
     default: panic("virtio_device_intr_handler"); break;
     }
+}
+
+int get_device_status_ok(int idx){
+    return virtio_mmio_get_status(idx) | VIRTIO_STAT_DRIVER_OK;
 }

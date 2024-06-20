@@ -36,6 +36,11 @@ typedef uintptr_t size_t;
 
 typedef size_t ppn_t;
 
+typedef uint64_t pte_t;
+typedef uint64_t pde_t;
+typedef uint64_t pagetable_t;
+typedef pte_t swap_entry_t;
+
 #define ROUNDDOWN(a, n)                \
     ({                                 \
         size_t __a = (size_t)(a);      \

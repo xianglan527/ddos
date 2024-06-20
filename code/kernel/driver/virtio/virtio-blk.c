@@ -130,6 +130,7 @@ int virtio_blk_add(uint32_t base, char *name,int idx) {
     blk->idx = idx;
     virtio_blk_cfg(blk);
     snprintf(blk->blk_name, sizeof(blk->blk_name), "%s", name);
+    initlock(&blk->blk_lock, name);
     list_add(&blks_list, &blk->blk_list);
     return 0;
 }
@@ -151,7 +152,7 @@ void virtio_blk_cfg(struct virtio_blk *blk) {
 #endif
 }
 
-static struct virtio_blk *find_blk_by_name(char *name) {
+struct virtio_blk *find_blk_by_name(char *name) {
     List_entry *list, *le;
     list = le = &blks_list;
     while ((le = list_next(le)) != list) {
@@ -161,7 +162,7 @@ static struct virtio_blk *find_blk_by_name(char *name) {
     return nullptr;  
 }
 
-static struct virtio_blk *find_blk_by_index(int idx) {
+struct virtio_blk *find_blk_by_index(int idx) {
     List_entry *list, *le;
     list = le = &blks_list;
     while ((le = list_next(le)) != list) {
@@ -176,6 +177,7 @@ void virtio_blk_rw(struct blk_buf *b, char *blk_name) {
     int qnum = 0;
     uint64_t sector = b->addr / SECTOR_SZIE;
     struct virtio_blk *blk = find_blk_by_name(blk_name);
+    // acquire(&blk->blk_lock);
     if (blk == nullptr) panic("the %s does not exist\n", blk_name);
     int idx = blk->idx;
     uint64_t sector_end = (b->addr + b->data_len) / SECTOR_SZIE;
@@ -214,9 +216,11 @@ void virtio_blk_rw(struct blk_buf *b, char *blk_name) {
 
 
     volatile uint16_t *pflag = &b->flag;
-    uint64_t pp = *(uint32_t *)PLIC_SENABLE(0);
+    uint64_t pp = intr_get();
+    intr_on();
     while (*pflag == 1);
     blk->info[index[0]] = NULL;
+    // acquire(&blk->blk_lock);
 }
 
 void virtio_blk_intr(int idx) {

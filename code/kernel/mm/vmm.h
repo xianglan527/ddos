@@ -33,6 +33,7 @@ struct mm_struct{
     Vma_struct *mmap_cache;
     pagetable_t *pagetable;
     int map_count;
+    uintptr_t swap_address;
 };
 
 Vma_struct *find_vma(Mm_struct *mm, uintptr_t addr);
@@ -45,5 +46,6 @@ void mm_destroy(Mm_struct *mm);
 void vmm_init(void);
 
 int do_pagatable_fault(Mm_struct *mm, uintptr_t addr);
+void print_vma_list(Mm_struct *mm);
 
 #endif

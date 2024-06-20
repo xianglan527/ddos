@@ -436,6 +436,7 @@ void check_slab(void) {
 check_pass:
     check_rb_tree();
     check_slab_empty();
+
     assert(slab_allocated() == 0);
     assert(nr_free_pages_store == nr_free_pages());
     assert(slab_allocated_store == slab_allocated());
