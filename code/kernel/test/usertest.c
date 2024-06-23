@@ -1,14 +1,16 @@
 #include "usertest.h"
+
 #include "atomic.h"
 #include "proc.h"
 #include "riscv.h"
 #include "uprintf.h"
+#include "kerneltest.h"
 
 Atomic share;
 bool tf0 = 0, tf1 = 0, tf2 = 0, tf3 = 0;
 
 #define __COUNT_ 10000000
-#define DELAY 1000
+
 
 // void user_task0() {
 //     for (int i = 0; i < __COUNT_; i++)
@@ -64,60 +66,43 @@ bool tf0 = 0, tf1 = 0, tf2 = 0, tf3 = 0;
 
 void user_task0() {
     Proc *p = myproc();
-    // release(&p->lock);
-    // cprintf("process name is :%s Created!\n", p->name);
     while (1) {
-        printf("%s running 0\n", p->name);
+        printf("%s running user_task0\n", p->name);
         task_delay(DELAY);
-        // asm volatile("ecall");
-        // bool intr = intr_get();
-        // yield();
+
     }
 }
 
 void user_task1() {
     Proc *p = myproc();
-    // release(&p->lock);
-    // cprintf("process name is :%s Created!\n", p->name);
     while (1) {
-        printf("%s running 1\n", p->name);
+        printf("%s running user_task1\n", p->name);
         task_delay(DELAY);
-        // asm volatile("ecall");
-        // bool intr = intr_get();
-        // yield();
+
     }
 }
 
 void user_task2() {
     Proc *p = myproc();
-    // release(&p->lock);
-    // cprintf("process name is :%s Created!\n", p->name);
     while (1) {
-        printf("%s running 2\n", p->name);
+        printf("%s running user_task2\n", p->name);
         task_delay(DELAY);
-        // asm volatile("ecall");
-        // bool intr = intr_get();
-        // yield();
     }
 }
 
 void user_task3() {
     Proc *p = myproc();
-    // release(&p->lock);
-    // cprintf("process name is :%s Created!\n", p->name);
     while (1) {
-        printf("%s running 3\n", p->name);
+        printf("%s running user_task3\n", p->name);
         task_delay(DELAY);
-        // asm volatile("ecall");
-        // bool intr = intr_get();
-        // yield();
     }
 }
 
-/* NOTICE: DON'T LOOP INFINITELY IN main() */
+
 void os_main(void) {
     user_init(user_task0);
     user_init(user_task1);
     user_init(user_task2);
     user_init(user_task3);
+    kernel_thread_init(kernel_task0);
 }

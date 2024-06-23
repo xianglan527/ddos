@@ -1,6 +1,7 @@
 #include "riscv.h"
 #include "virtio-ring.h"
 #include "stdio.h"
+#include "pmm.h"
 
 /* Parts of the virtqueue are aligned on a 4096 byte page boundary */
 #define VQ_ALIGN(addr)	((((uint64_t)addr) + 0xfff) & ~0xfff)
@@ -47,9 +48,11 @@ int virtio_vring_init(struct vring *vr, uint8_t *buf, uint32_t buf_len, uint32_t
 
 void virtio_vring_fill_desc(struct vring_desc *desc, uint64_t addr, uint32_t len, uint16_t flags, uint16_t next)
 {
+	uint64_t pa_addr = va2pa(kernel_pagetable, addr);
 	volatile struct vring_desc *pt = (volatile struct vring_desc *)desc;
-	pt->addr = addr;
-	pt->len = len;
+    pt->addr = pa_addr;
+    // pt->addr = addr;
+    pt->len = len;
 	pt->flags = flags;
 	pt->next = next;
 	dsb();

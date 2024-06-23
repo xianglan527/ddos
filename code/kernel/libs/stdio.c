@@ -25,11 +25,13 @@ int cprintf(const char *fmt, ...) {
     va_list ap;
     int cnt;
     int locking = pr.locking;
-    if (locking) acquire(&pr.lock);
+    if (locking) 
+        acquire(&pr.lock);
     va_start(ap, fmt);
     cnt = vcprintf(fmt, ap);
     va_end(ap);
-    if (locking) release(&pr.lock);
+    if (locking) 
+        release(&pr.lock);
     return cnt;
 }
 

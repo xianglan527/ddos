@@ -12,6 +12,7 @@
 #include "virtio-mmio.h"
 #include "virtio-ring.h"
 #include "virtio.h"
+#include "proc.h"
 
 List_entry blks_list;
 #define le2blk(le, member) to_struct((le), struct virtio_blk, member)
@@ -172,13 +173,65 @@ struct virtio_blk *find_blk_by_index(int idx) {
     return nullptr;  
 }
 
-void virtio_blk_rw(struct blk_buf *b, char *blk_name) {
+static void virtio_blk_rw_syn(struct blk_buf *b, char *blk_name) {
     int index[3];
     int qnum = 0;
     uint64_t sector = b->addr / SECTOR_SZIE;
     struct virtio_blk *blk = find_blk_by_name(blk_name);
-    // acquire(&blk->blk_lock);
+    assert(blk != nullptr);
     if (blk == nullptr) panic("the %s does not exist\n", blk_name);
+    int idx = blk->idx;
+    uint64_t sector_end = (b->addr + b->data_len) / SECTOR_SZIE;
+
+    if (sector_end > blk->capacity) {
+        cprintf("virtio_blk_rw: invalid data length!\n");
+        return;
+    }
+
+    for (int i = 0; i < 3; ++i) { index[i] = blk->avail_idx++ % BLK_QSIZE; }
+
+    struct virtio_blk_req *req = &blk->ops[index[0]];
+    req->type = b->is_write ? VIRTIO_BLK_T_OUT : VIRTIO_BLK_T_IN;
+    req->reserved = 0;
+    req->sector = sector;
+
+    // fill descriptor: blk request header
+    virtio_vring_fill_desc(blk->vr.desc + index[0], (uintptr_t)req, sizeof(struct virtio_blk_req),
+                           VRING_DESC_F_NEXT, index[1]);
+
+    // fill descriptor: blk data
+    virtio_vring_fill_desc(blk->vr.desc + index[1], (uintptr_t)b->data, b->data_len,
+                           (b->is_write ? 0 : VRING_DESC_F_WRITE) | VRING_DESC_F_NEXT, index[2]);
+
+    // fill descriptor: blk request status
+    blk->status[index[0]] = 0xff;  // device writes 0 on success
+    virtio_vring_fill_desc(blk->vr.desc + index[2], (uintptr_t)&blk->status[index[0]], 1, VRING_DESC_F_WRITE,
+                           0);
+
+    // set blk flag
+    b->flag = 1;
+    blk->info[index[0]] = b;
+
+    virtio_vring_add_avail(blk->vr.avail, index[0], BLK_QSIZE);
+    virtio_mmio_set_notify(qnum, idx);
+
+    volatile uint16_t *pflag = &b->flag;
+    // uint64_t pp = intr_get();
+    intr_on();
+    while (*pflag == 1);
+
+    blk->info[index[0]] = NULL;
+}
+
+static void virtio_blk_rw_asyn(struct blk_buf *b, char *blk_name) {
+    int index[3];
+    int qnum = 0;
+    uint64_t sector = b->addr / SECTOR_SZIE;
+    struct virtio_blk *blk = find_blk_by_name(blk_name);
+    assert(blk != nullptr);
+    acquire(&blk->blk_lock);
+    if (blk == nullptr) 
+        panic("the %s does not exist\n", blk_name);
     int idx = blk->idx;
     uint64_t sector_end = (b->addr + b->data_len) / SECTOR_SZIE;
 
@@ -216,16 +269,29 @@ void virtio_blk_rw(struct blk_buf *b, char *blk_name) {
 
 
     volatile uint16_t *pflag = &b->flag;
-    uint64_t pp = intr_get();
-    intr_on();
-    while (*pflag == 1);
+    // uint64_t pp = intr_get();
+    // intr_on();
+    // while (*pflag == 1);
+
+    while (*pflag == 1){
+        do_sleep(b, &blk->blk_lock);
+    }
     blk->info[index[0]] = NULL;
-    // acquire(&blk->blk_lock);
+    release(&blk->blk_lock);
 }
+
+void virtio_blk_rw(struct blk_buf *b, char *blk_name) {
+    if (myproc() != nullptr)
+        virtio_blk_rw_asyn(b, blk_name);
+    else
+        virtio_blk_rw_syn(b, blk_name);
+}
+
 
 void virtio_blk_intr(int idx) {
     struct virtio_blk *blk = find_blk_by_index(idx);
     assert(blk != nullptr);
+    acquire(&blk->blk_lock);
     virtio_mmio_set_ack(idx);
 
     // the device increments disk.used->idx when it
@@ -239,6 +305,8 @@ void virtio_blk_intr(int idx) {
         b->flag = 0;  // blk is done
         blk->used_idx += 1;
         dsb();
+        do_wakeup(b);
         // cprintf("virtio_blk_intr b->flag: %d\n", b->flag);
     }
+    release(&blk->blk_lock);
 }

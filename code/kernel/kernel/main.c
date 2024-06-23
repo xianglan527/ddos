@@ -58,7 +58,6 @@ void main(){
         vmm_init();
         proc_init();
         // basic_test();
-        user_lock_init();
         virtio_device_init();
         __sync_synchronize();
         swap_init();

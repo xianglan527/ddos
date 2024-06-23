@@ -185,4 +185,5 @@ void vm_print(pagetable_t *pagetable);
 void copy_from_user2kernel(pagetable_t *pagetable, char *dst, uint64_t srcva, uint64_t len);
 void init_kernel_pagetable(void);
 Page *pagetable_alloc_page(pagetable_t *pagetable, uintptr_t va, uint32_t perm);
+uintptr_t va2pa(pagetable_t *pagetable, uint64_t va);
 #endif

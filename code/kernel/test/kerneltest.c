@@ -1,0 +1,91 @@
+#include "kerneltest.h"
+
+#include "assert.h"
+#include "atomic.h"
+#include "config.h"
+#include "error.h"
+#include "hash.h"
+#include "memlayout.h"
+#include "pmm.h"
+#include "proc.h"
+#include "rand.h"
+#include "slab.h"
+#include "stdio.h"
+#include "string.h"
+#include "swap.h"
+#include "swapfs.h"
+#include "virtio-blk.h"
+#include "virtio-mmio.h"
+#include "virtio-rng.h"
+#include "virtio.h"
+#include "virtio_device.h"
+#include "vmm.h"
+
+static void virtio_mmio_rng_test(void) {
+    uint32_t buf[4] = {0};
+    for (int n = 0; n < 8; ++n) {
+        cprintf("==== %d ====\n", n);
+        int rlen = virtio_rng_read((uint8_t *)buf, sizeof(buf));
+
+        for (int i = 0; i < sizeof(buf) / sizeof(buf[0]); i += 4) {
+            cprintf("0x%08x 0x%08x 0x%08x 0x%08x\n", buf[i], buf[i + 1], buf[i + 2], buf[i + 3]);
+        }
+
+        for (int i = 0; i < sizeof(buf) / sizeof(buf[0]); ++i) { buf[i] = 0; }
+    }
+    cprintf("virtio-rng test passed!\n");
+}
+
+#define BLK_1K (2 * SECTOR_SZIE)
+#define DATA_LEN (64 * BLK_1K)  // 64KB
+uint32_t wdata[DATA_LEN / 4] = {0};
+uint32_t rdata[DATA_LEN / 4] = {0};
+#define TEST_CNT (64 * 1024 * 1024 / DATA_LEN)  // 64MB
+// #define TEST_CNT 1
+static void virtio_mmio_blk_test(char *name) {
+    int dlen = DATA_LEN;
+    struct blk_buf req[1] = {0};
+
+    for (int i = 0; i < dlen / 4; ++i) { wdata[i] = rand() & INT_MASK; }
+    cprintf("blk test...");
+    for (int n = 0; n < TEST_CNT; ++n) {
+        req[0].addr = n * dlen;
+        req[0].data = wdata;
+        req[0].data_len = dlen;
+        req[0].is_write = 1;
+        virtio_blk_rw(&req[0], name);
+        for (int j = 0; j < dlen / 4; ++j) { rdata[j] = 0; }
+        req[0].addr = n * dlen;
+        req[0].data = rdata;
+        req[0].data_len = dlen;
+        req[0].is_write = 0;
+        virtio_blk_rw(&req[0], name);
+        for (int j = 0; j < dlen / 4; ++j) {
+            if (rdata[j] != wdata[j]) {
+                cprintf("blk write or read failed\n");
+                goto L1;
+            }
+        }
+    }
+    cprintf("%s test passed!\n", name);
+    return;
+L1:
+    panic("failed!\n");
+}
+
+
+void kernel_test(){
+    virtio_mmio_rng_test();
+    rand_test();
+    virtio_mmio_blk_test("swap.img");
+    virtio_mmio_blk_test("fs.img");
+}
+
+void kernel_task0() {
+    kernel_test();
+    Proc *p = myproc();
+    while (1) {
+        cprintf("%s running kernel_task0 ... all test passed\n", p->name);
+        task_delay(DELAY);
+    }
+}

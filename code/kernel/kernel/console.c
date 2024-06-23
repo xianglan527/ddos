@@ -21,6 +21,7 @@ static struct {
 static char read_buf[CONSOLE_BUF_SIZE];
 
 static void cons_putc(int c){
+    push_off();
     if (c == BACKSPACE){
         uart_putc('\b');
         uart_putc(' ');
@@ -28,6 +29,7 @@ static void cons_putc(int c){
     }
     else
         uart_putc(c);
+    pop_off();
 }
 
 static void cons_intr(int (*proc)(void)) {

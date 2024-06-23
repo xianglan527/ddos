@@ -80,9 +80,11 @@ struct context {
 
 typedef struct proc Proc;
 struct proc {
+    bool kernel_proc;
     char name[64];
     Spinlock lock;
     Proc_state state;
+    void *chan;
     Context context;
     Trapframe *trapframe;
     ulong pid;
@@ -111,7 +113,9 @@ Cpu *mycpu(void);
 Proc *alloc_proc(void);
 void proc_init(void);
 void user_init(void (*start_routin)(void));
-void user_lock_init(void);
+void kernel_thread_init(void (*start_roution)(void));
 void mappages(pagetable_t *pagetable, uint64_t va, uint64_t size, uint64_t pa, int perm);
 void either_copy_from_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len);
+void do_sleep(void *chan, Spinlock *lk);
+void do_wakeup(void *chan);
 #endif

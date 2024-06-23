@@ -99,7 +99,7 @@ struct blk_buf {
     void  	*data;
     uint64_t 	data_len;
     uint16_t  	is_write;
-    uint16_t  	flag;
+    volatile uint16_t  	flag;
 };
 int virtio_blk_init(uint32_t base, int idx);
 int virtio_blk_add(uint32_t base, char *name,int idx);

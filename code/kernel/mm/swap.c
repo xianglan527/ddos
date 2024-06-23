@@ -650,9 +650,8 @@ static void check_swap(void){
     for (offset = 0; offset < max_swap_offset; offset++) { mem_map_setvalue(offset,SWAP_UNSED); }
 
     mm_destroy(mm);
-    int pp1 = nr_free_pages();
+    check_mm_struct = nullptr;
     assert(nr_free_pages_store == nr_free_pages());
-    int pp = slab_allocated();
     assert(slab_allocated_store == slab_allocated());
 
     cprintf("check_swap() succeeded.\n");

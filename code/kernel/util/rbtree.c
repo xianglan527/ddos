@@ -7,8 +7,8 @@
 
 // https://www.bilibili.com/video/BV1BB4y1X7u3/?spm_id_from=333.337.search-card.all.click&vd_source=0a4ca1a061afcec528624e2f15750248
 // https://www.bilibili.com/video/BV1Ce4y1Q76H/?spm_id_from=333.788&vd_source=0a4ca1a061afcec528624e2f15750248
-// This is the best instructional video I've seen on explaining red-black trees. If you can understand all the
-// content in the video, you'll easily comprehend the following code
+// This is the best instructional video I've seen on explaining red-black trees. If can understand all the
+// content in the video, will easily comprehend the following code
 
 static inline Rb_node *rb_node_create(void) { return kmalloc(sizeof(Rb_node)); }
 

@@ -216,6 +216,12 @@ pte_t *get_pte(pagetable_t *pagetable, uint64_t va, int alloc) {
     return &pagetable[PX(0, va)];
 }
 
+uintptr_t va2pa(pagetable_t *pagetable, uint64_t va){
+    pte_t *pte = get_pte(pagetable, va, 0);
+    assert(pte != nullptr && (*pte & PTE_V));
+    return (uintptr_t)PTE2PA(*pte) + (uintptr_t)PGOFF(va);
+}
+
 static uint64_t page_va2pa(pagetable_t *pagetable, uint64_t va){
     pte_t *pte;
     uint64_t pa;

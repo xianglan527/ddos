@@ -5,7 +5,11 @@
 #include "spinlock.h"
 #include "proc.h"
 
-extern Spinlock user_lock;
+extern struct {
+    Spinlock lock;
+    int locking;
+} pr;
+
 
 void user_acquire(Spinlock *lk) {
     cli();
@@ -39,11 +43,11 @@ static int vcprintf(const char *fmt, va_list ap) {
 int printf(const char *fmt, ...) {
     va_list ap;
     int cnt;
-    user_acquire(&user_lock);
+    user_acquire(&pr.lock);
     va_start(ap, fmt);
     cnt = vcprintf(fmt, ap);
     va_end(ap);
-    user_release(&user_lock);
+    user_release(&pr.lock);
     return cnt;
 }
 

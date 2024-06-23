@@ -13,7 +13,6 @@ Proc proc[NPROC];
 Trapframe trapframes[NPROC];
 ulong next_pid = 1;
 Spinlock pid_lock;
-Spinlock user_lock;
 extern char trampoline[];  // trampoline.S
 extern char kernel_etext[];
 
@@ -51,10 +50,10 @@ pagetable_t *proc_pagetable(Proc *p) {
     pagetable_t *pagetable;
     pagetable = alloc_pagetable();
     if (pagetable == nullptr) return nullptr;
-    mappages(pagetable, TRAMPOLINE, PGSIZE, (uint64_t)trampoline, PTE_R | PTE_X );
+    mappages(pagetable, TRAMPOLINE, PGSIZE, (uint64_t)trampoline, PTE_R | PTE_X);
 
     mappages(pagetable, TRAPFRAME, PGSIZE, (uint64_t)(p->trapframe), PTE_R | PTE_W);
-    return  pagetable;
+    return pagetable;
 }
 
 Proc *alloc_proc() {
@@ -81,15 +80,9 @@ found:
     return p;
 }
 
-static void uvm_init(pagetable_t *pagetable){
+static void uvm_init(pagetable_t *pagetable) {
     uintptr_t mem = page2pa(AllocPage());
-    // mappages(pagetable, UART0, PGSIZE, UART0, PTE_R | PTE_W | PTE_U);
-    // mappages(pagetable, VIRTIO_START_ADDR, VIRTIO_DEVICE_NUM * PGSIZE, VIRTIO_START_ADDR,
-    //          PTE_R | PTE_W | PTE_U);
-    // mappages(pagetable, CLINT, 0x10000, CLINT, PTE_R | PTE_W | PTE_U);
-    // mappages(pagetable, PLIC, 0x400000, PLIC, PTE_R | PTE_W | PTE_U);
-
-    mappages(pagetable, PGSIZE, PGSIZE, mem, PTE_W|PTE_R|PTE_U|PTE_X);
+    mappages(pagetable, PGSIZE, PGSIZE, mem, PTE_W | PTE_R | PTE_U | PTE_X);
     mappages(pagetable, KERNBASE, (uint64_t)kernel_etext - KERNBASE, KERNBASE, PTE_R | PTE_U | PTE_X);
     mappages(pagetable, (uint64_t)kernel_etext, PHYSTOP - (uint64_t)kernel_etext, (uint64_t)kernel_etext,
              PTE_R | PTE_W | PTE_U);
@@ -98,11 +91,42 @@ static void uvm_init(pagetable_t *pagetable){
 void user_init(void (*start_routin)(void)) {
     struct proc *p;
     p = alloc_proc();
-    snprintf(p->name, sizeof(p->name), "process_%d", p - proc);
+    snprintf(p->name, sizeof(p->name), "u_process_%d", p - proc);
     uvm_init(p->pagetable);
     p->state = RUNNABLE;
+    p->kernel_proc = 0;
     p->trapframe->epc = (uint64_t)start_routin;  // user program counter
     p->trapframe->sp = 2 * PGSIZE;
+    release(&p->lock);
+}
+
+void kernel_thread_ret(void (*start_roution)(void)) {
+    release(&myproc()->lock);
+    intr_on();
+    start_roution();
+}
+
+void kernel_thread_init(void (*start_roution)(void)) {
+    Proc *p;
+    for (p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if (p->state == UNUSED)
+            goto found;
+        else { release(&p->lock); }
+    }
+    panic("Exceeded maximum number of processes");
+    return;
+found:
+    p->pid = alloc_pid();
+    p->pagetable = kernel_pagetable;
+    assert(p->pagetable != nullptr);
+    memset(&p->context, 0, sizeof(p->context));
+    p->context.ra = (uint64_t)kernel_thread_ret;
+    p->context.a0 = (uint64_t)start_roution;
+    p->context.sp = (uint64_t)(p->kstack + PGSIZE);
+    snprintf(p->name, sizeof(p->name), "k_process_%d", p - proc);
+    p->state = RUNNABLE;
+    p->kernel_proc = true;
     release(&p->lock);
 }
 
@@ -146,7 +170,7 @@ void scheduler(void) {
     Cpu *c = mycpu();
     c->proc = 0;
     while (1) {
-        intr_on();
+        // intr_on();
         for (p = proc; p < &proc[NPROC]; p++) {
             acquire(&p->lock);
             if (p->state == RUNNABLE) {
@@ -160,13 +184,39 @@ void scheduler(void) {
     }
 }
 
-void user_lock_init(void) { initlock(&user_lock, "user_lock"); }
-
-void either_copy_from_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len){
+void either_copy_from_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len) {
     Proc *p = myproc();
-    if(user_src)
+    if (user_src)
         copy_from_user2kernel(p->pagetable, dst, src, len);
-    else{
-        memmove(dst, (char *)src, len); 
+    else { memmove(dst, (char *)src, len); }
+}
+
+void do_sleep(void *chan, Spinlock *lk) {
+    Proc *p = myproc();
+    if (lk != &p->lock) {
+        acquire(&p->lock);
+        release(lk);
+    }
+    p->chan = chan;
+    p->state = SLEEPING;
+    sched();
+    p->chan = nullptr;
+    if (lk != &p->lock) {
+        release(&p->lock);
+        acquire(lk);
+    }
+    // This check is for kernel-mode processes. After entering kerneltrap() or usertrap(), hardware interrupts
+    // are disabled. Even after entering scheduler() via yield() and after acquire(&p -> lock),interrupts
+    // remain disabled even after release(). To ensure that kernel processes can still respond to interrupts
+    // after calling the do_sleep() function, this check and adjustment are made.
+    if (p->kernel_proc && mycpu()->intena == 0) { mycpu()->intena = 1; }
+}
+
+void do_wakeup(void *chan) {
+    Proc *p;
+    for (p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if (p->state == SLEEPING && p->chan == chan) { p->state = RUNNABLE; }
+        release(&p->lock);
     }
 }

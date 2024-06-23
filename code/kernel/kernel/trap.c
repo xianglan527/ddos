@@ -79,6 +79,8 @@ Trap_eum trap_work() {
 
     if ((scause & 0x8000000000000000L) && (scause & 0xff) == 9) {
         int irq = plic_claim();
+        if(!irq)
+            return TRAP_INT;
 
         switch (irq) {
             case 1 ... VIRTIO_DEVICE_NUM: {
@@ -95,7 +97,7 @@ Trap_eum trap_work() {
 
             default: cprintf("unexpected interrupt irq=%d\n", irq); break;
         }
-        if (irq) plic_complete(irq);
+        plic_complete(irq);
         return TRAP_INT;
     } else if (scause == 0x8000000000000001L) {
         if (cpuid() == 0) {
@@ -129,7 +131,6 @@ void kerneltrap() {
     uint64_t sstatus = r_sstatus();
     uint64_t scause = r_scause();
     if ((sstatus & SSTATUS_SPP) == 0) panic("kerneltrap: not from supervisor mode");
-    // int bool = intr_get();
     if (intr_get() != 0) panic("kerneltrap: interrupts enabled");
     if ((trap_enum = trap_work()) == TRAP_OTHER) {
         cprintf("scause %p\n", scause);
@@ -137,7 +138,6 @@ void kerneltrap() {
         panic("kerneltrap");
     }
     if (trap_enum == TRAP_SOFT_INT && myproc() != 0 && myproc()->state == RUNNING) {
-        // intr_on();  // Since interrupts are disabled when entering the trap, enable them again here.
         yield();
     }
 
