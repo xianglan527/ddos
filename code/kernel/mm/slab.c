@@ -127,7 +127,9 @@ void slab_init(void) {
         init_kmem_cache(slab_cache + i, 1 << (i + MIN_SIZE_ORDER), SLAB_ALIGN);
     }
     initlock(&slab_lock, "slab_lock");
+#ifdef PRINT_MM_TEST
     check_slab();
+#endif
 }
 
 size_t slab_allocated(void) {

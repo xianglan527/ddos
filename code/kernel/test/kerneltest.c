@@ -75,10 +75,12 @@ L1:
 
 
 void kernel_test(){
+#ifdef PRINT_VIRTIO_DEVICE_TEST
     virtio_mmio_rng_test();
     rand_test();
     virtio_mmio_blk_test("swap.img");
     virtio_mmio_blk_test("fs.img");
+#endif
 }
 
 void kernel_task0() {

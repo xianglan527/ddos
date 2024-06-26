@@ -19,16 +19,26 @@ size_t npage = 0;
 
 pagetable_t *kernel_pagetable;
 
+static void page_remove_pte(pagetable_t *pagetable, uintptr_t va, pte_t *ptep);
+
 static void __vm_pte_print(pagetable_t *pagetable, int level) {
     if (level > 3) return;
     for (int i = 0; i < 512; i++) {
         pte_t pte = pagetable[i];
-        if (pte & PTE_V) {
-            int64_t child = PTE2PA(pte);
-            for (int j = 0; j < level; j++) cprintf(" ..");
-            cprintf("%d: pte %p pa %p\n", i, pte, child);
-            __vm_pte_print((pagetable_t *)child, level + 1);
+        if(pte != 0){
+            if (pte & PTE_V) {
+                int64_t child = PTE2PA(pte);
+                for (int j = 0; j < level; j++) cprintf(" ..");
+                cprintf("%d: pte %p pa %p\n", i, pte, child);
+                __vm_pte_print((pagetable_t *)child, level + 1);
+            }
+            else{
+                assert(level == 3);
+                for (int j = 0; j < level; j++) cprintf(" ..");
+                cprintf("%d: pte %p entry %p\n", i, pte, swap_offset(pte));
+            }
         }
+    
     }
 }
 void vm_pte_print(pagetable_t *pagetable) {
@@ -54,14 +64,24 @@ static void __vmprint_map(pagetable_t *pagetable, int level, int pg_index[], siz
     if (level > 3) return;
     for (int i = 0; i < 512; i++) {
         pte_t pte = pagetable[i];
-        if (pte & PTE_V) {
+        if(pte != 0){
             pg_index[level - 1] = i;
-            int64_t child = PTE2PA(pte);
-            if (level == 3)
-                cprintf("%ld: pte %p perm %s va %p -----> pa %p\n", (*index)++, pte, perm2str(pte),
-                        pg_index[0] * PT1PGSIZE + pg_index[1] * PT2PGSIZE + pg_index[2] * PT3PGSIZE, child);
-            __vmprint_map((pagetable_t *)child, level + 1, pg_index, index);
+            if (pte & PTE_V) {
+                int64_t child = PTE2PA(pte);
+                if (level == 3)
+                    cprintf("%ld: pte %p perm %s va %p -----> pa %p\n", (*index)++, pte, perm2str(pte),
+                            pg_index[0] * PT1PGSIZE + pg_index[1] * PT2PGSIZE + pg_index[2] * PT3PGSIZE,
+                            child);
+                __vmprint_map((pagetable_t *)child, level + 1, pg_index, index);
+            }
+            else{
+                assert(level == 3);
+                cprintf("%ld: pte %p perm %s va %p -----> entry %p\n", (*index)++, pte, perm2str(pte),
+                            pg_index[0] * PT1PGSIZE + pg_index[1] * PT2PGSIZE + pg_index[2] * PT3PGSIZE,
+                            swap_offset(pte));   
+            }
         }
+        
     }
 }
 
@@ -145,6 +165,12 @@ static void __vm_print(pagetable_t *pagetable, int level, int pg_index[2][3], si
                     cur_pg_index[0] * PT1PGSIZE + cur_pg_index[1] * PT2PGSIZE + cur_pg_index[2] * PT3PGSIZE,
                     PTE2PA(cur_perm));
             }
+            if(pte != 0){
+                cprintf(
+                    "%ld: pte %p perm %s va %p -----> entry %p\n", (*index)++, pte, perm2str(pte),
+                    pg_index[0][0] * PT1PGSIZE + pg_index[0][1] * PT2PGSIZE + i * PT3PGSIZE,
+                    swap_offset(pte));
+            }
             vm_print_state = VM_PRINT_OUT;
         }
     }
@@ -191,6 +217,125 @@ void free_pages(Page *base, size_t n) {
 
 size_t nr_free_pages(void){
     return pmm_manager->nr_free_pages();
+}
+
+void unmap_range(pagetable_t *pagetable, uintptr_t start, uintptr_t end){
+    assert(start % PGSIZE == 0 && end % PGSIZE == 0);
+    do{
+        pte_t *ptep = get_pte(pagetable, start, 0);
+        if(ptep == nullptr){
+            start = ROUNDDOWN(start + PT2PGSIZE, PT2PGSIZE);
+            continue;
+        }
+        if(*ptep != 0){
+            page_remove_pte(pagetable, start, ptep);
+        }
+        start += PGSIZE;
+    }while(start != 0 && start < end);
+}
+
+void exit_range(pagetable_t *pagetable, uintptr_t start, uintptr_t end){
+    assert(start % PGSIZE == 0 && end % PGSIZE == 0);
+    start = ROUNDDOWN(start, PT2PGSIZE);
+    uintptr_t pstart = ROUNDDOWN(start, PT1PGSIZE);
+    while (start < end){
+        int pde_idx1 = PX(2, start);
+
+        pte_t pgt2 = pagetable[pde_idx1];
+        if (pgt2 == 0) {
+            start = ROUNDDOWN(start + PT1PGSIZE, PT1PGSIZE);
+            continue;
+        }
+        int pde_idx2 = PX(1, start);
+
+        pte_t pgt3 = ((pte_t *)PTE2PA(pgt2))[pde_idx2];
+        if(pgt3 == 0){
+            start = ROUNDDOWN(start + PT2PGSIZE, PT2PGSIZE);
+            continue;
+        }
+
+        bool pg3_empty = true;
+        for(int i = 0; i < PTNUM; i++){
+            if(start >= end)
+                goto delete_pagetable2;
+            if(pg3_empty == true && ((pte_t *)PTE2PA(pgt3))[PX(0, start)] != 0){
+                pg3_empty = false;
+            }
+            start += PGSIZE;
+        }
+        if(pg3_empty){
+            ((pte_t *)PTE2PA(pgt2))[pde_idx2] = 0;
+            FreePage(pa2page(PTE2PA(pgt3)));
+        } 
+    }
+delete_pagetable2:
+    start = pstart;
+    while (start < end) {
+        int pde_idx1 = PX(2, start);
+
+        pte_t pgt2 = pagetable[pde_idx1];
+        if (pgt2 == 0) {
+            start = ROUNDDOWN(start + PT1PGSIZE, PT1PGSIZE);
+            continue;
+        }
+        int pde_idx2 = PX(1, start);
+
+        bool pg2_empty = true;
+        for (int i = 0; i < PTNUM; i++) {
+            if (start >= end) return;
+            if (pg2_empty == true && ((pte_t *)PTE2PA(pgt2))[PX(1, start)] != 0) {
+                pg2_empty = false;
+            }
+            start = ROUNDDOWN(start + PT2PGSIZE, PT2PGSIZE);
+        }
+        if (pg2_empty) {
+            pagetable[pde_idx1] = 0;
+            FreePage(pa2page(PTE2PA(pgt2)));
+        }
+    }
+}
+
+int copy_range(pagetable_t *to, pagetable_t *from, uintptr_t start, uintptr_t end, bool share){
+    share = 0;
+    assert(start % PGSIZE == 0 && end % PGSIZE == 0);
+    do{
+        pte_t *ptep = get_pte(from, start, 0), *nptep;
+        if(ptep == nullptr){
+            start = ROUNDDOWN(start + PT2PGSIZE, PT2PGSIZE);
+            continue;
+        }
+        if(*ptep != 0){
+            if((nptep = get_pte(to, start, 1)) == nullptr){
+                return -E_NO_MEM;
+            }
+            int ret;
+            Page *page, *newpage = AllocPage();
+            pte_t pp1 = *ptep;
+            pte_t pp2 = *nptep;
+            assert(*ptep != 0 && *nptep == 0);
+            if(*ptep & PTE_V){
+                uint32_t perm = (*ptep & PTE_USER);
+                if((page = newpage) == nullptr)
+                    return -E_NO_MEM;
+                newpage = nullptr;
+                memcpy((void *)page2va(page), (void *)page2va(pte2page(*ptep)), PGSIZE);
+                ret = page_insert(to, page, start, perm);
+                assert(ret == 0);
+            }else{
+                swap_entry_t entry;
+                if(swap_copy_entry(*ptep, &entry) != 0){
+                    return -E_NO_MEM;
+                }
+                swap_duplicate(entry);
+                *nptep = entry;
+            }
+            if(newpage != nullptr){
+                FreePage(newpage);
+            }
+        }
+        start += PGSIZE;
+    } while (start != 0 && start < end);
+    return 0;
 }
 
 static void check_alloc_page(void) {
@@ -511,7 +656,7 @@ void init_kernel_pagetable(void){
 void pmm_init(void) {
     init_pmm_manager();
     page_init();
-#if KERNEL_TEST
+#ifdef PRINT_MM_TEST
     check_alloc_page();
     // check_print_pagetable();
     check_pagetable();

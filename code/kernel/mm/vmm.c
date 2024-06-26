@@ -132,18 +132,198 @@ void insert_vma_struct(Mm_struct *mm, Vma_struct *vma) {
     }
 }
 
+static int remove_vma_struct(Mm_struct *mm, Vma_struct *vma){
+    assert(mm == vma->vm_mm);
+    if(mm->mmap_tree != nullptr){
+        rb_delete(mm->mmap_tree, &(vma->rb_link));
+    }
+    list_del(&vma->list_link);
+    if(vma == mm->mmap_cache){
+        mm->mmap_cache = nullptr;
+    }
+    mm->map_count--;
+    return 0;
+}
+
+static int remove_and_destroy_vma_struct(Mm_struct *mm, Vma_struct *vma) {
+    assert(mm == vma->vm_mm);
+    if (mm->mmap_tree != nullptr) { rb_delete(mm->mmap_tree, &(vma->rb_link)); }
+    list_del(&vma->list_link);
+    if (vma == mm->mmap_cache) { mm->mmap_cache = nullptr; }
+    mm->map_count--;
+    vma_destroy(le2vma(&vma->list_link, list_link));
+    return 0;
+}
+
 void mm_destroy(Mm_struct *mm) {
     if (mm->mmap_tree != nullptr) rb_tree_destroy(mm->mmap_tree);
-    while (!list_empty(&(mm->mmap_list))) {
-        List_entry *le = list_next(&(mm->mmap_list));
+    List_entry *list = &mm->mmap_list, *le;
+    while((le = list_next(list)) != list){
         list_del(le);
         vma_destroy(le2vma(le, list_link));
     }
     kfree(mm);
-    mm->map_count = 0;
 }
 
-void vmm_init(void) { check_vmm(); }
+void vmm_init(void) {
+#ifdef PRINT_MM_TEST
+    check_vmm(); 
+#endif
+}
+
+int mm_map(Mm_struct *mm, uintptr_t addr, size_t len, uint32_t vm_flags, Vma_struct **vma_store){
+    uintptr_t start = PGROUNDDOWN(addr), end = PGROUNDUP(addr + len);
+    assert(mm != nullptr);
+    int ret = -E_INVAL;
+    Vma_struct *vma;
+    if((vma = find_vma(mm, start)) != nullptr && end > vma->vm_start)
+        goto out;
+    ret = -E_NO_MEM;
+    if((vma = vma_create(start, end, vm_flags)) == nullptr)
+        goto out;
+    insert_vma_struct(mm, vma);
+    if(vma_store != nullptr){
+        *vma_store = vma;
+    }
+    ret = 0;
+out:
+    return ret;
+}
+
+static void vma_resize(Vma_struct *vma, uintptr_t start, uintptr_t end){
+    assert(start % PGSIZE == 0 && end % PGSIZE == 0);
+    assert(vma->vm_start <= start && start < end && end <= vma->vm_end);
+    vma->vm_start = start, vma->vm_end = end;
+}
+
+int mm_unmap(Mm_struct *mm, uintptr_t addr, size_t len){
+    uintptr_t start = PGROUNDDOWN(addr), end = PGROUNDUP(addr + len);
+    if(!(addr < MAXVA && (addr + len) < MAXVA))
+        return -E_INVAL;
+    assert(mm != nullptr);
+    
+    Vma_struct *vma;
+    if((vma = find_vma(mm, start)) == nullptr || end <= vma->vm_start)
+        return 0;
+    
+    if(vma->vm_start < start && end < vma->vm_end){
+        Vma_struct *nvma;
+        if((nvma = vma_create(vma->vm_start, start, vma->vm_flags)) == nullptr)
+            return -E_NO_MEM;
+        vma_resize(vma, end, vma->vm_end);
+        insert_vma_struct(mm, nvma);
+        unmap_range(mm->pagetable, start, end);
+        return 0;
+    }
+
+    List_entry free_list, *le;
+    list_init(&free_list);
+    while(vma->vm_start < end){
+        le = list_next(&vma->list_link);
+        remove_vma_struct(mm, vma);
+        list_add(&free_list, &vma->list_link);
+        if(le == &(mm->mmap_list))
+            break;
+        vma = le2vma(le, list_link);
+    }
+    le = list_next(&free_list);
+    while(le != &free_list){
+        vma = le2vma(le, list_link);
+        le = list_next(le);
+        uintptr_t un_start, un_end;
+        if(vma->vm_start < start){
+            un_start = start, un_end = vma->vm_end;
+            vma_resize(vma, vma->vm_start, un_start);
+            insert_vma_struct(mm, vma);
+        }else{
+            un_start = vma->vm_start, un_end = vma->vm_end;
+            if(end < un_end){
+                un_end = end;
+                vma_resize(vma, un_end, vma->vm_end);
+                insert_vma_struct(mm, vma);
+            }
+            else{
+                vma_destroy(vma);
+            }
+        }
+        unmap_range(mm->pagetable, un_start, un_end);
+    }
+    return 0;
+}
+
+int dup_mmap(Mm_struct *to, Mm_struct *from){
+    assert(to != nullptr && from != nullptr);
+    if(!list_empty(&to->mmap_list)){
+        exit_mmap(to);
+    }
+    List_entry *list = &from->mmap_list, *le = list;
+    while((le = list_next(le)) != list){
+        Vma_struct *vma, *nvma;
+        vma = le2vma(le, list_link);
+        nvma = vma_create(vma->vm_start, vma->vm_end, vma->vm_flags);
+        if(nvma == nullptr)
+            return -E_NO_MEM;
+        insert_vma_struct(to, nvma);
+        if(copy_range(to->pagetable, from->pagetable, vma->vm_start, vma->vm_end, 0) != 0){
+            return -E_NO_MEM;
+        }
+    }
+    return 0;
+}
+
+void exit_mmap(Mm_struct *mm){
+    assert(mm != nullptr);
+    pagetable_t *pagatable = mm->pagetable;
+    List_entry *list = &mm->mmap_list, *le = list;
+    while((le = list_next(le)) != list){
+        Vma_struct *vma = le2vma(le, list_link);
+        unmap_range(pagatable, vma->vm_start, vma->vm_end);
+    }
+    while((le = list_next(le)) != list){
+        Vma_struct *vma = le2vma(le, list_link);
+        exit_range(pagatable, vma->vm_start, vma->vm_end);
+    }
+    while ((le = list_next(le)) != list) {
+        Vma_struct *vma = le2vma(le, list_link);
+        remove_and_destroy_vma_struct(mm, vma);
+    }
+}
+
+int64_t get_unmapped_area(Mm_struct *mm, size_t len){
+    if(len == 0 || len >= MAXVA )
+        return 0;
+    uintptr_t start = MAXVA - len;
+    List_entry *list = &mm->mmap_list, *le = list;
+    while((le = list_prev(le)) != list){
+        Vma_struct *vma = le2vma(le, list_link);
+        if(start >= vma->vm_end)
+            return start;
+        start = vma->vm_start - len;
+    }
+    return start;     //if not found will return negative value
+}
+
+bool user_mem_check(Mm_struct *mm, uintptr_t addr, size_t len, bool write){
+    if(addr + len >= MAXVA)
+        return 0;
+    if(mm != nullptr){
+        Vma_struct *vma;
+        uintptr_t start = addr, end = addr + len;
+        while(start < end){
+            if((vma = find_vma(mm, start)) == nullptr || start < vma->vm_start)
+                return 0;
+            if(!(vma->vm_flags & ((write) ? VM_WRITE : VM_READ)))
+                return 0;
+            if(write && (vma->vm_flags & VM_STACK)){
+                if(start < vma->vm_start + PGSIZE)
+                    return 0;
+            }
+            start = vma->vm_end;
+        }
+        return 1;
+    }
+    return 1;
+}
 
 static void check_vmm(void) {
     size_t slab_allocated_store = slab_allocated();
@@ -258,7 +438,10 @@ int do_pagatable_fault(Mm_struct *mm, uintptr_t addr) {
     int ret = -E_INVAL;
     Vma_struct *vma = find_vma(mm, addr);
     if (vma == nullptr || vma->vm_start > addr) goto failed;
-
+    if(vma->vm_flags & VM_STACK){
+        if(addr < vma->vm_start + PGSIZE)
+            goto failed;
+    }
     uint32_t perm = 0;
     // uint32_t perm = PTE_U;
     if (vma->vm_flags & VM_WRITE) {

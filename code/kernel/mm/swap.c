@@ -11,6 +11,7 @@
 #include "vmm.h"
 #include "slab.h"
 #include "stdio.h"
+#include "config.h"
 
 size_t max_swap_offset;
 
@@ -34,7 +35,7 @@ static inline void mem_map_setvalue(int index, int value) { return atomic_set(&m
 static inline long mem_map_inc(int index) { return atomic_add_return(&mem_map[index], 1); }
 static inline long mem_map_dec(int index) { return atomic_sub_return(&mem_map[index], 1); }
 
-#define SWAP_UNSED 0xFFFFF
+#define SWAP_UNUSED 0xFFFFF
 #define MAX_SWAP_REF 0xFFFFE
 
 static volatile bool swap_init_ok = 0;
@@ -46,6 +47,7 @@ static volatile bool swap_init_ok = 0;
 static List_entry hash_list[HASH_LIST_SIZE];
 
 static void check_swap(void);
+static void check_mm_swap(void);
 
 static Spinlock swap_lock;  
                            
@@ -94,12 +96,15 @@ void swap_init(void) {
     assert(mem_map != nullptr);
 
     for (size_t offset = 0; offset < max_swap_offset; offset++){
-            mem_map_setvalue(offset, SWAP_UNSED);
+            mem_map_setvalue(offset, SWAP_UNUSED);
     } 
 
     for (int i = 0; i < HASH_LIST_SIZE; i++) list_init(hash_list + i);
     initlock(&swap_lock, "swap_lock");
+#ifdef PRINT_MM_TEST
     check_swap();
+    check_mm_swap();
+#endif
 }
 
 bool try_free_pages(size_t n) {
@@ -136,7 +141,7 @@ static swap_entry_t try_alloc_swap_entry(void) {
     size_t emtpy = 0, zero = 0, end = next;
     do {
         switch (mem_map_getvalue(next)) {
-            case SWAP_UNSED: emtpy = next; break;
+            case SWAP_UNUSED: emtpy = next; break;
             case 0:
                 if (zero == 0) zero = next;
                 break;
@@ -157,7 +162,7 @@ static swap_entry_t try_alloc_swap_entry(void) {
             swap_free_page(page);
         else
             swap_page_del(page);
-        mem_map_setvalue(zero, SWAP_UNSED);
+        mem_map_setvalue(zero, SWAP_UNUSED);
     }
     static uint failed_counter = 0;
     if (entry == 0 && ((++failed_counter) % 0x1000) == 0) {
@@ -174,7 +179,7 @@ static bool swap_page_add(Page *page, swap_entry_t entry) {
             release(&swap_lock);
             return 0;
         }
-        assert(mem_map_getvalue(swap_offset(entry)) == SWAP_UNSED);
+        assert(mem_map_getvalue(swap_offset(entry)) == SWAP_UNUSED);
         mem_map_setvalue(swap_offset(entry), 0);
         SetPageDirty(page);
     }
@@ -195,7 +200,7 @@ void swap_remove_entry(swap_entry_t entry) {
             swap_list_del(page);
             swap_free_page(page);
         }
-        mem_map_setvalue(offset, SWAP_UNSED);
+        mem_map_setvalue(offset, SWAP_UNUSED);
     }
 }
 
@@ -274,7 +279,7 @@ out:
 static bool try_free_swap_entry(swap_entry_t entry){
     size_t offset = swap_offset(entry);
     if(mem_map_getvalue(offset) == 0){
-        mem_map_setvalue(offset, SWAP_UNSED);
+        mem_map_setvalue(offset, SWAP_UNUSED);
         return 1;
     }
     return 0;
@@ -532,7 +537,7 @@ static void check_swap(void){
     assert(PageSwap(rp0) && PageActive(rp0));
 
     entry = try_alloc_swap_entry();
-    assert(swap_offset(entry) == 1 && mem_map_getvalue(1) == SWAP_UNSED);
+    assert(swap_offset(entry) == 1 && mem_map_getvalue(1) == SWAP_UNUSED);
     assert(!PageSwap(rp0) && nr_active_pages == 0 && nr_inactive_pages == 0);
 
     assert(rp0 == pte2page(*ptep0));
@@ -577,7 +582,7 @@ static void check_swap(void){
 
     assert(PageSwap(rp0) && PageActive(rp0));
     entry = try_alloc_swap_entry();
-    assert(swap_offset(entry) == 1 && mem_map_getvalue(1) == SWAP_UNSED);
+    assert(swap_offset(entry) == 1 && mem_map_getvalue(1) == SWAP_UNUSED);
     assert(!PageSwap(rp0));
     assert(list_empty(&active_list.swap_list));
     assert(list_empty(&inactive_list.swap_list));
@@ -604,7 +609,7 @@ static void check_swap(void){
     swap_entry_t store;
     ret = swap_copy_entry(entry, &store);
     assert(ret == -E_NO_MEM);
-    mem_map_setvalue(2, SWAP_UNSED);
+    mem_map_setvalue(2, SWAP_UNUSED);
 
     ret = swap_copy_entry(entry, &store);
     assert(ret == 0 && swap_offset(store) == 2 && mem_map_getvalue(2) == 0);
@@ -647,7 +652,7 @@ static void check_swap(void){
     // vm_print(kernel_pagetable);
 
     assert(nr_active_pages == 0 && nr_inactive_pages == 0);
-    for (offset = 0; offset < max_swap_offset; offset++) { mem_map_setvalue(offset,SWAP_UNSED); }
+    for (offset = 0; offset < max_swap_offset; offset++) { mem_map_setvalue(offset,SWAP_UNUSED); }
 
     mm_destroy(mm);
     check_mm_struct = nullptr;
@@ -655,4 +660,241 @@ static void check_swap(void){
     assert(slab_allocated_store == slab_allocated());
 
     cprintf("check_swap() succeeded.\n");
+}
+
+static void check_mm_swap(void){
+    size_t nr_free_pages_store = nr_free_pages();
+    size_t slab_allocated_store = slab_allocated();
+
+    int ret, i, j;
+    for(i = 0; i < max_swap_offset; i++){
+        assert(mem_map_getvalue(i) == SWAP_UNUSED);
+    }
+
+    extern Mm_struct *check_mm_struct;
+    assert(check_mm_struct == nullptr);
+
+    Mm_struct *mm0 = mm_create(), *mm1;
+    assert(mm0 != nullptr && list_empty(&mm0->mmap_list));
+    uint32_t addr0, addr1;
+    addr0 = 0;
+    do {
+        ret = mm_map(mm0, addr0, PT1PGSIZE, 0, NULL);
+        addr0 += PT1PGSIZE;
+    } while (addr0 != 0);
+    addr0 = 0;
+    for (i = 0; i < 1024; i++, addr0 += PT1PGSIZE) {
+        ret = mm_map(mm0, addr0, PGSIZE, 0, NULL);
+        assert(ret == -E_INVAL);
+    }
+    mm_destroy(mm0);
+
+    mm0 = mm_create();
+    assert(mm0 != nullptr && list_empty(&mm0->mmap_list));
+    addr0 = 0, i = 0;
+    do{
+        ret = mm_map(mm0, addr0, PT1PGSIZE - PGSIZE, 0, nullptr);
+        if(ret == 0)
+            i++;
+        addr0 += PT1PGSIZE;
+    }while(addr0 != 0);
+
+    addr0 = 0, j = 0;
+    do{
+        addr0 += PT1PGSIZE - PGSIZE;
+        ret = mm_map(mm0, addr0, PGSIZE, 0, nullptr);
+        if(ret == 0)
+            j++;
+        addr0 += PGSIZE;
+    }while(addr0 != 0);
+    
+    assert(j + 1 >= i);
+
+    mm_destroy(mm0);
+
+    assert(nr_free_pages_store == nr_free_pages());
+    assert(slab_allocated_store == slab_allocated());
+
+    mm0 = mm_create();
+    assert(mm0 != nullptr && list_empty(&mm0->mmap_list));
+
+    Page *page = AllocPage();
+    assert(page != nullptr);
+    pagetable_t *pgdir = (pagetable_t *)page2va(page);
+    memcpy(pgdir, kernel_pagetable, PGSIZE);
+
+    
+    mm0->pagetable = pgdir;
+    check_mm_struct = mm0;
+    w_satp(MAKE_SATP(mm0->pagetable));
+    sfence_vma();
+
+
+    uint32_t vm_flags = VM_WRITE | VM_READ;
+    Vma_struct *vma;
+
+    addr0 = 0;
+    do{
+        if((ret = mm_map(mm0, addr0, PT2PGSIZE, vm_flags, &vma)) == 0){
+            break;
+        }
+        addr0 += PT2PGSIZE;
+    }while(addr0 != 0);
+    assert(ret == 0 && addr0 == 0 && mm0->map_count == 1);
+    assert(vma->vm_start == addr0 && vma->vm_end == addr0 + PT2PGSIZE);
+
+    pte_t *ptep;
+    for(addr1 = addr0; addr1 < addr0 + PT2PGSIZE; addr1 += PGSIZE){
+        ptep = get_pte(pgdir, addr1, 0);
+        assert(ptep == nullptr);
+    }
+
+    memset((void*)(uintptr_t)addr0, 0xEF, PGSIZE * 2);
+    ptep = get_pte(pgdir, addr0, 0);
+    assert(ptep != nullptr && (*ptep & PTE_V));
+    ptep = get_pte(pgdir, addr0 + PGSIZE, 0);
+    assert(ptep != nullptr && (*ptep & PTE_V));
+
+    ret = mm_unmap(mm0, -PT2PGSIZE, PT2PGSIZE);
+    assert(ret == -E_INVAL);
+    ret = mm_unmap(mm0, addr0 + PT2PGSIZE, PT2PGSIZE);
+    assert(ret == 0);
+
+    addr1 = addr0 + PT2PGSIZE / 2;
+    ret = mm_unmap(mm0, addr1, PGSIZE);
+    assert(ret == 0 && mm0->map_count == 2);
+
+    ret = mm_unmap(mm0, addr1 + 2 * PGSIZE, PGSIZE * 4);
+    assert(ret == 0 && mm0->map_count == 3);
+
+    ret = mm_map(mm0, addr1, PGSIZE * 6, 0, nullptr);
+    assert(ret == -E_INVAL);
+    ret = mm_map(mm0, addr1, PGSIZE, 0, nullptr);
+    assert(ret == 0 && mm0->map_count == 4);
+    ret = mm_map(mm0, addr1 + 2 * PGSIZE, PGSIZE * 4, 0, nullptr);
+    assert(ret == 0 && mm0->map_count == 5);
+
+    ret = mm_unmap(mm0, addr1 + PGSIZE / 2, PT2PGSIZE / 2- PGSIZE);
+    assert(ret == 0 && mm0->map_count == 1);
+
+    addr1 = addr0 + PGSIZE;
+
+    addr1 = addr0 + PGSIZE;
+    for (i = 0; i < PGSIZE; i++) { assert(*(char *)(uintptr_t)(addr1 + i) == (char)0xEF); }
+
+    ret = mm_unmap(mm0, addr1 + PGSIZE / 2, PGSIZE / 4);
+    assert(ret == 0 && mm0->map_count == 2);
+    ptep = get_pte(pgdir, addr0, 0);
+    assert(ptep != nullptr && (*ptep & PTE_V));
+    ptep = get_pte(pgdir, addr0 + PGSIZE, 0);
+    assert(ptep != nullptr && *ptep == 0);
+
+    ret = mm_map(mm0, addr1, PGSIZE, vm_flags, nullptr);
+    memset((void *)(uintptr_t)addr1, 0x88, PGSIZE);
+    assert(*(char *)(uintptr_t)addr1 == (char)0x88 && mm0->map_count == 3);
+
+    for(i = 1; i < 16; i += 2){
+        ret = mm_unmap(mm0, addr0 + PGSIZE * i, PGSIZE);
+        assert(ret == 0);
+        if(i < 8){
+            ret = mm_map(mm0, addr0 + PGSIZE * i, PGSIZE, 0 ,nullptr);
+            assert(ret == 0);
+        }
+    }
+    assert(mm0->map_count == 13);
+
+    ret = mm_unmap(mm0, addr0 + PGSIZE * 2, PT2PGSIZE - PGSIZE * 2);
+    assert(ret == 0 && mm0->map_count == 2);
+
+    ret = mm_unmap(mm0, addr0, PGSIZE * 2);
+    assert(ret == 0 && mm0->map_count == 0);
+
+    ret = mm_map(mm0, PT1PGSIZE, PT1PGSIZE, vm_flags, nullptr);
+    assert(ret == 0);
+    for (i = 0, addr1 = PT1PGSIZE; i < 4; i++, addr1 += PGSIZE) { *(char *)(uintptr_t)addr1 = (char)0xFF; }
+    assert((mm0->pagetable)[1] != 0);
+    pte_t pg = mm0->pagetable[1];
+    assert(((pte_t *)PTE2PA(pg))[0] != 0);
+    exit_mmap(mm0);
+    assert(((pte_t *)PTE2PA(pg))[1] == 0);
+    assert((mm0->pagetable)[1] == 0);
+
+    for(i = 0; i < max_swap_offset; i++){
+        assert(mem_map_getvalue(i) == SWAP_UNUSED);
+    }
+    
+    addr0 = PT1PGSIZE;
+    ret = mm_map(mm0, addr0, PT1PGSIZE, vm_flags, nullptr);
+    assert(ret == 0);
+
+    addr1 = addr0;
+    for(i = 0; i < 4; i++, addr1 += PGSIZE){
+        *(char *)(uintptr_t)addr1 = (char)(i * i);
+    }
+
+    ret = 0;
+    ret += swap_out_mm(mm0 ,10);
+    ret += swap_out_mm(mm0, 10);
+    assert(ret == 4);
+
+    for(; i < 8; i++, addr1 += PGSIZE){
+        *(char *)(uintptr_t)addr1 = (char)(i * i);
+    }
+
+    mm1 = mm_create();
+    assert(mm1 != nullptr);
+
+    page = AllocPage();
+    assert(page != nullptr);
+    pgdir = (pagetable_t *)page2va(page);       
+    memcpy(pgdir, kernel_pagetable, PGSIZE);
+    mm1->pagetable = pgdir;
+
+    ret = dup_mmap(mm1, mm0);
+    assert(ret == 0);
+
+    check_mm_struct = mm1;
+    w_satp(MAKE_SATP(mm1->pagetable));
+    sfence_vma();
+    addr1 = addr0;
+    for(i = 0; i < 8; i++, addr1 += PGSIZE){
+        assert(*(char *)(uintptr_t)addr1 == (char)(i * i));
+        *(char *)(uintptr_t)addr1 = (char)0x88;
+    }
+    
+    check_mm_struct = mm0;
+    w_satp(MAKE_SATP(mm0->pagetable));
+    sfence_vma();
+
+     addr1 = addr0;
+    for (i = 0; i < 8; i ++, addr1 += PGSIZE) {
+        assert(*(char *)(uintptr_t)addr1 == (char)(i * i));
+    }
+
+    check_mm_struct = nullptr;
+    w_satp(MAKE_SATP(kernel_pagetable));
+    sfence_vma();
+
+    exit_mmap(mm0);
+    exit_mmap(mm1);
+
+    FreePage(kva2page((uintptr_t)mm0->pagetable));
+    mm_destroy(mm0);
+    FreePage(kva2page((uintptr_t)mm1->pagetable));
+    mm_destroy(mm1);
+
+    refill_inactive_scan();
+    page_launder();
+    for (i = 0; i < max_swap_offset; i++) { 
+        assert(mem_map_getvalue(i) == SWAP_UNUSED); 
+    }
+
+    pte_t pg1 = kernel_pagetable[0];
+    pte_t pg2 = ((pte_t *)PTE2PA(pg1))[0];
+    ((pte_t *)PTE2PA(pg1))[0] = 0;
+    FreePage(pa2page(PTE2PA(pg2)));
+    assert(nr_free_pages_store == nr_free_pages());
+    assert(slab_allocated_store == slab_allocated());
+
+    cprintf("check_mm_swap() succeeded.\n");
 }

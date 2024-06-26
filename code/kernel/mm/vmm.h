@@ -25,6 +25,7 @@ struct vma_struct {
 #define VM_READ         0x00000001
 #define VM_WRITE        0x00000002
 #define VM_EXEC         0x00000004
+#define VM_STACK        0x00000008
 
 typedef struct mm_struct Mm_struct;
 struct mm_struct{
@@ -47,5 +48,10 @@ void vmm_init(void);
 
 int do_pagatable_fault(Mm_struct *mm, uintptr_t addr);
 void print_vma_list(Mm_struct *mm);
-
+int mm_map(Mm_struct *mm, uintptr_t addr, size_t len, uint32_t vm_flags, Vma_struct **vma_store);
+int mm_unmap(Mm_struct *mm, uintptr_t addr, size_t len);
+int dup_mmap(Mm_struct *to, Mm_struct *from);
+void exit_mmap(Mm_struct *mm);
+int64_t get_unmapped_area(Mm_struct *mm, size_t len);
+bool user_mem_check(Mm_struct *mm, uintptr_t addr, size_t len, bool write);
 #endif

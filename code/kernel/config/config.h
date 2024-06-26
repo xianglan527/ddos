@@ -6,8 +6,8 @@
 #define __PRINT_UART_CHAR 0
 #define __PRINT_TRAP_EXCEPTION 1
 #define __PRINT_VIRTIO_DEVICE_INFO 1
-#define __PRINT_VIRTIO_DEVICE_TEST 0
-#define KERNEL_TEST 1
+#define __PRINT_VIRTIO_DEVICE_TEST 1
+#define __PRINT_MM_TEST 1
 
 #if defined(PRINT_KERNEL_INFO) && (__PRINT_TRICKS)
 #define PRINT_TRICKS
@@ -27,6 +27,10 @@
 
 #if defined(PRINT_KERNEL_INFO) && (__PRINT_VIRTIO_DEVICE_TEST)
 #define PRINT_VIRTIO_DEVICE_TEST
+#endif
+
+#if defined(PRINT_KERNEL_INFO) && (__PRINT_MM_TEST)
+#define PRINT_MM_TEST
 #endif
 
 #define CONSOLE_BUF_SIZE 1024

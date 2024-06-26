@@ -38,12 +38,6 @@ void virtio_device_init(void){
                 default: panic("Unrecognized device"); break;
         }
     }
-#ifdef PRINT_VIRTIO_DEVICE_TEST
-    virtio_mmio_rng_test();
-    rand_test();
-    virtio_mmio_blk_test("swap.img");
-    virtio_mmio_blk_test("fs.img");
-#endif
 }
 
 

@@ -106,6 +106,8 @@ extern size_t npage;
 #define PTE_D (1L << 7)
 #define PTE_MASK ((1L << 6) - 1)
 
+#define PTE_USER    (PTE_V | PTE_W | PTE_U)
+
 #define PA2PTE(pa) ((((uint64_t)(pa)) >> 12) << 10)
 
 #define PTE2PA(pte) (((pte) >> 10) << 12)
@@ -186,4 +188,7 @@ void copy_from_user2kernel(pagetable_t *pagetable, char *dst, uint64_t srcva, ui
 void init_kernel_pagetable(void);
 Page *pagetable_alloc_page(pagetable_t *pagetable, uintptr_t va, uint32_t perm);
 uintptr_t va2pa(pagetable_t *pagetable, uint64_t va);
+void unmap_range(pde_t *pgdir, uintptr_t start, uintptr_t end);
+void exit_range(pde_t *pgdir, uintptr_t start, uintptr_t end);
+int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end, bool share);
 #endif

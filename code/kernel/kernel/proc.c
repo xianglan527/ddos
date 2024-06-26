@@ -206,7 +206,7 @@ void do_sleep(void *chan, Spinlock *lk) {
         acquire(lk);
     }
     // This check is for kernel-mode processes. After entering kerneltrap() or usertrap(), hardware interrupts
-    // are disabled. Even after entering scheduler() via yield() and after acquire(&p -> lock),interrupts
+    // are disabled. after entering scheduler() via yield() and after acquire(&p -> lock),interrupts
     // remain disabled even after release(). To ensure that kernel processes can still respond to interrupts
     // after calling the do_sleep() function, this check and adjustment are made.
     if (p->kernel_proc && mycpu()->intena == 0) { mycpu()->intena = 1; }
