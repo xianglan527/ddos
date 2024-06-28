@@ -138,12 +138,13 @@ static inline uintptr_t page2pa(Page *page) { return (page2ppn(page) << PGSHIFT)
 // kvmmap(KERNBASE, KERNBASE, (uint64_t)kernel_etext - KERNBASE, PTE_R |
 // PTE_X);kvmmap((uint64_t)kernel_etext, (uint64_t)kernel_etext, PHYSTOP - (uint64_t)kernel_etext, PTE_R |
 // PTE_W);
-static inline uintptr_t page2va(Page *page) {
+static inline uintptr_t page2kva(Page *page) {
     return page2pa(page);
 }  
 
 static inline Page *pa2page(uintptr_t pa) {
-    if (PPN(pa) >= npage) panic("pa2page called with invalid pa");
+    if (PPN(pa) >= npage) 
+        panic("pa2page called with invalid pa");
     return &pages[PPN(pa)];
 }
 

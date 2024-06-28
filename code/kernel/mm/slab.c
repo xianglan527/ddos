@@ -155,12 +155,12 @@ static void *kmem_cache_alloc(Kmem_cache *cachep);
 #define slab_bufctl(slabp) ((kem_bufctl_t *)((Slab *)(slabp) + 1))
 
 static Slab *kmem_cache_slabmgmt(Kmem_cache *cachep, Page *page) {
-    void *objp = (void *)page2va(page);
+    void *objp = (void *)page2kva(page);
     Slab *slabp;
     if (cachep->off_slab) {
         if ((slabp = kmem_cache_alloc(cachep->slab_cachep)) == nullptr) return nullptr;
     } else {
-        slabp = (void *)page2va(page);
+        slabp = (void *)page2kva(page);
     }
     slabp->inuse = 0;
     slabp->offset = cachep->offset;
@@ -404,7 +404,7 @@ void check_slab(void) {
 
     v0 = kmalloc(cachep0->objsize);
     p0 = kva2page((uintptr_t)v0);
-    assert((void *)page2va(p0) == v0);
+    assert((void *)page2kva(p0) == v0);
     if (cachep0->num == 1) {
         assert(!list_empty(&cachep0->slabs_full));
         slabp0 = le2slab(list_next(&cachep0->slabs_full), slab_link);

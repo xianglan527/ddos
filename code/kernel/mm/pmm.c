@@ -256,8 +256,6 @@ void exit_range(pagetable_t *pagetable, uintptr_t start, uintptr_t end){
 
         bool pg3_empty = true;
         for(int i = 0; i < PTNUM; i++){
-            if(start >= end)
-                goto delete_pagetable2;
             if(pg3_empty == true && ((pte_t *)PTE2PA(pgt3))[PX(0, start)] != 0){
                 pg3_empty = false;
             }
@@ -268,7 +266,6 @@ void exit_range(pagetable_t *pagetable, uintptr_t start, uintptr_t end){
             FreePage(pa2page(PTE2PA(pgt3)));
         } 
     }
-delete_pagetable2:
     start = pstart;
     while (start < end) {
         int pde_idx1 = PX(2, start);
@@ -282,7 +279,6 @@ delete_pagetable2:
 
         bool pg2_empty = true;
         for (int i = 0; i < PTNUM; i++) {
-            if (start >= end) return;
             if (pg2_empty == true && ((pte_t *)PTE2PA(pgt2))[PX(1, start)] != 0) {
                 pg2_empty = false;
             }
@@ -296,7 +292,6 @@ delete_pagetable2:
 }
 
 int copy_range(pagetable_t *to, pagetable_t *from, uintptr_t start, uintptr_t end, bool share){
-    share = 0;
     assert(start % PGSIZE == 0 && end % PGSIZE == 0);
     do{
         pte_t *ptep = get_pte(from, start, 0), *nptep;
@@ -315,16 +310,22 @@ int copy_range(pagetable_t *to, pagetable_t *from, uintptr_t start, uintptr_t en
             assert(*ptep != 0 && *nptep == 0);
             if(*ptep & PTE_V){
                 uint32_t perm = (*ptep & PTE_USER);
-                if((page = newpage) == nullptr)
-                    return -E_NO_MEM;
-                newpage = nullptr;
-                memcpy((void *)page2va(page), (void *)page2va(pte2page(*ptep)), PGSIZE);
+                if(!share){
+                    if ((page = newpage) == nullptr) return -E_NO_MEM;
+                    newpage = nullptr;
+                    memcpy((void *)page2kva(page), (void *)page2kva(pte2page(*ptep)), PGSIZE);
+                }
+                else{
+                    page = pte2page(*ptep);
+                }
                 ret = page_insert(to, page, start, perm);
                 assert(ret == 0);
             }else{
-                swap_entry_t entry;
-                if(swap_copy_entry(*ptep, &entry) != 0){
-                    return -E_NO_MEM;
+                swap_entry_t entry = *ptep;
+                if(!share){
+                    if (swap_copy_entry(*ptep, &entry) != 0) { 
+                        return -E_NO_MEM; 
+                    }
                 }
                 swap_duplicate(entry);
                 *nptep = entry;

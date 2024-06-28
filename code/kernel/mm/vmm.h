@@ -5,6 +5,7 @@
 #include "stdarg.h"
 #include "types.h"
 #include "pmm.h"
+#include "shmem.h"
 
 typedef struct mm_struct Mm_struct;
 
@@ -16,6 +17,8 @@ struct vma_struct {
     uint32_t vm_flags;
     Rb_node rb_link;
     List_entry list_link;
+    Shmem_struct *shmem;
+    size_t shmem_off;
 };
 
 #define le2vma(le, member) to_struct((le), Vma_struct, member)
@@ -26,6 +29,7 @@ struct vma_struct {
 #define VM_WRITE        0x00000002
 #define VM_EXEC         0x00000004
 #define VM_STACK        0x00000008
+#define VM_SHARE        0x00000010
 
 typedef struct mm_struct Mm_struct;
 struct mm_struct{
@@ -54,4 +58,6 @@ int dup_mmap(Mm_struct *to, Mm_struct *from);
 void exit_mmap(Mm_struct *mm);
 int64_t get_unmapped_area(Mm_struct *mm, size_t len);
 bool user_mem_check(Mm_struct *mm, uintptr_t addr, size_t len, bool write);
+int mm_map_shmem(Mm_struct *mm, uintptr_t addr, uint32_t vm_flags, Shmem_struct *shmem,
+                 Vma_struct **vma_store);
 #endif

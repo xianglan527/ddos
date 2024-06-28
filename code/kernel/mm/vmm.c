@@ -32,11 +32,19 @@ Vma_struct *vma_create(uintptr_t vm_start, uintptr_t vm_end, uint32_t vm_flags) 
         vma->vm_start = vm_start;
         vma->vm_end = vm_end;
         vma->vm_flags = vm_flags;
+        vma->shmem = nullptr;
+        vma->shmem_off = 0;
     }
     return vma;
 }
 
-static void vma_destroy(Vma_struct *vma) { kfree(vma); }
+static void vma_destroy(Vma_struct *vma) { 
+    if(vma->vm_flags & VM_SHARE){
+        if(shmem_ref_dec(vma->shmem) == 0)
+            shmem_destroy(vma->shmem);
+    }
+    kfree(vma); 
+}
 
 static inline Vma_struct *find_vma_rb(Rb_tree *tree, uintptr_t addr) {
     Rb_node *node = rb_node_root(tree);
@@ -190,9 +198,31 @@ out:
     return ret;
 }
 
-static void vma_resize(Vma_struct *vma, uintptr_t start, uintptr_t end){
+int mm_map_shmem(Mm_struct *mm, uintptr_t addr, uint32_t vm_flags, Shmem_struct *shmem,
+                 Vma_struct **vma_store){
+    if((addr % PGSIZE) != 0 || shmem == nullptr)
+        return -E_INVAL;
+    int ret;
+    Vma_struct *vma;
+    shmem_ref_inc(shmem);
+    if((ret = mm_map(mm, addr, shmem->len, vm_flags, &vma)) != 0){
+        shmem_ref_dec(shmem);
+        return ret;
+    }              
+    vma->shmem = shmem;
+    vma->shmem_off = 0;
+    vma->vm_flags |= VM_SHARE;
+    if(vma_store != nullptr)
+        *vma_store = vma;
+    return 0;   
+}
+
+    static void vma_resize(Vma_struct *vma, uintptr_t start, uintptr_t end) {
     assert(start % PGSIZE == 0 && end % PGSIZE == 0);
     assert(vma->vm_start <= start && start < end && end <= vma->vm_end);
+    if(vma->vm_flags & VM_SHARE){
+        vma->shmem_off += start - vma->vm_start;
+    }
     vma->vm_start = start, vma->vm_end = end;
 }
 
@@ -263,8 +293,16 @@ int dup_mmap(Mm_struct *to, Mm_struct *from){
         nvma = vma_create(vma->vm_start, vma->vm_end, vma->vm_flags);
         if(nvma == nullptr)
             return -E_NO_MEM;
+        else{
+            if(vma->vm_flags & VM_SHARE){
+                nvma->shmem = vma->shmem;
+                nvma->shmem_off = vma->shmem_off;
+                shmem_ref_inc(vma->shmem);
+            }
+        }
         insert_vma_struct(to, nvma);
-        if(copy_range(to->pagetable, from->pagetable, vma->vm_start, vma->vm_end, 0) != 0){
+        bool share = vma->vm_flags & VM_SHARE;
+        if(copy_range(to->pagetable, from->pagetable, vma->vm_start, vma->vm_end, share) != 0){
             return -E_NO_MEM;
         }
     }
@@ -456,7 +494,26 @@ int do_pagatable_fault(Mm_struct *mm, uintptr_t addr) {
     pte_t *ptep;
     if ((ptep = get_pte(mm->pagetable, addr, 1)) == nullptr) goto failed;
     if (*ptep == 0) {
-        if (pagetable_alloc_page(mm->pagetable, addr, perm) == 0) goto failed;
+        if(!(vma->vm_flags & VM_SHARE)){
+            if (pagetable_alloc_page(mm->pagetable, addr, perm) == 0) 
+                goto failed;
+        }
+        else{
+            lock_shmem(vma->shmem);
+            uintptr_t shmem_addr = addr - vma->vm_start + vma->shmem_off;
+            pte_t *sh_ptep = shmem_get_entry(vma->shmem, shmem_addr, 1);
+            if(sh_ptep == nullptr || *sh_ptep == 0) {
+                unlock_shmem(vma->shmem);
+                goto failed;
+            }       
+            unlock_shmem(vma->shmem);
+            if(*sh_ptep & PTE_V){
+                page_insert(mm->pagetable, pa2page(PTE2PA(*sh_ptep)), addr, perm);
+            }else{
+                swap_duplicate(*ptep);
+                *ptep = *sh_ptep;
+            }
+        }
     } else {
         Page *page;
         if ((ret = swap_in_page(*ptep, &page)) != 0) goto failed;

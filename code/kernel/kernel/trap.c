@@ -12,23 +12,6 @@
 #include "virtio_device.h"
 #include "vmm.h"
 
-// 0: Instruction address misaligned
-// 1: Instruction access fault
-// 2: Illegal instruction
-// 3: Breakpoint
-// 4: Load address misaligned
-// 5: Load access fault
-// 6: Store/AMO address misaligned
-// 7: Store/AMO access fault
-// 8: Environment call from U-mode
-// 9: Environment call from S-mode
-// 10: Reserved
-// 11: Environment call from M-mode
-// 12: Instruction page fault
-// 13: Load page fault
-// 14: Reserved for future standard use
-// 15: Store/AMO page fault
-
 Spinlock tickslock;
 uint64_t ticks;
 extern char trampoline[], uservec[], userret[];

@@ -17,7 +17,7 @@ void swapfs_init(void){
 void swapfs_read(swap_entry_t entry, Page *page){
     struct blk_buf req;
     req.addr = swap_offset(entry) * SECTOR_SZIE;
-    req.data = (void *)page2va(page);
+    req.data = (void *)page2kva(page);
     req.data_len = PGSIZE;
     req.is_write = 0;
     virtio_blk_rw(&req, "swap.img");
@@ -26,7 +26,7 @@ void swapfs_read(swap_entry_t entry, Page *page){
 void swapfs_write(swap_entry_t entry, Page *page) {
     struct blk_buf req;
     req.addr = swap_offset(entry) * SECTOR_SZIE;
-    req.data = (void *)page2va(page);
+    req.data = (void *)page2kva(page);
     req.data_len = PGSIZE;
     req.is_write = 1;
     virtio_blk_rw(&req, "swap.img");
