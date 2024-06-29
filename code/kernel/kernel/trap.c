@@ -50,9 +50,9 @@ void clockintr() {
 
 static void print_ticks() { cprintf("ticks is :%d\n", ticks); }
 
-static int pagetable_handler(void) {
+static int pagetable_handler(bool write) {
     extern Mm_struct* check_mm_struct;
-    if (check_mm_struct != nullptr) { return do_pagatable_fault(check_mm_struct, r_stval()); }
+    if (check_mm_struct != nullptr) { return do_pagatable_fault(check_mm_struct, r_stval(), write); }
     panic("unhandled page fault.\n");
     return 0;
 }
@@ -101,8 +101,12 @@ Trap_eum trap_work() {
         else
             cprintf("trap_work: unexpected scause %p\n", r_scause());
 #endif
-        if (excep_code == 13 || excep_code == 15) pagetable_handler();
-
+        if (excep_code == 13 || excep_code == 15) {
+            if(excep_code == 13)
+                pagetable_handler(false);
+            else if(excep_code == 15)
+                pagetable_handler(true);
+        }
         return TRAP_EXCEPTION;
     } else
         return TRAP_OTHER;

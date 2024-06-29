@@ -50,7 +50,7 @@ void mm_destroy(Mm_struct *mm);
 
 void vmm_init(void);
 
-int do_pagatable_fault(Mm_struct *mm, uintptr_t addr);
+int do_pagatable_fault(Mm_struct *mm, uintptr_t addr, bool write);
 void print_vma_list(Mm_struct *mm);
 int mm_map(Mm_struct *mm, uintptr_t addr, size_t len, uint32_t vm_flags, Vma_struct **vma_store);
 int mm_unmap(Mm_struct *mm, uintptr_t addr, size_t len);

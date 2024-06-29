@@ -472,7 +472,7 @@ static void check_pgfault(void) {
     cprintf("check_pgfault() succeeded!\n");
 }
 
-int do_pagatable_fault(Mm_struct *mm, uintptr_t addr) {
+int do_pagatable_fault(Mm_struct *mm, uintptr_t addr, bool write) {
     int ret = -E_INVAL;
     Vma_struct *vma = find_vma(mm, addr);
     if (vma == nullptr || vma->vm_start > addr) goto failed;
@@ -515,9 +515,40 @@ int do_pagatable_fault(Mm_struct *mm, uintptr_t addr) {
             }
         }
     } else {
-        Page *page;
-        if ((ret = swap_in_page(*ptep, &page)) != 0) goto failed;
+        Page *page, *newpage = nullptr;
+        bool cow = ((vma->vm_flags & (VM_SHARE | VM_WRITE)) == VM_WRITE), may_copy = true;
+        int pp = *ptep & PTE_V;
+        int pp1 = *ptep & PTE_PW;
+        assert(!(*ptep & PTE_V) || (write && !(*ptep & PTE_PW) && cow));
+        if(cow){
+            newpage = AllocPage();
+        }
+        if(*ptep & PTE_V){
+            page = pte2page(*ptep);
+        }
+        else{
+            if ((ret = swap_in_page(*ptep, &page)) != 0){
+                if(newpage != nullptr)
+                    FreePage(newpage);
+                goto failed;
+            } 
+            if(!write){
+                perm &= ~PTE_PW;
+                may_copy = 0;
+            }
+        }
+        if(cow && may_copy){
+            if(page_ref(page) + swap_page_count(page) > 1){
+                if(newpage == nullptr)
+                    goto failed;
+                memcpy((void *)page2kva(newpage), (void *)page2kva(page), PGSIZE);
+                page = newpage, newpage = nullptr;
+            }
+        }   
         page_insert(mm->pagetable, page, addr, perm);
+        if(newpage != nullptr){
+            FreePage(newpage);
+        }
     }
     ret = 0;
 

@@ -49,17 +49,18 @@ void vm_pte_print(pagetable_t *pagetable) {
 
 
 static const char *perm2str(pte_t perm) {
-    static char str[7];
+    static char str[9];
     str[0] = (perm & PTE_V) ? 'V' : '-';
     str[1] = (perm & PTE_R) ? 'R' : '-';
     str[2] = (perm & PTE_W) ? 'W' : '-';
     str[3] = (perm & PTE_X) ? 'X' : '-';
     str[4] = (perm & PTE_U) ? 'U' : '-';
     str[5] = (perm & PTE_G) ? 'G' : '-';
-    str[6] = '\0';
+    str[6] = (perm & PTE_A) ? 'A' : '-';
+    str[7] = (perm & PTE_D) ? 'D' : '-';
+    str[8] = '\0';
     return str;
 }
-
 static void __vmprint_map(pagetable_t *pagetable, int level, int pg_index[], size_t *index) {
     if (level > 3) return;
     for (int i = 0; i < 512; i++) {
@@ -304,34 +305,19 @@ int copy_range(pagetable_t *to, pagetable_t *from, uintptr_t start, uintptr_t en
                 return -E_NO_MEM;
             }
             int ret;
-            Page *page, *newpage = AllocPage();
-            pte_t pp1 = *ptep;
-            pte_t pp2 = *nptep;
             assert(*ptep != 0 && *nptep == 0);
             if(*ptep & PTE_V){
                 uint32_t perm = (*ptep & PTE_USER);
-                if(!share){
-                    if ((page = newpage) == nullptr) return -E_NO_MEM;
-                    newpage = nullptr;
-                    memcpy((void *)page2kva(page), (void *)page2kva(pte2page(*ptep)), PGSIZE);
-                }
-                else{
-                    page = pte2page(*ptep);
+                Page *page = pte2page(*ptep);
+                if(!share && (*ptep & PTE_PW)){
+                    perm &= ~PTE_PW;
                 }
                 ret = page_insert(to, page, start, perm);
                 assert(ret == 0);
             }else{
                 swap_entry_t entry = *ptep;
-                if(!share){
-                    if (swap_copy_entry(*ptep, &entry) != 0) { 
-                        return -E_NO_MEM; 
-                    }
-                }
                 swap_duplicate(entry);
                 *nptep = entry;
-            }
-            if(newpage != nullptr){
-                FreePage(newpage);
             }
         }
         start += PGSIZE;
