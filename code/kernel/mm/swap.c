@@ -504,7 +504,9 @@ static void check_swap(void) {
     assert(!PageActive(rp0));
 
     int i;
-    for (i = 0; i < PGSIZE; i++) { ((char *)page2kva(rp0))[i] = (char)i; }
+    for (i = 0; i < PGSIZE; i++) { 
+        ((char *)page2kva(rp0))[i] = (char)i; 
+    }
     page_launder();
     assert(nr_inactive_pages == 0 && list_empty(&inactive_list.swap_list));
     assert(mem_map_getvalue(1) == 1);

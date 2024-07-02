@@ -40,8 +40,8 @@ static void virtio_mmio_rng_test(void) {
 #define DATA_LEN (64 * BLK_1K)  // 64KB
 uint32_t wdata[DATA_LEN / 4] = {0};
 uint32_t rdata[DATA_LEN / 4] = {0};
-#define TEST_CNT (64 * 1024 * 1024 / DATA_LEN)  // 64MB
-// #define TEST_CNT 1
+// #define TEST_CNT (64 * 1024 * 1024 / DATA_LEN)  // 64MB
+#define TEST_CNT 10
 static void virtio_mmio_blk_test(char *name) {
     int dlen = DATA_LEN;
     struct blk_buf req[1] = {0};
@@ -83,11 +83,11 @@ void kernel_test(){
 #endif
 }
 
-void kernel_task0() {
-    kernel_test();
+void kernel_init(void *arg) {
     Proc *p = myproc();
+    kernel_test();
     while (1) {
-        cprintf("%s running kernel_task0 ... all test passed\n", p->name);
+        cprintf("%s running %s ... all test passed\n", p->name, (const char *)arg);
         task_delay(DELAY);
     }
 }

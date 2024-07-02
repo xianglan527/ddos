@@ -1,10 +1,11 @@
 #ifndef __KERNEL_PROC_H__
 #define __KERNEL_PROC_H__
+#include "config.h"
 #include "pmm.h"
 #include "spinlock.h"
 #include "stdarg.h"
 #include "types.h"
-#include "config.h"
+#include "vmm.h"
 
 typedef enum proc_state Proc_state;
 enum proc_state { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
@@ -78,19 +79,36 @@ struct context {
     uint64_t s11;
 };
 
+#define PROC_NAME_LEN 64
+#define MAX_PID (NPROC * 2)
+#define USTACKPAGE 2
+#define USTACKSIZE (USTACKPAGE * PGSIZE)
+#define USTACKADDR  PGSIZE
+
 typedef struct proc Proc;
 struct proc {
     bool kernel_proc;
-    char name[64];
+    char name[PROC_NAME_LEN + 1];
     Spinlock lock;
     Proc_state state;
     void *chan;
     Context context;
     Trapframe *trapframe;
     ulong pid;
-    pagetable_t *pagetable;
-    uint64_t kstack;
+    ulong runs;
+    // pagetable_t *pagetable;
+    uintptr_t kstack;
+    Mm_struct *mm;
+    Proc *parent;
+    uint32_t flags;
+    List_entry list_link;
+    List_entry hash_link;
 };
+
+#define le2proc(le, member) to_struct((le), Proc, member);
+
+extern List_entry proc_list;
+extern Proc *initproc;
 
 typedef struct cpu Cpu;
 struct cpu {
@@ -99,7 +117,6 @@ struct cpu {
     int noff;         // Depth of push_off() nesting.
     int intena;       // Were interrupts enabled before push_off()?
 };
-
 
 extern Cpu cpus[NCPU];
 
@@ -113,7 +130,7 @@ Cpu *mycpu(void);
 Proc *alloc_proc(void);
 void proc_init(void);
 void user_init(void (*start_routin)(void));
-void kernel_thread_init(void (*start_roution)(void));
+void kernel_thread_init(void (*start_roution)(void *), void *arg);
 void mappages(pagetable_t *pagetable, uint64_t va, uint64_t size, uint64_t pa, int perm);
 void either_copy_from_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len);
 void do_sleep(void *chan, Spinlock *lk);

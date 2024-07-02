@@ -30,6 +30,8 @@
 #define uart_read_reg(reg) (*(UART_REG(reg)))
 #define uart_write_reg(reg, v) (*(UART_REG(reg)) = (v))
 
+extern volatile bool is_panic;
+
 void uart_init() {
     /* disable interrupts. */
     uart_write_reg(IER, 0x00);
@@ -59,6 +61,9 @@ void uart_init() {
 }
 
 int uart_putc(char ch) {
+    if(is_panic){
+        while(1);
+    }
     while ((uart_read_reg(LSR) & LSR_TX_IDLE) == 0);
     return uart_write_reg(THR, ch);
 }

@@ -173,7 +173,7 @@ void user_trap_ret() {
     w_sstatus(x);
     w_sepc(p->trapframe->epc);
 
-    uint64_t satp = MAKE_SATP(p->pagetable);
+    uint64_t satp = MAKE_SATP(p->mm->pagetable);
     uint64_t fn = TRAMPOLINE + (userret - trampoline);
     ((void (*)(uint64_t, uint64_t))fn)(TRAPFRAME, satp);
     cprintf("can get here\n");

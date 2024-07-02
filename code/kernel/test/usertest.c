@@ -69,7 +69,6 @@ void user_task0() {
     while (1) {
         printf("%s running user_task0\n", p->name);
         task_delay(DELAY);
-
     }
 }
 
@@ -78,7 +77,6 @@ void user_task1() {
     while (1) {
         printf("%s running user_task1\n", p->name);
         task_delay(DELAY);
-
     }
 }
 
@@ -98,11 +96,10 @@ void user_task3() {
     }
 }
 
-
 void os_main(void) {
     user_init(user_task0);
     user_init(user_task1);
     user_init(user_task2);
     user_init(user_task3);
-    kernel_thread_init(kernel_task0);
+    kernel_thread_init(kernel_init, "kernel_init");
 }

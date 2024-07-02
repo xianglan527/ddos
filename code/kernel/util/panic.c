@@ -1,11 +1,20 @@
 #include "panic.h"
 #include "spinlock.h"
+#include "riscv.h"
 
-bool is_panic = 0;
+volatile bool is_panic = 0;
 extern struct {
     Spinlock lock;
     int locking;
 } pr;
+
+void backtrace(void) {
+    uint64_t fp_address = r_fp();
+    while (fp_address != PGROUNDDOWN(fp_address)) {
+        cprintf("%p\n", *(uint64_t *)(fp_address - 8));
+        fp_address = *(uint64_t *)(fp_address - 16);
+    }
+}
 
 void __panic(const char *file, int line, const char *fmt, ...){
     if(is_panic)
@@ -20,6 +29,7 @@ void __panic(const char *file, int line, const char *fmt, ...){
     va_end(ap);
 
 panic_dead:
+    backtrace();
     cprintf("The kernel has crashed. Please force shutdown!!!\n ");
     while(1);
 }

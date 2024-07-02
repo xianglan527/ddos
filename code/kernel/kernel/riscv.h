@@ -196,6 +196,12 @@ static inline uint64_t r_tp() {
     return x;
 }
 
+static inline uint64_t r_fp() {
+    uint64_t x;
+    asm volatile("mv %0, s0" : "=r"(x));
+    return x;
+}
+
 static inline void w_tp(uint64_t x) { asm volatile("mv tp, %0" : : "r"(x)); }
 
 static inline uint64_t r_ra() {
