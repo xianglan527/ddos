@@ -349,26 +349,33 @@ pte_t *get_pte(pagetable_t *pagetable, uint64_t va, int alloc) {
 }
 
 uintptr_t va2pa(pagetable_t *pagetable, uint64_t va){
+    assert(va < MAXVA);
     pte_t *pte = get_pte(pagetable, va, 0);
     assert(pte != nullptr && (*pte & PTE_V));
     return (uintptr_t)PTE2PA(*pte) + (uintptr_t)PGOFF(va);
 }
 
-static uint64_t page_va2pa(pagetable_t *pagetable, uint64_t va){
-    pte_t *pte;
-    uint64_t pa;
-    assert(va < MAXVA);
-    pte = get_pte(pagetable, va, 0);
-    assert((pte != nullptr) && (*pte & PTE_V));
-    pa = PTE2PA(*pte);
-    return pa;
+void copy_kernel2user(pagetable_t *pagetable, uint64_t dstva, char *src, uint64_t len){
+    uint64_t n, va0, pa0;
+    while(len > 0){
+        va0 = PGROUNDDOWN(dstva);
+        pa0 = va2pa(pagetable, va0);
+        n = PGSIZE - (dstva - va0);
+        if(n > len)
+            n = len;
+        memmove((void *)(pa0 + (dstva - va0)), src, n);
+        len -= n;
+        src += n;
+        dstva = va0 + PGSIZE;
+    }
+    return;
 }
 
-void copy_from_user2kernel(pagetable_t *pagetable, char *dst, uint64_t srcva, uint64_t len){
+void copy_user2kernel(pagetable_t *pagetable, char *dst, uint64_t srcva, uint64_t len){
     uint64_t n, va0, pa0;
     while(len > 0){
         va0 = PGROUNDDOWN(srcva);
-        pa0 = page_va2pa(pagetable, va0);
+        pa0 = va2pa(pagetable, va0);
         n = PGSIZE - (srcva - va0);
         if(n > len)
             n = len;
@@ -381,7 +388,7 @@ void copy_from_user2kernel(pagetable_t *pagetable, char *dst, uint64_t srcva, ui
 }
 
 void print_va2pa(pagetable_t *pagetable, uint64_t va) {
-    uint64_t pa = page_va2pa(pagetable, va);
+    uint64_t pa = va2pa(pagetable, va);
     cprintf("va is -----0x%lx\n pa is -----0x%lx\n", va, pa + PGOFF(va));
 }
 

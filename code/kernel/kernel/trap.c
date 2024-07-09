@@ -52,14 +52,22 @@ static void print_ticks() { cprintf("ticks is :%d\n", ticks); }
 
 static int pagetable_handler(bool write) {
     extern Mm_struct* check_mm_struct;
-    if (check_mm_struct != nullptr) { return do_pagatable_fault(check_mm_struct, r_stval(), write); }
-    panic("unhandled page fault.\n");
-    return 0;
+    Mm_struct *mm;
+    if (check_mm_struct != nullptr) { 
+        assert(myproc() == nullptr);
+        mm = check_mm_struct;
+        
+    }
+    else{
+        assert(myproc() != nullptr && myproc()->kernel_proc == 0);
+        mm = myproc()->mm;   
+    }
+    return do_pagatable_fault(mm, r_stval(), write);
 }
 
 Trap_eum trap_work() {
     uint64_t scause = r_scause();
-
+    int ret;
     if ((scause & 0x8000000000000000L) && (scause & 0xff) == 9) {
         int irq = plic_claim();
         if(!irq)
@@ -97,15 +105,21 @@ Trap_eum trap_work() {
         cprintf("excpetion : %s\n", exception_msg[excep_code]);
         cprintf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
         if (myproc() != nullptr)
-            cprintf("trap_work: unexpected scause %p pid=%d\n", r_scause(), myproc()->pid);
+            cprintf("trap_work: exception scause %p pid=%d\n", r_scause(), myproc()->pid);
         else
-            cprintf("trap_work: unexpected scause %p\n", r_scause());
+            cprintf("trap_work: exception scause %p\n", r_scause());
 #endif
         if (excep_code == 13 || excep_code == 15) {
             if(excep_code == 13)
-                pagetable_handler(false);
+                ret = pagetable_handler(false);
             else if(excep_code == 15)
-                pagetable_handler(true);
+                ret = pagetable_handler(true);
+        }
+        if(ret != 0 ){
+            if(myproc() == nullptr)
+                panic("handle pgfault failed. %e\n", ret);
+            else
+                panic("user pid%d: handle pgfault failed. %e\n", myproc()->pid, ret);
         }
         return TRAP_EXCEPTION;
     } else
@@ -125,7 +139,7 @@ void kerneltrap() {
         panic("kerneltrap");
     }
     if (trap_enum == TRAP_SOFT_INT && myproc() != 0 && myproc()->state == RUNNING) {
-        yield();
+        do_yield();
     }
 
     // the yield() may have caused some traps to occur,
@@ -149,7 +163,7 @@ void usertrap(void) {
         cprintf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
         cprintf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     } else if (trap_enum == TRAP_SOFT_INT && myproc() != 0 && myproc()->state == RUNNING) {
-        yield();
+        do_yield();
     }
     user_trap_ret();
 }

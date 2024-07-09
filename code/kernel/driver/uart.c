@@ -61,9 +61,9 @@ void uart_init() {
 }
 
 int uart_putc(char ch) {
-    if(is_panic){
-        while(1);
-    }
+    // if(is_panic){
+    //     while(1);
+    // }
     while ((uart_read_reg(LSR) & LSR_TX_IDLE) == 0);
     return uart_write_reg(THR, ch);
 }

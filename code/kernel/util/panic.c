@@ -29,7 +29,7 @@ void __panic(const char *file, int line, const char *fmt, ...){
     va_end(ap);
 
 panic_dead:
-    backtrace();
+    // backtrace();
     cprintf("The kernel has crashed. Please force shutdown!!!\n ");
     while(1);
 }

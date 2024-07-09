@@ -2,7 +2,7 @@
 #define __TEST_SYSDEF_H__
 #define SYS_fork 1
 #define SYS_exit 2
-#define SYS_wait 3
+#define SYS_waitpid 3
 #define SYS_pipe 4
 #define SYS_read 5
 #define SYS_kill 6
@@ -23,4 +23,5 @@
 #define SYS_close 21
 #define SYS_sti 22
 #define SYS_cli 23
+#define SYS_yield 24
 #endif

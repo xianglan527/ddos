@@ -6,6 +6,7 @@
 #include "pmm.h"
 #include "spinlock.h"
 #include "stdio.h"
+#include "string.h"
 
 #define BUFCTL_END 0xFFFFFFFFL
 #define SLAB_LIMIT 0xFFFFFFFFL
@@ -240,7 +241,10 @@ void *kmalloc(size_t size) {
     assert(size > 0);
     size_t order = getorder(size);
     if (order > MAX_SIZE_ORDER) return nullptr;
-    return kmem_cache_alloc(slab_cache + (order - MIN_SIZE_ORDER));
+    void *objp = kmem_cache_alloc(slab_cache + (order - MIN_SIZE_ORDER));
+    assert(objp != nullptr);
+    memset(objp, 0, size);
+    return objp;
 }
 
 

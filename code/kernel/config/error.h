@@ -9,8 +9,10 @@
 #define E_NO_FREE_PROC 5  // Attempt to create a new process beyond
 #define E_FAULT 6         // Memory fault
 #define E_SWAP_FAULT 7    // SWAP READ/WRITE fault
-
+#define E_INVAL_ELF 8     // Invalid elf file
+#define E_KILLED 9        // Process is killed
+#define E_PANIC 10        // Panic Failure
 /* the maximum allowed */
-#define MAXERROR 7
+#define MAXERROR 10
 
 #endif 

@@ -1,10 +1,12 @@
 #include "usertest.h"
 
 #include "atomic.h"
+#include "kerneltest.h"
 #include "proc.h"
 #include "riscv.h"
 #include "uprintf.h"
-#include "kerneltest.h"
+#include "user.h"
+#include "assert.h"
 
 Atomic share;
 bool tf0 = 0, tf1 = 0, tf2 = 0, tf3 = 0;
@@ -65,41 +67,58 @@ bool tf0 = 0, tf1 = 0, tf2 = 0, tf3 = 0;
 // }
 
 void user_task0() {
-    Proc *p = myproc();
-    while (1) {
-        printf("%s running user_task0\n", p->name);
-        task_delay(DELAY);
+    printf("pid %d running user_task0\n", getpid());
+    task_delay(DELAY);
+    const int max_child = 32;
+    int n, pid;
+    for(n = 0; n < max_child; n++){
+        if((pid = fork()) == 0){
+            printf("I am child pid is:%d\n", getpid());
+            exit(0);
+        }
+        assert(pid > 0);
     }
+    if(n > max_child){
+        panic("fork claimed to work %d times\n", n);
+    }
+    for(; n > 0; n--){
+        if(wait() != 0){
+            panic("wait stopped early\n");
+        }
+    }
+    if(wait() == 0){
+        panic("wait got too many\n");
+    }
+    printf("forktest pass.\n");
+    while(1);
+    return;
 }
 
 void user_task1() {
-    Proc *p = myproc();
     while (1) {
-        printf("%s running user_task1\n", p->name);
+        printf("pid %d running user_task1\n", getpid());
         task_delay(DELAY);
     }
 }
 
 void user_task2() {
-    Proc *p = myproc();
     while (1) {
-        printf("%s running user_task2\n", p->name);
+        printf("pid %d running user_task2\n", getpid());
         task_delay(DELAY);
     }
 }
 
 void user_task3() {
-    Proc *p = myproc();
     while (1) {
-        printf("%s running user_task3\n", p->name);
+        printf("pid %d running user_task3\n", getpid());
         task_delay(DELAY);
     }
 }
 
 void os_main(void) {
     user_init(user_task0);
-    user_init(user_task1);
-    user_init(user_task2);
-    user_init(user_task3);
+    // user_init(user_task1);
+    // user_init(user_task2);
+    // user_init(user_task3);
     kernel_thread_init(kernel_init, "kernel_init");
 }

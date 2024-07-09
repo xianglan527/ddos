@@ -9,10 +9,11 @@
 #include "slab.h"
 #include "spinlock.h"
 #include "string.h"
+#include "syscall.h"
 #include "trap.h"
 
 Cpu cpus[NCPU];
-// Proc proc[NPROC];
+Proc *initproc;
 List_entry proc_list;
 
 #define HASH_SHIFT 10
@@ -25,25 +26,29 @@ Proc *initproc = nullptr;
 
 static ulong next_pid = 1;
 static ulong nr_process = 0;
+
+// The struct members list_link, parent, hash_link, *cptr, *yptr,
+// and *optr of a process can only be read or written while holding the proc_lock.
+
+// to prevent deadlocks,the locking order must be procs_lock--->process lock.
 Spinlock procs_lock;
+
 extern char trampoline[];  // trampoline.S
 extern char kernel_etext[];
 
 void swtch(struct context *, struct context *);
 
-ulong alloc_pid() {
-    ulong pid;
+int alloc_pid() {
+    int pid;
     // acquire(&procs_lock);
     Proc *proc;
     List_entry *le = &proc_list;
     pid = next_pid;
 repeat:
-    if(++next_pid == MAX_PID)
-        next_pid = 1;
+    if (++next_pid == MAX_PID) next_pid = 1;
     while ((le = list_next(le)) != &proc_list) {
         proc = le2proc(le, list_link);
-        if(proc->pid == next_pid)
-            goto repeat;
+        if (proc->pid == next_pid) goto repeat;
     }
     // release(&procs_lock);
     return pid;
@@ -52,9 +57,7 @@ repeat:
 void proc_init(void) {
     initlock(&procs_lock, "procs_lock");
     list_init(&proc_list);
-    for(int i = 0; i < HASH_LIST_SIZE; i++){
-        list_init(hash_list + i);
-    }
+    for (int i = 0; i < HASH_LIST_SIZE; i++) { list_init(hash_list + i); }
 }
 
 void fork_ret(void) {
@@ -81,14 +84,52 @@ pagetable_t *proc_pagetable(Proc *p) {
 //     return -E_NO_MEM;
 // }
 
-static void hash_proc(Proc *proc){
-    list_add(hash_list + pid_hashfn(proc->pid), &proc->hash_link);
+static void hash_proc(Proc *proc) { list_add(hash_list + pid_hashfn(proc->pid), &proc->hash_link); }
+
+static void unhash_proc(Proc *proc) { list_del(&proc->hash_link); }
+
+Proc *find_proc(int pid) {
+    if (0 < pid && pid < MAX_PID) {
+        List_entry *list = hash_list + pid_hashfn(pid), *le = list;
+        while ((le = list_next(le)) != list) {
+            Proc *proc = le2proc(le, hash_link);
+            if (proc->pid == pid) { return proc; }
+        }
+    }
+    return nullptr;
+}
+
+static void set_links(Proc *proc) {
+    list_add(&proc_list, &proc->list_link);
+    proc->yptr = nullptr;
+    if (proc->parent != nullptr) {
+        if ((proc->optr = proc->parent->cptr) != nullptr) { proc->optr->yptr = proc; }
+        proc->parent->cptr = proc;
+    }
+    if (++nr_process >= NPROC) panic("Exceeded maximum number of processes");
+}
+
+static void remove_links(Proc *proc){
+    list_del(&proc->list_link);
+    if(proc->optr != nullptr){
+        proc->optr->yptr = proc->yptr;
+    }
+    if(proc->yptr != nullptr){
+        proc->yptr->optr = proc->optr;
+    }
+    else{
+        if(proc->parent != nullptr){
+            proc->parent->cptr = proc->optr;
+        }
+    }
+    nr_process--;
 }
 
 Proc *alloc_proc() {
     Proc *proc = kmalloc(sizeof(*proc));
     assert(proc != nullptr);
     proc->state = UNUSED;
+    initlock(&proc->lock, "process lock");
     proc->trapframe = (Trapframe *)page2pa(AllocPage());
     assert(proc->trapframe != nullptr);
     memset((void *)(proc->trapframe), 0, PGSIZE);  // proc->trapframe->a0 set 0
@@ -109,21 +150,22 @@ Proc *alloc_proc() {
     return proc;
 }
 
-
-char *set_proc_name(Proc *proc, const char *name){
+char *set_proc_name(Proc *proc, const char *name) {
     memset(proc->name, 0, sizeof(proc->name));
     return memcpy(proc->name, name, PROC_NAME_LEN);
 }
 
-char *get_proc_name(Proc *proc){
+char *get_proc_name(Proc *proc) {
     static char name[PROC_NAME_LEN + 1];
     memset(name, 0, sizeof(name));
     return memcpy(name, proc->name, PROC_NAME_LEN);
 }
 
-static void uvm_init(pagetable_t *pagetable) {
-    uintptr_t mem = page2kva(alloc_pages(USTACKPAGE));
-    mappages(pagetable, USTACKADDR, USTACKSIZE, mem, PTE_W | PTE_R | PTE_U | PTE_X);
+static void uvm_init(Mm_struct *mm) {
+    pagetable_t *pagetable = mm->pagetable;
+    // uintptr_t mem = page2kva(alloc_pages(USTACKPAGE));
+    // mappages(pagetable, USTACKADDR, USTACKSIZE, mem, PTE_W | PTE_R | PTE_U | PTE_X);
+    mm_map(mm, USTACKADDR, USTACKSIZE, VM_USER | VM_STACK | VM_READ | VM_WRITE | VM_EXEC, nullptr);
     mappages(pagetable, KERNBASE, (uint64_t)kernel_etext - KERNBASE, KERNBASE, PTE_R | PTE_U | PTE_X);
     mappages(pagetable, (uint64_t)kernel_etext, PHYSTOP - (uint64_t)kernel_etext, (uint64_t)kernel_etext,
              PTE_R | PTE_W | PTE_U);
@@ -133,19 +175,21 @@ void user_init(void (*start_routin)(void)) {
     Proc *p;
     p = alloc_proc();
     assert(p != nullptr);
+    initproc = p;
     p->mm->pagetable = proc_pagetable(p);
-    uvm_init(p->mm->pagetable);
+    assert(p->mm->pagetable != nullptr);
+    uvm_init(p->mm);
     p->state = RUNNABLE;
     p->kernel_proc = 0;
     p->context.ra = (uint64_t)fork_ret;
     p->trapframe->epc = (uint64_t)start_routin;  // user program counter
-    p->trapframe->sp = PGSIZE + USTACKSIZE;
+    p->trapframe->sp = USTACKADDR + USTACKSIZE;
     acquire(&procs_lock);
     p->pid = alloc_pid();
-    snprintf(p->name, sizeof(p->name), "u_process_%d", p->pid);
+    // set_proc_name(p, "initcode");
+    snprintf(p->name, sizeof(p->name), "initcode u_process_%d", p->pid);
     hash_proc(p);
-    list_add(&proc_list, &p->list_link);
-    if (++nr_process >= NPROC) panic("Exceeded maximum number of processes");
+    set_links(p);
     release(&procs_lock);
 }
 
@@ -162,18 +206,15 @@ void kernel_thread_init(void (*start_roution)(void *), void *arg) {
     proc->mm->pagetable = kernel_pagetable;
     proc->context.ra = (uint64_t)kernel_thread_ret;
     proc->context.a0 = (uint64_t)start_roution;
-    if(arg != nullptr)
-        proc->context.a1 = (uint64_t)arg;
+    if (arg != nullptr) proc->context.a1 = (uint64_t)arg;
     proc->state = RUNNABLE;
     proc->kernel_proc = true;
     acquire(&procs_lock);
     proc->pid = alloc_pid();
     snprintf(proc->name, sizeof(proc->name), "k_process_%d", proc->pid);
     hash_proc(proc);
-    list_add(&proc_list, &proc->list_link);
-    if (++nr_process >= NPROC) panic("Exceeded maximum number of processes");
+    set_links(proc);
     release(&procs_lock);
-    
 }
 
 int cpuid() {
@@ -198,7 +239,7 @@ void sched(void) {
     swtch(&p->context, &mycpu()->context);
 }
 
-void yield(void) {
+void do_yield(void) {
     Proc *p = myproc();
     acquire(&p->lock);
     p->state = RUNNABLE;
@@ -218,24 +259,24 @@ void scheduler(void) {
     c->proc = 0;
     while (1) {
         next = nullptr;
-        acquire(&procs_lock); 
-        if (prev != nullptr) {
-            last = &prev->list_link;
-        } else {
-            last = &proc_list;
-        }
-        // last = (prev == nullptr) ? &proc_list : &prev->list_link;
+        acquire(&procs_lock);
+        // if (prev != nullptr) {
+        //     last = &prev->list_link;
+        // } else {
+        //     last = &proc_list;
+        // }
+        last = (prev == nullptr) ? &proc_list : &prev->list_link;
         le = last;
-        do{
-            if((le = list_next(le)) != &proc_list){
+        do {
+            if ((le = list_next(le)) != &proc_list) {
                 next = le2proc(le, list_link);
                 if (next->state == RUNNABLE) break;
             }
-        }while(le != last);
+        } while (le != last);
         release(&procs_lock);
         if (next != nullptr && next->state == RUNNABLE) {
             acquire(&next->lock);
-            if (next->state == RUNNABLE){
+            if (next->state == RUNNABLE) {
                 next->state = RUNNING;
                 next->runs++;
                 c->proc = next;
@@ -244,18 +285,17 @@ void scheduler(void) {
                 c->proc = 0;
             }
             release(&next->lock);
-        }
-        else {
+        } else {
             intr_on();
             asm volatile("wfi");
         }
     }
 }
 
-void either_copy_from_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len) {
+void either_copy_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len) {
     Proc *p = myproc();
     if (user_src)
-        copy_from_user2kernel(p->mm->pagetable, dst, src, len);
+        copy_user2kernel(p->mm->pagetable, dst, src, len);
     else { memmove(dst, (char *)src, len); }
 }
 
@@ -284,11 +324,160 @@ void do_wakeup(void *chan) {
     Proc *p;
     List_entry *le = &proc_list;
     acquire(&procs_lock);
-    while((le = list_next(le)) != &proc_list){
+    while ((le = list_next(le)) != &proc_list) {
         p = le2proc(le, list_link);
         acquire(&p->lock);
-        if (p->state == SLEEPING && p->chan == chan) { p->state = RUNNABLE; }
+        if (p->state == SLEEPING && p->chan == chan) { 
+            p->state = RUNNABLE; 
+        }
         release(&p->lock);
     }
     release(&procs_lock);
+}
+
+static void put_pagetable(Mm_struct *mm){
+    FreePage(kva2page((uintptr_t)(mm->pagetable)));
+}
+
+static void put_kstack(Proc *proc){
+    FreePage(kva2page((proc->kstack)));
+}
+
+void wakeup_proc(Proc *proc) {
+    acquire(&proc->lock);
+    assert(proc->state != ZOMBIE);
+    if (proc->chan == proc && proc->state == SLEEPING) {
+        proc->state = RUNNABLE;
+        proc->wait_state = 0;
+    }
+    release(&proc->lock);
+}
+
+static void copy_mm(uint32_t clone_flags, Proc *proc) {
+    int ret = -1;
+    Proc *current = myproc();
+    Mm_struct *mm, *oldmm = current->mm;
+    if (oldmm == nullptr) { return; }
+    if (clone_flags & CLONE_VM) {
+        mm = oldmm;
+        goto good_mm;
+    }
+    mm = proc->mm;
+    assert(mm != nullptr);
+    lock_mm(oldmm);
+    ret = dup_mmap(mm, oldmm);
+    assert(ret == 0);
+    unlock_mm(oldmm);
+good_mm:
+    mm_count_inc(mm);
+    // proc->mm = mm;
+}
+
+int do_fork(uint32_t clone_flags) {
+    Proc *proc, *current;
+    current = myproc();
+    proc = alloc_proc();
+
+    proc->mm->pagetable = proc_pagetable(proc);
+    proc->state = RUNNABLE;
+    proc->kernel_proc = 0;
+    proc->context.ra = (uint64_t)fork_ret;
+
+    assert(proc->mm->pagetable != nullptr);
+    *(proc->trapframe) = *(current->trapframe);
+    proc->trapframe->a0 = 0;
+    assert(current->wait_state == 0);
+    copy_mm(clone_flags, proc);
+
+    mappages(proc->mm->pagetable, KERNBASE, (uint64_t)kernel_etext - KERNBASE, KERNBASE,
+             PTE_R | PTE_U | PTE_X);
+    mappages(proc->mm->pagetable, (uint64_t)kernel_etext, PHYSTOP - (uint64_t)kernel_etext,
+             (uint64_t)kernel_etext, PTE_R | PTE_W | PTE_U);
+
+    acquire(&procs_lock);
+    proc->pid = alloc_pid();
+    // set_proc_name(proc, current->name);
+    snprintf(proc->name, sizeof(proc->name), "u_process_%d", proc->pid);
+    proc->parent = current;
+    hash_proc(proc);
+    set_links(proc);
+    release(&procs_lock);
+    return proc->pid;
+}
+
+void do_exit(int error_code) {
+    Proc *current = myproc();
+    if (current == initproc) panic("init exiting");
+    acquire(&current->lock);
+    current->state = ZOMBIE;
+    current->exit_code = error_code;
+    release(&current->lock);
+    acquire(&procs_lock);
+    Proc *proc = current->parent;
+    if (proc->wait_state == WT_CHILD) wakeup_proc(proc);
+    while (current->cptr != nullptr) {
+        proc = current->cptr;
+        current->cptr = proc->optr;
+        proc->yptr = nullptr;
+        if ((proc->optr = initproc->cptr) != nullptr) { initproc->cptr->yptr = proc; }
+        proc->parent = initproc;
+        initproc->cptr = proc;
+        if (proc->state == ZOMBIE) {
+            if (initproc->wait_state == WT_CHILD) { wakeup_proc(initproc); }
+        }
+    }
+    release(&procs_lock);
+    acquire(&current->lock);
+    sched();
+    panic("do_exit will not return !!.\n", current->pid);
+}
+
+int do_wait(int pid, int *code_store) {
+    Proc *proc, *current = myproc();
+    bool haskid;
+repeat:
+    acquire(&procs_lock);
+    haskid = false;
+    if (pid != 0) {
+        proc = find_proc(pid);
+        if (proc != nullptr && proc->parent == current) {
+            haskid = true;
+            if (proc->state == ZOMBIE) goto found;
+        }
+    } else {
+        for (proc = current->cptr; proc != nullptr; proc = proc->optr) {
+            haskid = true;
+            if (proc->state == ZOMBIE) goto found;
+        }
+    }
+    if (haskid) {
+        current->wait_state = WT_CHILD;
+        release(&procs_lock);
+        acquire(&current->lock);
+        do_sleep(current, &current->lock);
+        release(&current->lock);
+        if (current->flags & PF_EXITING) do_exit(-E_KILLED);
+        goto repeat;
+    }
+    release(&procs_lock);
+    return -E_BAD_PROC;
+found:
+    if (proc == initproc) panic("wait initproc");
+    unhash_proc(proc);
+    remove_links(proc);
+    release(&procs_lock);
+    if (code_store != nullptr) {
+        copy_kernel2user(current->mm->pagetable, (uintptr_t)code_store, (char *)&proc->exit_code, sizeof(proc->exit_code));
+    }
+    Mm_struct *mm = proc->mm;
+    if(mm != nullptr){
+        if(mm_count_dec(mm) == 0){
+            exit_mmap(mm);
+            put_pagetable(mm);
+            mm_destroy(mm);
+        }
+    }
+    put_kstack(proc);
+    kfree(proc);
+    return 0;
 }

@@ -3,6 +3,11 @@
 #include "error.h"
 #include "string.h"
 
+extern struct {
+    Spinlock lock;
+    int locking;
+} pr;
+
 static const char *const error_string[MAXERROR + 1] = {
     [0] = nullptr,
     [E_UNSPECIFIED] = "unspecified error",
@@ -164,9 +169,12 @@ static void sprintputch(int ch, Sprintbuf *b){
 int snprintf(char *str, size_t size, const char *fmt, ...){
     va_list ap;
     int cnt;
+    int locking = pr.locking;
+    if (locking) acquire(&pr.lock);
     va_start(ap, fmt);
     cnt = vsnprintf(str, size, fmt, ap);
     va_end(ap);
+    if (locking) release(&pr.lock);
     return cnt;
 }
 

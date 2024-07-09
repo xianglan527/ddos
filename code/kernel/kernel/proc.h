@@ -94,7 +94,7 @@ struct proc {
     void *chan;
     Context context;
     Trapframe *trapframe;
-    ulong pid;
+    int pid;
     ulong runs;
     // pagetable_t *pagetable;
     uintptr_t kstack;
@@ -103,7 +103,15 @@ struct proc {
     uint32_t flags;
     List_entry list_link;
     List_entry hash_link;
+    int exit_code;
+    uint32_t wait_state;
+    Proc *cptr, *yptr, *optr;
 };
+
+#define PF_EXITING 0x00000001
+
+#define WT_INTERAUPTED 0x80000000
+#define WT_CHILD (0x00000001 | WT_INTERAUPTED)
 
 #define le2proc(le, member) to_struct((le), Proc, member);
 
@@ -123,7 +131,7 @@ extern Cpu cpus[NCPU];
 int cpuid();
 void scheduler(void);
 void task_delay(volatile int count);
-void yield(void);
+void do_yield(void);
 void sched(void);
 Proc *myproc(void);
 Cpu *mycpu(void);
@@ -131,8 +139,11 @@ Proc *alloc_proc(void);
 void proc_init(void);
 void user_init(void (*start_routin)(void));
 void kernel_thread_init(void (*start_roution)(void *), void *arg);
-void mappages(pagetable_t *pagetable, uint64_t va, uint64_t size, uint64_t pa, int perm);
-void either_copy_from_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len);
+Proc *find_proc(int pid);
+void either_copy_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len);
 void do_sleep(void *chan, Spinlock *lk);
 void do_wakeup(void *chan);
+int do_fork(uint32_t clone_flags);
+void do_exit(int error_code);
+int do_wait(int pid, int *code_store);
 #endif

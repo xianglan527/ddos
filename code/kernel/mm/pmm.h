@@ -132,37 +132,6 @@ extern size_t npage;
 
 #define PPN(la) (((uintptr_t)((la) - PAGE_START)) >> PGSHIFT)
 
-static inline ppn_t page2ppn(Page *page) { return page - pages; }
-
-static inline uintptr_t page2pa(Page *page) { return (page2ppn(page) << PGSHIFT) + PAGE_START; }
-// cause kernel virtual address equal physical address see:
-// kvmmap(KERNBASE, KERNBASE, (uint64_t)kernel_etext - KERNBASE, PTE_R |
-// PTE_X);kvmmap((uint64_t)kernel_etext, (uint64_t)kernel_etext, PHYSTOP - (uint64_t)kernel_etext, PTE_R |
-// PTE_W);
-static inline uintptr_t page2kva(Page *page) {
-    return page2pa(page);
-}  
-
-static inline Page *pa2page(uintptr_t pa) {
-    if (PPN(pa) >= npage) 
-        panic("pa2page called with invalid pa");
-    return &pages[PPN(pa)];
-}
-
-static inline Page *kva2page(uintptr_t va){
-    return pa2page(va);
-}
-
-static inline Page *pte2page(pte_t pte) {
-    if (!(pte & PTE_V)) { panic("pte2page called with invalid pte"); }
-    return pa2page(PTE2PA(pte));
-}
-
-static inline void tlb_invalidate(pagetable_t *pagetable, uintptr_t va) {
-    if (r_satp() ==  MAKE_SATP(pagetable)) 
-        sfence_vma_addr((void *)va);
-}
-
 typedef enum vm_print_enum Vm_print_enum;
 enum vm_print_enum {
     VM_PRINT_OUT,    // the state when the three-level page table entry is not yet encountered as valid.
@@ -186,11 +155,41 @@ void print_va2pa(pagetable_t *pagetable, uint64_t va);
 void vm_map_print(pagetable_t *pagetable);
 void vm_pte_print(pagetable_t *pagetable);
 void vm_print(pagetable_t *pagetable);
-void copy_from_user2kernel(pagetable_t *pagetable, char *dst, uint64_t srcva, uint64_t len);
+void mappages(pagetable_t *pagetable, uint64_t va, uint64_t size, uint64_t pa, int perm);
+void copy_kernel2user(pagetable_t *pagetable, uint64_t dstva, char *src, uint64_t len);
+void copy_user2kernel(pagetable_t *pagetable, char *dst, uint64_t srcva, uint64_t len);
 void init_kernel_pagetable(void);
 Page *pagetable_alloc_page(pagetable_t *pagetable, uintptr_t va, uint32_t perm);
 uintptr_t va2pa(pagetable_t *pagetable, uint64_t va);
 void unmap_range(pde_t *pgdir, uintptr_t start, uintptr_t end);
 void exit_range(pde_t *pgdir, uintptr_t start, uintptr_t end);
 int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end, bool share);
+
+static inline ppn_t page2ppn(Page *page) { return page - pages; }
+
+static inline uintptr_t page2pa(Page *page) { return (page2ppn(page) << PGSHIFT) + PAGE_START; }
+// cause kernel virtual address equal physical address see:
+// kvmmap(KERNBASE, KERNBASE, (uint64_t)kernel_etext - KERNBASE, PTE_R |
+// PTE_X);kvmmap((uint64_t)kernel_etext, (uint64_t)kernel_etext, PHYSTOP - (uint64_t)kernel_etext, PTE_R |
+// PTE_W);
+static inline uintptr_t page2kva(Page *page) { return page2pa(page); }
+
+static inline Page *pa2page(uintptr_t pa) {
+    if (PPN(pa) >= npage) panic("pa2page called with invalid pa");
+    return &pages[PPN(pa)];
+}
+
+static inline Page *pte2page(pte_t pte) {
+    if (!(pte & PTE_V)) { panic("pte2page called with invalid pte"); }
+    return pa2page(PTE2PA(pte));
+}
+
+static inline Page *kva2page(uintptr_t va) {
+    pte_t *pte = get_pte(kernel_pagetable, va, 0);
+    return pte2page(*pte);
+}
+
+static inline void tlb_invalidate(pagetable_t *pagetable, uintptr_t va) {
+    if (r_satp() == MAKE_SATP(pagetable)) sfence_vma_addr((void *)va);
+}
 #endif

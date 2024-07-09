@@ -22,6 +22,8 @@ Mm_struct *mm_create(void) {
         mm->pagetable = nullptr;
         mm->map_count = 0;
         mm->swap_address = 0;
+        set_mm_count(mm, 0);
+        initlock(&mm->mm_lock, "mm_lock");
     }
     return mm;
 }
@@ -447,33 +449,37 @@ static void check_pgfault(void) {
 
     uintptr_t addr = 0x100;
     assert(find_vma(mm, addr) == vma);
+
+    // vm_print(mm->pagetable);
+    // while(1);
+
     int i, sum = 0;
     for (i = 0; i < 100; i++) {
         *(char *)(addr + i) = i;
         sum += i;
     }
-    for (i = 0; i < 100; i++) { sum -= *(char *)(addr + i); }
+    for (i = 0; i < 100; i++) { 
+        sum -= *(char *)(addr + i); 
+    }
     assert(sum == 0);
 
     page_remove(kernel_pagetable, ROUNDDOWN(addr, PGSIZE));
     pte_t pg1 = kernel_pagetable[0];
     pte_t pg2 = ((pte_t *)PTE2PA(pg1))[0];
     ((pte_t *)PTE2PA(pg1))[0] = 0;
-    // FreePage(pa2page(PTE2PA(pg1)));
     FreePage(pa2page(PTE2PA(pg2)));
-    // FreePagetable(kernel_pagetable);
     mm->pagetable = nullptr;
     mm_destroy(mm);
     check_mm_struct = nullptr;
     assert(nr_free_pages_store == nr_free_pages());
     assert(slab_allocated_store == slab_allocated());
-    // assert(slab_allocated_store == slab_allocated());
 
     cprintf("check_pgfault() succeeded!\n");
 }
 
 int do_pagatable_fault(Mm_struct *mm, uintptr_t addr, bool write) {
     int ret = -E_INVAL;
+    lock_mm(mm);
     Vma_struct *vma = find_vma(mm, addr);
     if (vma == nullptr || vma->vm_start > addr) goto failed;
     if(vma->vm_flags & VM_STACK){
@@ -481,7 +487,10 @@ int do_pagatable_fault(Mm_struct *mm, uintptr_t addr, bool write) {
             goto failed;
     }
     uint32_t perm = 0;
-    // uint32_t perm = PTE_U;
+    if(vma->vm_flags & VM_USER)
+        perm |= PTE_U;
+    if(vma->vm_flags & VM_EXEC)
+        perm |= PTE_X;
     if (vma->vm_flags & VM_WRITE) {
         perm |= PTE_W | PTE_R;
     } else if (vma->vm_flags & VM_READ) {
@@ -551,5 +560,6 @@ int do_pagatable_fault(Mm_struct *mm, uintptr_t addr, bool write) {
     ret = 0;
 
 failed:
+    unlock_mm(mm);
     return ret;
 }

@@ -30,6 +30,7 @@ struct vma_struct {
 #define VM_EXEC         0x00000004
 #define VM_STACK        0x00000008
 #define VM_SHARE        0x00000010
+#define VM_USER         0x00000020
 
 typedef struct mm_struct Mm_struct;
 struct mm_struct{
@@ -39,7 +40,26 @@ struct mm_struct{
     pagetable_t *pagetable;
     int map_count;
     uintptr_t swap_address;
+    Atomic mm_count;
+    Spinlock mm_lock;
 };
+
+static inline long mm_count(Mm_struct *mm) { return atomic_read(&mm->mm_count); }
+
+static inline void set_mm_count(Mm_struct *mm, long val) { atomic_set(&mm->mm_count, val); }
+
+static inline long mm_count_inc(Mm_struct *mm) { return atomic_add_return(&mm->mm_count, 1); }
+
+static inline long mm_count_dec(Mm_struct *mm) { return atomic_sub_return(&mm->mm_count, 1); }
+
+static inline void lock_mm(Mm_struct *mm) {
+    if (mm != nullptr) 
+        acquire(&mm->mm_lock);
+}
+
+static inline void unlock_mm(Mm_struct *mm) {
+    if (mm != nullptr) release(&mm->mm_lock);
+}
 
 Vma_struct *find_vma(Mm_struct *mm, uintptr_t addr);
 Vma_struct *vma_create(uintptr_t vm_start, uintptr_t vm_end, uint32_t vm_flags);

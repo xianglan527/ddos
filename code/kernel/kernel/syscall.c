@@ -14,6 +14,11 @@
 extern uint64_t sys_write(void);
 extern uint64_t sys_sti(void);
 extern uint64_t sys_cli(void);
+extern uint64_t sys_getpid(void);
+extern uint64_t sys_fork(void);
+extern uint64_t sys_exit(void);
+extern uint64_t sys_wait(void);
+extern uint64_t sys_yield(void);
 
 static uint64_t arg_raw(int n) {
     Proc *p = myproc();
@@ -40,9 +45,14 @@ int arg_addr(int n, uint64_t *ip){
 }
 
 static uint64_t (*syscalls[])(void) = {
+    [SYS_getpid] = sys_getpid,
     [SYS_write] = sys_write,
     [SYS_sti] = sys_sti,
     [SYS_cli] = sys_cli,
+    [SYS_fork] = sys_fork,
+    [SYS_exit] = sys_exit,
+    [SYS_waitpid] = sys_wait,
+    [SYS_yield] = sys_yield,
 };
 
 void syscall(void) {

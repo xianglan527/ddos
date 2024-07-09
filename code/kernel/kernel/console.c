@@ -109,7 +109,7 @@ int console_write(bool user_src, intptr_t src, int n) {
     int i;
     for (i = 0; i < n; i++) {
         char c;
-        either_copy_from_user2kernel(&c, user_src, src + i, 1);
+        either_copy_user2kernel(&c, user_src, src + i, 1);
         uart_putc(c);
     }
     release(&cons.lock);
