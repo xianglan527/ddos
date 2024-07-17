@@ -3,11 +3,6 @@
 #include "error.h"
 #include "string.h"
 
-extern struct {
-    Spinlock lock;
-    int locking;
-} pr;
-
 static const char *const error_string[MAXERROR + 1] = {
     [0] = nullptr,
     [E_UNSPECIFIED] = "unspecified error",
@@ -16,6 +11,10 @@ static const char *const error_string[MAXERROR + 1] = {
     [E_NO_MEM] = "out of memory",
     [E_NO_FREE_PROC] = "out of processes",
     [E_FAULT] = "segmentation fault",
+    [E_SWAP_FAULT] = "swap disk read/write fault",
+    [E_INVAL_ELF] = "invalid elf file",
+    [E_KILLED] = "process is killed",
+    [E_PANIC] = "panic failure",
 };
 
 static void printnum(void (*putch)(int, void *), void *putdat, uint64_t num, unsigned base, int width,
@@ -169,12 +168,9 @@ static void sprintputch(int ch, Sprintbuf *b){
 int snprintf(char *str, size_t size, const char *fmt, ...){
     va_list ap;
     int cnt;
-    int locking = pr.locking;
-    if (locking) acquire(&pr.lock);
     va_start(ap, fmt);
     cnt = vsnprintf(str, size, fmt, ap);
     va_end(ap);
-    if (locking) release(&pr.lock);
     return cnt;
 }
 
@@ -186,3 +182,5 @@ int vsnprintf(char *str, size_t size, const char *fmt, va_list ap){
     *b.buf = '\0';
     return b.cnt;
 }
+
+

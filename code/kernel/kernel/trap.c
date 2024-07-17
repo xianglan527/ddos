@@ -59,7 +59,7 @@ static int pagetable_handler(bool write) {
         
     }
     else{
-        assert(myproc() != nullptr && myproc()->kernel_proc == 0);
+        assert(myproc() != nullptr);
         mm = myproc()->mm;   
     }
     return do_pagatable_fault(mm, r_stval(), write);
@@ -67,7 +67,7 @@ static int pagetable_handler(bool write) {
 
 Trap_eum trap_work() {
     uint64_t scause = r_scause();
-    int ret;
+    int ret = 0;
     if ((scause & 0x8000000000000000L) && (scause & 0xff) == 9) {
         int irq = plic_claim();
         if(!irq)
@@ -114,12 +114,15 @@ Trap_eum trap_work() {
                 ret = pagetable_handler(false);
             else if(excep_code == 15)
                 ret = pagetable_handler(true);
+            if (ret != 0) {
+                if (myproc() == nullptr)
+                    panic("handle pgfault failed. %e\n", -ret);
+                else
+                    panic("user pid%d: handle pgfault failed. %e\n", myproc()->pid, -ret);
+            }
         }
-        if(ret != 0 ){
-            if(myproc() == nullptr)
-                panic("handle pgfault failed. %e\n", ret);
-            else
-                panic("user pid%d: handle pgfault failed. %e\n", myproc()->pid, ret);
+        else{
+            panic("no hangdle the exception : %d function", excep_code);
         }
         return TRAP_EXCEPTION;
     } else
@@ -190,5 +193,4 @@ void user_trap_ret() {
     uint64_t satp = MAKE_SATP(p->mm->pagetable);
     uint64_t fn = TRAMPOLINE + (userret - trampoline);
     ((void (*)(uint64_t, uint64_t))fn)(TRAPFRAME, satp);
-    cprintf("can get here\n");
 }

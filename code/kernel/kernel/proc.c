@@ -2,15 +2,18 @@
 
 #include "assert.h"
 #include "config.h"
+#include "elf.h"
 #include "error.h"
 #include "hash.h"
 #include "printf.h"
 #include "riscv.h"
 #include "slab.h"
 #include "spinlock.h"
+#include "stdio.h"
 #include "string.h"
 #include "syscall.h"
 #include "trap.h"
+#include "virtio-blk.h"
 
 Cpu cpus[NCPU];
 Proc *initproc;
@@ -109,18 +112,13 @@ static void set_links(Proc *proc) {
     if (++nr_process >= NPROC) panic("Exceeded maximum number of processes");
 }
 
-static void remove_links(Proc *proc){
+static void remove_links(Proc *proc) {
     list_del(&proc->list_link);
-    if(proc->optr != nullptr){
-        proc->optr->yptr = proc->yptr;
-    }
-    if(proc->yptr != nullptr){
+    if (proc->optr != nullptr) { proc->optr->yptr = proc->yptr; }
+    if (proc->yptr != nullptr) {
         proc->yptr->optr = proc->optr;
-    }
-    else{
-        if(proc->parent != nullptr){
-            proc->parent->cptr = proc->optr;
-        }
+    } else {
+        if (proc->parent != nullptr) { proc->parent->cptr = proc->optr; }
     }
     nr_process--;
 }
@@ -140,10 +138,10 @@ Proc *alloc_proc() {
     assert(proc->mm != nullptr);
     proc->flags = 0;
     memset(proc->name, 0, PROC_NAME_LEN);
-    uintptr_t pa = (uintptr_t)page2kva(AllocPage());
+    uintptr_t pa = (uintptr_t)page2kva(alloc_pages(KSTACKPAGE));
     assert(pa != 0);
     uint64_t va = KSTACK((ulong)(nr_process));
-    kvmmap(va, (uint64_t)pa, PGSIZE, PTE_R | PTE_W);
+    kvmmap(va, (uint64_t)pa, KSTACKPAGE - 1, PTE_R | PTE_W);
     proc->kstack = va;
     memset(&proc->context, 0, sizeof(proc->context));
     proc->context.sp = (uint64_t)(proc->kstack + PGSIZE);
@@ -327,21 +325,15 @@ void do_wakeup(void *chan) {
     while ((le = list_next(le)) != &proc_list) {
         p = le2proc(le, list_link);
         acquire(&p->lock);
-        if (p->state == SLEEPING && p->chan == chan) { 
-            p->state = RUNNABLE; 
-        }
+        if (p->state == SLEEPING && p->chan == chan) { p->state = RUNNABLE; }
         release(&p->lock);
     }
     release(&procs_lock);
 }
 
-static void put_pagetable(Mm_struct *mm){
-    FreePage(kva2page((uintptr_t)(mm->pagetable)));
-}
+static void put_pagetable(Mm_struct *mm) { FreePage(kva2page((uintptr_t)(mm->pagetable))); }
 
-static void put_kstack(Proc *proc){
-    FreePage(kva2page((proc->kstack)));
-}
+static void put_kstack(Proc *proc) { free_pages(kva2page((proc->kstack)), KSTACKPAGE);}
 
 void wakeup_proc(Proc *proc) {
     acquire(&proc->lock);
@@ -370,12 +362,13 @@ static void copy_mm(uint32_t clone_flags, Proc *proc) {
     unlock_mm(oldmm);
 good_mm:
     mm_count_inc(mm);
-    // proc->mm = mm;
 }
 
 int do_fork(uint32_t clone_flags) {
     Proc *proc, *current;
     current = myproc();
+    // vm_print(current->mm->pagetable);
+    // print_vma_list(current->mm);
     proc = alloc_proc();
 
     proc->mm->pagetable = proc_pagetable(proc);
@@ -389,10 +382,10 @@ int do_fork(uint32_t clone_flags) {
     assert(current->wait_state == 0);
     copy_mm(clone_flags, proc);
 
-    mappages(proc->mm->pagetable, KERNBASE, (uint64_t)kernel_etext - KERNBASE, KERNBASE,
-             PTE_R | PTE_U | PTE_X);
-    mappages(proc->mm->pagetable, (uint64_t)kernel_etext, PHYSTOP - (uint64_t)kernel_etext,
-             (uint64_t)kernel_etext, PTE_R | PTE_W | PTE_U);
+    // mappages(proc->mm->pagetable, KERNBASE, (uint64_t)kernel_etext - KERNBASE, KERNBASE,
+    //          PTE_R | PTE_U | PTE_X);
+    // mappages(proc->mm->pagetable, (uint64_t)kernel_etext, PHYSTOP - (uint64_t)kernel_etext,
+    //          (uint64_t)kernel_etext, PTE_R | PTE_W | PTE_U);
 
     acquire(&procs_lock);
     proc->pid = alloc_pid();
@@ -434,6 +427,7 @@ void do_exit(int error_code) {
 
 int do_wait(int pid, int *code_store) {
     Proc *proc, *current = myproc();
+    // uintptr_t pa = va2pa(current->mm->pagetable, 0x10fa8);
     bool haskid;
 repeat:
     acquire(&procs_lock);
@@ -467,11 +461,12 @@ found:
     remove_links(proc);
     release(&procs_lock);
     if (code_store != nullptr) {
-        copy_kernel2user(current->mm->pagetable, (uintptr_t)code_store, (char *)&proc->exit_code, sizeof(proc->exit_code));
+        copy_kernel2user(current->mm->pagetable, (uintptr_t)code_store, (char *)&proc->exit_code,
+                         sizeof(proc->exit_code));
     }
     Mm_struct *mm = proc->mm;
-    if(mm != nullptr){
-        if(mm_count_dec(mm) == 0){
+    if (mm != nullptr) {
+        if (mm_count_dec(mm) == 0) {
             exit_mmap(mm);
             put_pagetable(mm);
             mm_destroy(mm);
@@ -480,4 +475,137 @@ found:
     put_kstack(proc);
     kfree(proc);
     return 0;
+}
+
+static int load_icode(Proc *current, char *binary) {
+    assert(current->mm == nullptr);
+    int ret;
+    Mm_struct *mm;
+    mm = mm_create();
+    assert(mm != nullptr);
+    mm->pagetable = proc_pagetable(current);
+    assert(mm->pagetable != nullptr);
+    Page *page;
+    struct elfhdr *elf = (struct elfhdr *)binary;
+    struct proghdr *ph = (struct proghdr *)(binary + elf->phoff);
+    assert(elf->magic == ELF_MAGIC);
+
+    uint32_t vm_flags, perm;
+    struct proghdr *ph_end = ph + elf->phnum;
+    for (; ph < ph_end; ph++) {
+        if (ph->type != ELF_PROG_LOAD) { continue; }
+        assert(ph->filesz <= ph->memsz);
+        if (ph->filesz == 0) continue;
+        vm_flags = VM_USER, perm = PTE_U | PTE_X;
+        if (ph->flags & ELF_PROG_FLAG_EXEC) vm_flags |= VM_EXEC;
+        if (ph->flags & ELF_PROG_FLAG_WRITE) vm_flags |= VM_WRITE;
+        if (ph->flags & ELF_PROG_FLAG_READ) vm_flags |= VM_READ;
+        if (vm_flags & VM_WRITE) perm |= PTE_W;
+        ret = mm_map(mm, ph->vaddr, ph->memsz, vm_flags, nullptr);
+        assert(ret == 0);
+        char *from = binary + ph->off;
+        size_t off, size;
+        uintptr_t start = ph->vaddr, end, va = PGROUNDDOWN(start);
+        end = ph->vaddr + ph->filesz;
+        while (start < end) {
+            page = pagetable_alloc_page(mm->pagetable, va, perm);
+            assert(page != nullptr);
+            off = start - va, size = PGSIZE - off, va += PGSIZE;
+            if (end < va) size -= va - end;
+            memcpy((void *)(page2kva(page) + off), from, size);
+            start += size, from += size;
+        }
+        end = ph->vaddr + ph->memsz;
+        if (start < va) {
+            if (start == end) continue;
+            size = va - start, off = PGSIZE - size;
+            if (end < va) size -= va - end;
+            memset((void *)(page2kva(page) + off), 0, size);
+            start += size;
+            assert((end < va && start == end) || (end >= va && start == va));
+        }
+        while (start < end) {
+            page = pagetable_alloc_page(mm->pagetable, va, perm);
+            assert(page != nullptr);
+            size = PGSIZE, va += PGSIZE;
+            if (end < va) size -= va - end;
+            memset((void *)(page2kva(page)), 0, size);
+            start += size;
+        }
+    }
+    // ret = mm_map(mm, USTACKADDR, USTACKSIZE, VM_USER | VM_STACK | VM_READ | VM_WRITE | VM_EXEC, nullptr);
+    // uintptr_t mem = page2kva(alloc_pages(USTACKPAGE));
+    // mappages(mm->pagetable, USTACKADDR, USTACKSIZE, mem, PTE_W | PTE_R | PTE_U | PTE_X);
+    ret = mm_map(mm, USTACKADDR, USTACKSIZE, VM_USER | VM_STACK | VM_READ | VM_WRITE | VM_EXEC, nullptr);
+    assert(ret == 0);
+    Page *pages = alloc_pages(USTACKPAGE);
+    assert(pages != nullptr);
+    ret = pages_insert(mm->pagetable, pages, USTACKADDR, PTE_W | PTE_R | PTE_U | PTE_X, USTACKPAGE);
+    assert(ret == 0);
+    mm_count_inc(mm);
+    current->mm = mm;
+    ret = 0;
+    return ret;
+}
+
+int do_execve(char *path, char **argv) {
+    struct blk_buf req;
+    int rdata[SECTOR_SZIE / 4] = {0};
+    req.addr = 0;
+    req.data = rdata;
+    req.data_len = SECTOR_SZIE;
+    req.is_write = 0;
+    virtio_blk_rw(&req, "fs.img");
+    size_t pages_num = PGROUNDUP(rdata[0]) / PGSIZE;
+    Page *pages = alloc_pages(pages_num);
+    char *binary = (char *)page2kva(pages);
+    size_t count = rdata[0] / SECTOR_SZIE + 1;
+    for (size_t i = 0; i < count; i++) {
+        req.addr = (i + 1) * SECTOR_SZIE;
+        req.data = rdata;
+        req.data_len = SECTOR_SZIE;
+        req.is_write = 0;
+        virtio_blk_rw(&req, "fs.img");
+        memcpy((void *)(binary + (i * SECTOR_SZIE)), (void *)(rdata), SECTOR_SZIE);
+    }
+    char *s, *last;
+    for (last = s = path; *s; s++) {
+        if (*s == '/') last = s + 1;
+    }
+    Proc *current = myproc();
+    safestrcpy(current->name, last, sizeof(current->name));
+    Mm_struct *mm = current->mm;
+    if (mm != nullptr) {
+        if (mm_count_dec(mm) == 0) {
+            exit_mmap(mm);
+            put_pagetable(mm);
+            mm_destroy(mm);
+        }
+        current->mm = nullptr;
+    }
+    int ret;
+    ret = load_icode(current, binary);
+    assert(ret == 0);
+
+    uint64_t argc, sp, ustack[MAXARG + 1], stackbase;
+    sp = USTACKADDR + USTACKSIZE;
+    stackbase = USTACKADDR + PGSIZE;
+    for(argc = 0; argv[argc]; argc++){
+        assert(argc < MAXARG);
+        sp -= strlen(argv[argc]) + 1;
+        sp -= sp % 16;
+        assert(sp >= stackbase);
+        copy_kernel2user(current->mm->pagetable, sp, argv[argc], strlen(argv[argc]) + 1);
+        ustack[argc] = sp;
+    }
+    ustack[argc] = 0;
+    sp -= (argc + 1) * sizeof(uint64_t);
+    sp -= sp % 16;
+    assert(sp >= stackbase);
+    copy_kernel2user(current->mm->pagetable, sp, (char *)ustack, (argc + 1) * sizeof(uint64_t));
+    current->trapframe->a1 = sp;
+    current->trapframe->epc = ((struct elfhdr *)binary)->entry;
+    current->trapframe->sp = sp;
+    free_pages(pages, pages_num);
+    return argc;
 }

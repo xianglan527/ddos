@@ -81,9 +81,15 @@ struct context {
 
 #define PROC_NAME_LEN 64
 #define MAX_PID (NPROC * 2)
-#define USTACKPAGE 2
+#define KSTACKPAGE 8
+#define KSTACKSIZE (KSTACKPAGE * PGSIZE)
+#define USTACKPAGE 16
 #define USTACKSIZE (USTACKPAGE * PGSIZE)
 #define USTACKADDR  PGSIZE
+
+// map kernel stacks beneath the trampoline,
+// each surrounded by invalid guard pages.
+#define KSTACK(p) (TRAMPOLINE - ((p) + 1) * KSTACKSIZE)
 
 typedef struct proc Proc;
 struct proc {
@@ -146,4 +152,5 @@ void do_wakeup(void *chan);
 int do_fork(uint32_t clone_flags);
 void do_exit(int error_code);
 int do_wait(int pid, int *code_store);
+int do_execve(char *name, char **argv);
 #endif

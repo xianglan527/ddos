@@ -1,0 +1,65 @@
+Date : 2024-07-12 18:09:57
+Directory : c:\Users\45228\Desktop\share\ddos\code
+Total : 32 files,  837 codes, 121 comments, 136 blanks, all 1094 lines
+
+Languages
++----------+------------+------------+------------+------------+------------+
+| language | files      | code       | comment    | blank      | total      |
++----------+------------+------------+------------+------------+------------+
+| C        |         21 |        618 |          4 |         76 |        698 |
+| C++      |         10 |        200 |        115 |         54 |        369 |
+| Python   |          1 |         19 |          2 |          6 |         27 |
++----------+------------+------------+------------+------------+------------+
+
+Directories
++-----------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                            | files      | code       | comment    | blank      | total      |
++-----------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                               |         32 |        837 |        121 |        136 |      1,094 |
+| kernel                                                          |         12 |        115 |         -3 |          5 |        117 |
+| kernel\kernel                                                   |          3 |         94 |         -1 |          4 |         97 |
+| kernel\test                                                     |          5 |         16 |         -2 |         -1 |         13 |
+| kernel\util                                                     |          4 |          5 |          0 |          2 |          7 |
+| user                                                            |         20 |        722 |        124 |        131 |        977 |
+| user\libs                                                       |         19 |        722 |        124 |        130 |        976 |
+| user\test                                                       |          1 |          0 |          0 |          1 |          1 |
++-----------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++-----------------------------------------------------------------+----------+------------+------------+------------+------------+
+| filename                                                        | language | code       | comment    | blank      | total      |
++-----------------------------------------------------------------+----------+------------+------------+------------+------------+
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\proc.c     | C        |         92 |         -1 |          4 |         95 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\proc.h     | C++      |          1 |          0 |          0 |          1 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\sysfile.c  | C        |          1 |          0 |          0 |          1 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\test\kerneltest.c | C        |         -1 |          1 |          0 |          0 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\test\uprintf.c    | C        |          3 |          0 |         -1 |          2 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\test\user.c       | C        |          1 |          0 |          0 |          1 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\test\user.h       | C        |          2 |          0 |         -1 |          1 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\test\usertest.c   | C        |         11 |         -3 |          1 |          9 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\printf.c     | C        |         -3 |          0 |          1 |         -2 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\string.c     | C        |          8 |          0 |          1 |          9 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\string.h     | C        |          1 |          0 |          0 |          1 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\util\types.h      | C++      |         -1 |          0 |          0 |         -1 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\assert.h       | C++      |         16 |          0 |          4 |         20 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\atomic.h       | C++      |         79 |        114 |         25 |        218 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\main.c         | C        |         11 |          0 |          1 |         12 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\panic.c        | C        |         62 |          0 |         12 |         74 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\panic.h        | C++      |          9 |          0 |          3 |         12 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\printf.c       | C        |        173 |          2 |         19 |        194 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\printf.h       | C        |         15 |          0 |          3 |         18 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\rand.c         | C        |          7 |          5 |          5 |         17 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\rand.h         | C++      |          7 |          0 |          3 |         10 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\spinlock.c     | C        |         73 |          0 |         11 |         84 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\spinlock.h     | C++      |         23 |          0 |          3 |         26 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\stdarg.h       | C++      |          7 |          1 |          4 |         12 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\string.c       | C        |        128 |          0 |         14 |        142 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\string.h       | C        |         18 |          0 |          2 |         20 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\sysdef.h       | C++      |         27 |          0 |          0 |         27 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\types.h        | C++      |         32 |          0 |         12 |         44 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\user.c         | C        |          3 |          0 |          1 |          4 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\user.h         | C        |         13 |          0 |          2 |         15 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\usys.py        | Python   |         19 |          2 |          6 |         27 |
+| c:\Users\45228\Desktop\share\ddos\code\user\test\usertests.c    | C        |          0 |          0 |          1 |          1 |
+| Total                                                           |          |        837 |        121 |        136 |      1,094 |
++-----------------------------------------------------------------+----------+------------+------------+------------+------------+

@@ -308,6 +308,8 @@ int dup_mmap(Mm_struct *to, Mm_struct *from){
             return -E_NO_MEM;
         }
     }
+    // vm_print(to->pagetable);
+    // print_vma_list(to);
     return 0;
 }
 
@@ -362,7 +364,7 @@ bool user_mem_check(Mm_struct *mm, uintptr_t addr, size_t len, bool write){
         }
         return 1;
     }
-    return 1;
+    return 0;
 }
 
 static void check_vmm(void) {
@@ -376,14 +378,35 @@ static void check_vmm(void) {
     cprintf("check_vmm() succeeded.\n");
 }
 
+#define VM_READ 0x00000001
+#define VM_WRITE 0x00000002
+#define VM_EXEC 0x00000004
+#define VM_STACK 0x00000008
+#define VM_SHARE 0x00000010
+#define VM_USER 0x00000020
+
+static const char *vma_flags2str(uint32_t vm_flags) {
+    static char str[7];
+    str[0] = (vm_flags & VM_READ) ? 'R' : '-';
+    str[1] = (vm_flags & VM_WRITE) ? 'W' : '-';
+    str[2] = (vm_flags & VM_EXEC) ? 'E' : '-';
+    str[3] = (vm_flags & VM_STACK) ? 'T' : '-';
+    str[4] = (vm_flags & VM_SHARE) ? 'S' : '-';
+    str[5] = (vm_flags & VM_USER) ? 'U' : '-';
+    str[6] = '\0';
+    return str;
+}
+
 void print_vma_list(Mm_struct *mm) {
     Vma_struct *vma = nullptr;
+    if(mm == nullptr)
+        return;
     List_entry *list = &mm->mmap_list, *le = list;
     while ((le = list_next(le)) != list) {
         vma = le2vma(le, list_link);
         cprintf("vma->start is : 0x%016x     ", vma->vm_start);
         cprintf("vma->end is : 0x%016x       ", vma->vm_end);
-        cprintf("vma->flags is : 0x%x\n", vma->vm_flags);
+        cprintf("vma->flags is : %s\n", vma_flags2str(vma->vm_flags));
     }
 }
 

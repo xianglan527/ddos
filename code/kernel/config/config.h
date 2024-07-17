@@ -34,11 +34,13 @@
 #endif
 
 #define CONSOLE_BUF_SIZE 1024
-#define NPROC 128UL
+#define NPROC 512
 #define NCPU 8
 #define STACK_SIZE 4096
 #define TIME_INTERVAL 1000000
 #define SLAB_ALIGN 16
 #define RB_MIN_MAP_COUNT 32  // If the count of vma >32 then redblack tree link is used
 #define DELAY 1000
+#define MAXARG  32
+#define MAXPATH 128
 #endif  // __CONFIG_CONFIG_H__

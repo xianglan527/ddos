@@ -1,8 +1,8 @@
 U_SRCS_PATH += \
-		code/user/util \
+		code/user/test \
 		code/user/libs \
 
 
-U_CFLAGS += \
-		-I./code/user/util \
+U_INCLUDE += \
+		-I./code/user/test \
 		-I./code/user/libs \

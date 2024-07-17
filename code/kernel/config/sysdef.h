@@ -1,5 +1,6 @@
-#ifndef __TEST_SYSDEF_H__
-#define __TEST_SYSDEF_H__
+#ifndef __CONFIG_SYSDEF_H__
+#define __CONFIG_SYSDEF_H__
+
 #define SYS_fork 1
 #define SYS_exit 2
 #define SYS_waitpid 3

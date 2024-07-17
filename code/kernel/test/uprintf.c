@@ -1,65 +1,22 @@
+
+#include "assert.h"
+#include "config.h"
 #include "uprintf.h"
-#include "error.h"
 #include "string.h"
 #include "user.h"
-#include "spinlock.h"
-#include "proc.h"
-
-extern struct {
-    Spinlock lock;
-    int locking;
-} pr;
-
-
-void user_acquire(Spinlock *lk) {
-    cli();
-    while (__sync_lock_test_and_set(&lk->locked, 1) != 0);
-    __sync_synchronize();
-    lk->cpu = mycpu();
-}
-
-void user_release(struct spinlock *lk) {
-    lk->cpu = 0;
-    __sync_synchronize();
-    __sync_lock_release(&lk->locked);
-    sti();
-}
 
 static void vprintfmt(void (*putch)(int, void *), void *putdat, const char *fmt, va_list ap);
+int uvsnprintf(char *str, size_t size, const char *fmt, va_list ap);
 
-static void putc(int fd, char c) { write(fd, &c, 1); }
 
-static void cputch(int c, int *cnt) {
-    putc(1, c);
-    (*cnt)++;
-}
-
-static int vcprintf(const char *fmt, va_list ap) {
-    int cnt = 0;
-    vprintfmt((void (*)(int, void *))cputch, &cnt, fmt, ap);
-    return cnt;
-}
-
-int printf(const char *fmt, ...) {
-    va_list ap;
-    int cnt;
-    user_acquire(&pr.lock);
-    va_start(ap, fmt);
-    cnt = vcprintf(fmt, ap);
-    va_end(ap);
-    user_release(&pr.lock);
-    return cnt;
-}
-
-static const char *const error_string[MAXERROR + 1] = {
-    [0] = nullptr,
-    [E_UNSPECIFIED] = "unspecified error",
-    [E_BAD_PROC] = "bad process",
-    [E_INVAL] = "invalid parameter",
-    [E_NO_MEM] = "out of memory",
-    [E_NO_FREE_PROC] = "out of processes",
-    [E_FAULT] = "segmentation fault",
-};
+// int printf(const char *fmt, ...) {
+//     va_list ap;
+//     int cnt;
+//     va_start(ap, fmt);
+//     cnt = vcprintf(fmt, ap);
+//     va_end(ap);
+//     return cnt;
+// }
 
 static void printnum(void (*putch)(int, void *), void *putdat, uint64_t num, unsigned base, int width,
                      int padc) {
@@ -136,17 +93,6 @@ static void vprintfmt(void (*putch)(int, void *), void *putdat, const char *fmt,
                 goto reswitch;
             case 'l': lflag++; goto reswitch;
             case 'c': putch(va_arg(ap, int), putdat); break;
-
-            // error message
-            case 'e':
-                err = va_arg(ap, int);
-                if (err < 0) { err = -err; }
-                if (err > MAXERROR || (p = error_string[err]) == NULL) {
-                    printfmt(putch, putdat, "error %d", err);
-                } else {
-                    printfmt(putch, putdat, "%s", p);
-                }
-                break;
             case 's':
                 if ((p = va_arg(ap, char *)) == nullptr) p = "(nullptr)";
                 if (width > 0 && padc != '-') {
@@ -202,3 +148,39 @@ static void vprintfmt(void (*putch)(int, void *), void *putdat, const char *fmt,
     }
 }
 
+static void sprintputch(int ch, Sprintbuf *b) {
+    b->cnt++;
+    if (b->buf < b->ebuf)
+        *b->buf++ = ch;
+    else
+        panic("too long string");
+}
+
+int usnprintf(char *str, size_t size, const char *fmt, ...) {
+    va_list ap;
+    int cnt;
+    va_start(ap, fmt);
+    cnt = uvsnprintf(str, size, fmt, ap);
+    va_end(ap);
+    return cnt;
+}
+
+int uvsnprintf(char *str, size_t size, const char *fmt, va_list ap) {
+    Sprintbuf b = {str, str + size - 1, 0};
+    if (str == nullptr || b.buf > b.ebuf) return -1;
+    vprintfmt((void (*)(int, void *))sprintputch, &b, fmt, ap);
+    *b.buf = '\0';
+    return b.cnt;
+}
+
+int printf(const char *fmt, ...) {
+    char str[MAXPATH];
+    va_list ap;
+    int cnt;
+    va_start(ap, fmt);
+    int pp = MAXPATH;
+    cnt = uvsnprintf(str, MAXPATH, fmt, ap);
+    va_end(ap);
+    if (cnt != -1) puts(1, str);
+    return cnt;
+}

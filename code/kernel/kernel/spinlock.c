@@ -8,13 +8,18 @@
 #include "string.h"
 
 #define lock_info_lens 100
-#define lock_info_nums 100
+#define lock_info_nums 1000
 #define lock_info_nest 100
 struct {
     char file[lock_info_lens];
     int line;
     char func[lock_info_lens];
 } lock_lock_info[lock_info_nums][lock_info_nest];
+
+extern struct {
+    Spinlock lock;
+    int locking;
+} pr;
 
 static Atomic lock_info_index;
 
@@ -60,6 +65,7 @@ static void push_spinlock_info(int index, int nest, const char *file, int line, 
 void acquire_with_info(Spinlock *lk, const char *file, int line, const char *func) {
     push_off();
     if (holding(lk)) {
+        pr.locking = 0;
         int i = 0;
         for (i = 0; i < lk->info_nest; i++) {
             cprintf("%d : file %s line %d func %s\n", i, lock_lock_info[lk->info_index][i].file,
@@ -78,8 +84,9 @@ void acquire_with_info(Spinlock *lk, const char *file, int line, const char *fun
 
 void release_with_info(Spinlock *lk, const char *file, int line, const char *func) {
     if (!holding(lk)) {
+        pr.locking = 0;
         int i = 0;
-        for (i = 0; i < lk->info_nest; i++) {
+        for (i = 0; i < lk->info_nest; i++) { 
             cprintf("%d : file %s line %d func %s\n", i, lock_lock_info[lk->info_index][i].file,
                     lock_lock_info[lk->info_index][i].line, lock_lock_info[lk->info_index][i].func);
         }

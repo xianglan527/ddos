@@ -19,18 +19,17 @@ void backtrace(void) {
 void __panic(const char *file, int line, const char *fmt, ...){
     if(is_panic)
         goto panic_dead;
-    pr.locking = 0;
-    is_panic = 1;
     va_list ap;
     va_start(ap, fmt);
     cprintf("kernel panic at %s:%d:\n", file, line);
     vcprintf(fmt, ap);
     cprintf("\n");
     va_end(ap);
-
 panic_dead:
     // backtrace();
     cprintf("The kernel has crashed. Please force shutdown!!!\n ");
+    pr.locking = 0;
+    is_panic = 1;
     while(1);
 }
 

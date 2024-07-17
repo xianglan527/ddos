@@ -60,9 +60,6 @@
 // in both user and kernel space.
 #define TRAMPOLINE (MAXVA - PGSIZE)
 
-// map kernel stacks beneath the trampoline,
-// each surrounded by invalid guard pages.
-#define KSTACK(p) (TRAMPOLINE - ((p) + 1) * 2 * PGSIZE)
 
 // User memory layout.
 // Address zero first:

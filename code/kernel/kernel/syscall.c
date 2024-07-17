@@ -3,6 +3,7 @@
 #include "config.h"
 #include "proc.h"
 #include "stdio.h"
+#include "string.h"
 
 // void syscall(void) {
 //     Proc *p = myproc();
@@ -19,6 +20,23 @@ extern uint64_t sys_fork(void);
 extern uint64_t sys_exit(void);
 extern uint64_t sys_wait(void);
 extern uint64_t sys_yield(void);
+extern uint64_t sys_exec(void);
+
+int fetch_addr(uint64_t addr, uint64_t *ip){
+    Proc *current = myproc();
+    if(user_mem_check(current->mm, addr, sizeof(*ip), true) == 0)
+        return -1;
+    copy_user2kernel(current->mm->pagetable, (char *)ip, addr, sizeof(*ip));
+    return 0;
+}
+
+int fetch_str(uint64_t addr, char *buf, int max){
+    Proc *current = myproc();
+    int err = copystr_user2kernel(current->mm->pagetable, buf, addr, max);
+    if(err < 0)
+        return err;
+    return strlen(buf);
+}
 
 static uint64_t arg_raw(int n) {
     Proc *p = myproc();
@@ -44,6 +62,13 @@ int arg_addr(int n, uint64_t *ip){
     return 0;
 }
 
+int arg_str(int n, char *buf, int max){
+    uint64_t addr;
+    if(arg_addr(n, &addr) < 0)
+        return -1;
+    return fetch_str(addr, buf, max);
+}
+
 static uint64_t (*syscalls[])(void) = {
     [SYS_getpid] = sys_getpid,
     [SYS_write] = sys_write,
@@ -52,6 +77,7 @@ static uint64_t (*syscalls[])(void) = {
     [SYS_fork] = sys_fork,
     [SYS_exit] = sys_exit,
     [SYS_waitpid] = sys_wait,
+    [SYS_exec] = sys_exec,
     [SYS_yield] = sys_yield,
 };
 

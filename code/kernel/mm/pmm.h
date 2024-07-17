@@ -107,7 +107,7 @@ extern size_t npage;
 #define PTE_MASK ((1L << 6) - 1)
 #define PTE_PW (1L << 2)
 
-#define PTE_USER    (PTE_V | PTE_W | PTE_U)
+#define PTE_USER    (PTE_V | PTE_W | PTE_U | PTE_X)
 
 #define PA2PTE(pa) ((((uint64_t)(pa)) >> 12) << 10)
 
@@ -151,6 +151,7 @@ void uvm_unmap(pagetable_t *pagetable, uint64_t va, uint64_t npages, int free_pa
 void uvm_free(pagetable_t *pagetable, uint64_t sz);
 void page_remove(pagetable_t *pagetable, uintptr_t va);
 int page_insert(pagetable_t *pagetable, Page *page, uintptr_t va, uint32_t perm);
+int pages_insert(pagetable_t *pagetable, Page *pages, uintptr_t va, uint32_t perm, int pages_num);
 void print_va2pa(pagetable_t *pagetable, uint64_t va);
 void vm_map_print(pagetable_t *pagetable);
 void vm_pte_print(pagetable_t *pagetable);
@@ -158,6 +159,7 @@ void vm_print(pagetable_t *pagetable);
 void mappages(pagetable_t *pagetable, uint64_t va, uint64_t size, uint64_t pa, int perm);
 void copy_kernel2user(pagetable_t *pagetable, uint64_t dstva, char *src, uint64_t len);
 void copy_user2kernel(pagetable_t *pagetable, char *dst, uint64_t srcva, uint64_t len);
+int copystr_user2kernel(pagetable_t *pagetable, char *dst, uint64_t srcva, uint64_t max);
 void init_kernel_pagetable(void);
 Page *pagetable_alloc_page(pagetable_t *pagetable, uintptr_t va, uint32_t perm);
 uintptr_t va2pa(pagetable_t *pagetable, uint64_t va);

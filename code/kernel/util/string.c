@@ -67,6 +67,15 @@ char *strncpy(char *s, const char *t, size_t n) {
     return os;
 }
 
+char *safestrcpy(char *s, const char *t, size_t n) {
+    char *os;
+    os = s;
+    if (n <= 0) return os;
+    while (--n > 0 && (*s++ = *t++) != 0);
+    *s = 0;
+    return os;
+}
+
 size_t strlen(const char *s) {
     size_t n;
     for (n = 0; s[n]; n++);

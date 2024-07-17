@@ -66,59 +66,39 @@ bool tf0 = 0, tf1 = 0, tf2 = 0, tf3 = 0;
 //     user_init(result);
 // }
 
-void user_task0() {
-    printf("pid %d running user_task0\n", getpid());
-    task_delay(DELAY);
-    const int max_child = 32;
-    int n, pid;
-    for(n = 0; n < max_child; n++){
-        if((pid = fork()) == 0){
-            printf("I am child pid is:%d\n", getpid());
-            exit(0);
-        }
-        assert(pid > 0);
-    }
-    if(n > max_child){
-        panic("fork claimed to work %d times\n", n);
-    }
-    for(; n > 0; n--){
-        if(wait() != 0){
-            panic("wait stopped early\n");
-        }
-    }
-    if(wait() == 0){
-        panic("wait got too many\n");
-    }
-    printf("forktest pass.\n");
-    while(1);
-    return;
+
+static inline uint64_t get_cpuid() {
+    uint64_t x;
+    asm volatile("mv %0, tp" : "=r"(x));
+    return x;
 }
 
 void user_task1() {
-    while (1) {
-        printf("pid %d running user_task1\n", getpid());
-        task_delay(DELAY);
-    }
+    printf("cpu: %d pid: %d running user_task1\n", get_cpuid(), getpid());
+    char *args[] = {"usermain", 0};
+    exec("usermain", args);
 }
 
 void user_task2() {
     while (1) {
-        printf("pid %d running user_task2\n", getpid());
+        printf("cpu: %d pid: %d running user_task2\n", get_cpuid(), getpid());
+        yield();
         task_delay(DELAY);
     }
 }
 
 void user_task3() {
     while (1) {
-        printf("pid %d running user_task3\n", getpid());
+        printf("cpu: %d pid: %d running user_task3\n", get_cpuid(), getpid());
+        yield();
         task_delay(DELAY);
     }
 }
 
 void os_main(void) {
-    user_init(user_task0);
-    // user_init(user_task1);
-    // user_init(user_task2);
-    // user_init(user_task3);
+    // user_init(user_task0);
+    user_init(user_task1);
+    user_init(user_task2);
+    user_init(user_task3);
     kernel_thread_init(kernel_init, "kernel_init");
 }

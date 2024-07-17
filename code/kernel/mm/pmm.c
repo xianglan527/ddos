@@ -52,7 +52,7 @@ static const char *perm2str(pte_t perm) {
     static char str[9];
     str[0] = (perm & PTE_V) ? 'V' : '-';
     str[1] = (perm & PTE_R) ? 'R' : '-';
-    str[2] = (perm & PTE_W) ? 'W' : '-';
+    str[2] = (perm & PTE_PW) ? 'W' : '-';
     str[3] = (perm & PTE_X) ? 'X' : '-';
     str[4] = (perm & PTE_U) ? 'U' : '-';
     str[5] = (perm & PTE_G) ? 'G' : '-';
@@ -387,6 +387,37 @@ void copy_user2kernel(pagetable_t *pagetable, char *dst, uint64_t srcva, uint64_
     return;
 }
 
+int copystr_user2kernel(pagetable_t *pagetable, char *dst, uint64_t srcva, uint64_t max){
+    uint64_t n, va0, pa0;
+    bool got_null = false;
+    while(got_null == false && max > 0){
+        va0 = PGROUNDDOWN(srcva);
+        pa0 = va2pa(pagetable, va0);
+        n = PGSIZE - (srcva - va0);
+        if(n > max)
+            n = max;
+        char *p = (char *)(pa0 + (srcva - va0));
+        while(n > 0){
+            if(*p == '\0'){
+                *dst = '\0';
+                got_null = true;
+                break;
+            }else{
+                *dst = *p;
+            }
+            --n;
+            --max;
+            p++;
+            dst++;
+        }
+        srcva = va0 + PGSIZE;
+    }
+    if(got_null)
+        return 0;
+    else
+        return -1;
+}
+
 void print_va2pa(pagetable_t *pagetable, uint64_t va) {
     uint64_t pa = va2pa(pagetable, va);
     cprintf("va is -----0x%lx\n pa is -----0x%lx\n", va, pa + PGOFF(va));
@@ -433,6 +464,15 @@ out:
     *ptep = PA2PTE(page2pa(page)) | PTE_V | perm;
     tlb_invalidate(pagetable, va);
     return 0; 
+}
+
+int pages_insert(pagetable_t *pagetable, Page *pages, uintptr_t va, uint32_t perm, int pages_num) {
+    int ret;
+    for (int i = 0; i < pages_num; i++) {
+        ret = page_insert(pagetable, pages + i, va + i * PGSIZE, perm);
+        if (ret != 0) return ret;
+    }
+    return 0;
 }
 
 void page_remove(pagetable_t *pagetable, uintptr_t va) {

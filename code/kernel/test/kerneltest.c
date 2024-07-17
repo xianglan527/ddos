@@ -79,7 +79,7 @@ void kernel_test(){
     virtio_mmio_rng_test();
     rand_test();
     virtio_mmio_blk_test("swap.img");
-    virtio_mmio_blk_test("fs.img");
+    // do_execve("user.elf", nullptr);
 #endif
 }
 
