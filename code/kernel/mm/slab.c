@@ -39,7 +39,7 @@ struct kmem_cache {
 };
 
 #define MIN_SIZE_ORDER 5
-#define MAX_SIZE_ORDER 17
+#define MAX_SIZE_ORDER 21
 #define SLAB_CACHE_NUM (MAX_SIZE_ORDER - MIN_SIZE_ORDER + 1)
 
 static Kmem_cache slab_cache[SLAB_CACHE_NUM];
@@ -296,13 +296,16 @@ static void kmem_cache_free_one(Kmem_cache *cachep, Slab *slabp, void *objp) {
 
 static void kmem_cache_free(Kmem_cache *cachep, void *objp) {
     Page *page = kva2page((uintptr_t)objp);
-    if (!PageSlab(page)) panic("not a slab page %p\n", objp);
+    if (!PageSlab(page)) 
+        panic("not a slab page %p\n", objp);
     acquire(&slab_lock);
     kmem_cache_free_one(cachep, GET_PAGE_SLAB(page), objp);
     release(&slab_lock);
 }
 
-void kfree(void *objp) { kmem_cache_free(GET_PAGE_CACHE(kva2page((uintptr_t)objp)), objp); }
+void kfree(void *objp) { 
+    kmem_cache_free(GET_PAGE_CACHE(kva2page((uintptr_t)objp)), objp); 
+}
 
 void aligned_kfree(void *aligned) { kfree(((void **)aligned)[-1]); }
 

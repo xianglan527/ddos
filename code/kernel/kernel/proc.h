@@ -8,7 +8,7 @@
 #include "vmm.h"
 
 typedef enum proc_state Proc_state;
-enum proc_state { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+enum proc_state { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE, EXIT};
 
 // typedef struct spinlock Spinlock;
 typedef struct trapframe Trapframe;
@@ -83,18 +83,19 @@ struct context {
 #define MAX_PID (NPROC * 2)
 #define KSTACKPAGE 8
 #define KSTACKSIZE (KSTACKPAGE * PGSIZE)
-#define USTACKPAGE 16
+#define USTACKPAGE 8
 #define USTACKSIZE (USTACKPAGE * PGSIZE)
 #define USTACKADDR  PGSIZE
 
 // map kernel stacks beneath the trampoline,
 // each surrounded by invalid guard pages.
 #define KSTACK(p) (TRAMPOLINE - ((p) + 1) * KSTACKSIZE)
+#define KSTACK2INDEX(addr) ((TRAMPOLINE - (addr)) / KSTACKSIZE - 1)
 
 typedef struct proc Proc;
 struct proc {
-    bool kernel_proc;
     char name[PROC_NAME_LEN + 1];
+    bool kernel_proc;
     Spinlock lock;
     Proc_state state;
     void *chan;
@@ -102,7 +103,6 @@ struct proc {
     Trapframe *trapframe;
     int pid;
     ulong runs;
-    // pagetable_t *pagetable;
     uintptr_t kstack;
     Mm_struct *mm;
     Proc *parent;
@@ -112,6 +112,7 @@ struct proc {
     int exit_code;
     uint32_t wait_state;
     Proc *cptr, *yptr, *optr;
+    Cpu *cpu;
 };
 
 #define PF_EXITING 0x00000001
@@ -130,9 +131,14 @@ struct cpu {
     Context context;  // swtch() here to enter scheduler().
     int noff;         // Depth of push_off() nesting.
     int intena;       // Were interrupts enabled before push_off()?
+    Proc *prev;
+    Proc *next;
+    bool has_zombie;
 };
 
 extern Cpu cpus[NCPU];
+
+
 
 int cpuid();
 void scheduler(void);
@@ -153,4 +159,8 @@ int do_fork(uint32_t clone_flags);
 void do_exit(int error_code);
 int do_wait(int pid, int *code_store);
 int do_execve(char *name, char **argv);
+void proc_dump(void);
+int do_kill(int pid);
+
+
 #endif

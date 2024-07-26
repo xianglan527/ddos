@@ -238,5 +238,5 @@ static inline void dsb(void) { asm volatile("fence iorw, iorw" : : : "memory"); 
         (typeof(a))((__a + PGSIZE - 1) & ~(PGSIZE - 1)); \
     })
 
-
+#define NELEM(x) (sizeof(x) / sizeof((x)[0]))
 #endif

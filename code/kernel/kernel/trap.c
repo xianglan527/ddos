@@ -11,6 +11,7 @@
 #include "uart.h"
 #include "virtio_device.h"
 #include "vmm.h"
+#include "error.h"
 
 Spinlock tickslock;
 uint64_t ticks;
@@ -55,10 +56,11 @@ static int pagetable_handler(bool write) {
     Mm_struct *mm;
     if (check_mm_struct != nullptr) { 
         assert(myproc() == nullptr);
-        mm = check_mm_struct;
-        
+        mm = check_mm_struct;  
     }
     else{
+        // if(myproc() == nullptr)
+        //     proc_dump();
         assert(myproc() != nullptr);
         mm = myproc()->mm;   
     }
@@ -122,7 +124,15 @@ Trap_eum trap_work() {
             }
         }
         else{
-            panic("no hangdle the exception : %d function", excep_code);
+            if(myproc() == nullptr){
+                panic("no hangdle the exception function excep_code %d cpuid is:%d", excep_code, cpuid());
+            }               
+            else{
+                proc_dump();
+                panic("no hangdle the exception function pid : %d excep_code %d cpuid is:%d", myproc()->pid,
+                      excep_code, cpuid());
+            }
+                
         }
         return TRAP_EXCEPTION;
     } else
@@ -159,14 +169,21 @@ void usertrap(void) {
     p->trapframe->epc = r_sepc();
     if (intr_get() != 0) panic("usertrap: interrupts enabled");
     if (r_scause() == 8) {
+        if(p->flags & PF_EXITING){
+            do_exit(-E_KILLED);
+        }
         p->trapframe->epc += 4;
         intr_on();
         syscall();
     } else if ((trap_enum = trap_work()) == TRAP_OTHER) {
+        p->flags |= PF_EXITING;
         cprintf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
         cprintf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     } else if (trap_enum == TRAP_SOFT_INT && myproc() != 0 && myproc()->state == RUNNING) {
         do_yield();
+    }
+    if(p->flags & PF_EXITING){
+        do_exit(-E_KILLED);
     }
     user_trap_ret();
 }

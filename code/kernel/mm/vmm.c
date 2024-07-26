@@ -378,13 +378,6 @@ static void check_vmm(void) {
     cprintf("check_vmm() succeeded.\n");
 }
 
-#define VM_READ 0x00000001
-#define VM_WRITE 0x00000002
-#define VM_EXEC 0x00000004
-#define VM_STACK 0x00000008
-#define VM_SHARE 0x00000010
-#define VM_USER 0x00000020
-
 static const char *vma_flags2str(uint32_t vm_flags) {
     static char str[7];
     str[0] = (vm_flags & VM_READ) ? 'R' : '-';

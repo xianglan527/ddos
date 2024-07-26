@@ -34,7 +34,7 @@
 #endif
 
 #define CONSOLE_BUF_SIZE 1024
-#define NPROC 512
+#define NPROC 2000
 #define NCPU 8
 #define STACK_SIZE 4096
 #define TIME_INTERVAL 1000000
@@ -43,4 +43,11 @@
 #define DELAY 1000
 #define MAXARG  32
 #define MAXPATH 128
+#define CLEAN_PROC_EXIT_NUM 32
+
+#define lock_info_lens 100
+#define lock_info_nums 4000
+#define lock_info_nest 20
+
+
 #endif  // __CONFIG_CONFIG_H__

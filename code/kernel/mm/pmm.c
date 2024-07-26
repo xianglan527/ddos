@@ -434,7 +434,8 @@ static void page_remove_pte(pagetable_t *pagetable, uintptr_t va, pte_t *ptep) {
     if (*ptep & PTE_V) {
         Page *page = pte2page(*ptep);
         if(!PageSwap(page)){
-            if (page_ref_dec(page) == 0) FreePage(page);
+            if (page_ref_dec(page) == 0) 
+                FreePage(page);
         }
         else{
             if(*ptep & PTE_D)

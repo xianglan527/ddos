@@ -1,6 +1,7 @@
 #include "panic.h"
 #include "spinlock.h"
 #include "riscv.h"
+#include "proc.h"
 
 volatile bool is_panic = 0;
 extern struct {
@@ -21,12 +22,17 @@ void __panic(const char *file, int line, const char *fmt, ...){
         goto panic_dead;
     va_list ap;
     va_start(ap, fmt);
-    cprintf("kernel panic at %s:%d:\n", file, line);
+    if(myproc() != nullptr)
+        cprintf("cpuid :%d pid :%dkernel panic at %s:%d:\n", cpuid(), myproc()->pid, file, line);
+    else
+        cprintf("cpuid :%d kernel panic at %s:%d:\n", cpuid(), file, line);
     vcprintf(fmt, ap);
     cprintf("\n");
     va_end(ap);
 panic_dead:
-    // backtrace();
+    cprintf("backtrace......:\n");
+    backtrace();
+    cprintf("end of backtrace......:\n");
     cprintf("The kernel has crashed. Please force shutdown!!!\n ");
     pr.locking = 0;
     is_panic = 1;

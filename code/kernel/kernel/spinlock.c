@@ -7,9 +7,6 @@
 #include "stdio.h"
 #include "string.h"
 
-#define lock_info_lens 100
-#define lock_info_nums 1000
-#define lock_info_nest 100
 struct {
     char file[lock_info_lens];
     int line;
@@ -34,6 +31,8 @@ void initlock(Spinlock *lk, char *name) {
     assert(lk->info_index < lock_info_nums);
 }
 
+
+
 int holding(Spinlock *lk) {
     int r;
     r = (lk->locked && lk->cpu == mycpu());
@@ -49,7 +48,8 @@ void push_off(void) {
 
 void pop_off(void) {
     Cpu *c = mycpu();
-    if (intr_get()) panic("pop_off - interruptible");
+    if (intr_get()) 
+        panic("pop_off - interruptible");
     if (c->noff < 1) panic("pop_off");
     c->noff -= 1;
     if (c->noff == 0 && c->intena) intr_on();

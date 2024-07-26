@@ -98,7 +98,7 @@ void user_task3() {
 void os_main(void) {
     // user_init(user_task0);
     user_init(user_task1);
-    user_init(user_task2);
-    user_init(user_task3);
+    // user_init(user_task2);
+    // user_init(user_task3);
     kernel_thread_init(kernel_init, "kernel_init");
 }

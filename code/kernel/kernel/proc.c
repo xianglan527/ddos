@@ -14,6 +14,7 @@
 #include "syscall.h"
 #include "trap.h"
 #include "virtio-blk.h"
+#include "bitmap.h"
 
 Cpu cpus[NCPU];
 Proc *initproc;
@@ -29,12 +30,15 @@ Proc *initproc = nullptr;
 
 static ulong next_pid = 1;
 static ulong nr_process = 0;
+struct bitmap *kernel_stack_bitmap = nullptr;
 
 // The struct members list_link, parent, hash_link, *cptr, *yptr,
 // and *optr of a process can only be read or written while holding the proc_lock.
 
 // to prevent deadlocks,the locking order must be procs_lock--->process lock.
 Spinlock procs_lock;
+
+Spinlock print_procs_lock;
 
 extern char trampoline[];  // trampoline.S
 extern char kernel_etext[];
@@ -59,7 +63,9 @@ repeat:
 
 void proc_init(void) {
     initlock(&procs_lock, "procs_lock");
+    initlock(&print_procs_lock, "print_procs_lock");
     list_init(&proc_list);
+    kernel_stack_bitmap = bitmap_init(2 * NPROC);
     for (int i = 0; i < HASH_LIST_SIZE; i++) { list_init(hash_list + i); }
 }
 
@@ -123,11 +129,20 @@ static void remove_links(Proc *proc) {
     nr_process--;
 }
 
+static void proc_initlock(Proc *proc, char *name) {
+    proc->lock.name = name;
+    proc->lock.locked = 0;
+    proc->lock.cpu = 0;
+    proc->lock.info_index = KSTACK2INDEX(proc->kstack) + 200;
+    proc->lock.info_nest = 0;
+    assert(proc->lock.info_index < lock_info_nums);
+}
+
 Proc *alloc_proc() {
-    Proc *proc = kmalloc(sizeof(*proc));
+    acquire(&procs_lock);
+    Proc *proc = kmalloc(sizeof(Proc));
     assert(proc != nullptr);
     proc->state = UNUSED;
-    initlock(&proc->lock, "process lock");
     proc->trapframe = (Trapframe *)page2pa(AllocPage());
     assert(proc->trapframe != nullptr);
     memset((void *)(proc->trapframe), 0, PGSIZE);  // proc->trapframe->a0 set 0
@@ -138,13 +153,20 @@ Proc *alloc_proc() {
     assert(proc->mm != nullptr);
     proc->flags = 0;
     memset(proc->name, 0, PROC_NAME_LEN);
-    uintptr_t pa = (uintptr_t)page2kva(alloc_pages(KSTACKPAGE));
-    assert(pa != 0);
-    uint64_t va = KSTACK((ulong)(nr_process));
-    kvmmap(va, (uint64_t)pa, KSTACKPAGE - 1, PTE_R | PTE_W);
+    Page *pages = alloc_pages(KSTACKPAGE - 1);
+    assert(pages != nullptr);
+    long kernel_stack_bit_index = bitmap_scan_set(kernel_stack_bitmap, 1);
+    assert(kernel_stack_bit_index != -1);
+    uint64_t va = KSTACK(kernel_stack_bit_index);
+    int ret = pages_insert(kernel_pagetable, pages, va, PTE_W | PTE_R, KSTACKPAGE - 1);
+    assert(ret == 0);
     proc->kstack = va;
     memset(&proc->context, 0, sizeof(proc->context));
     proc->context.sp = (uint64_t)(proc->kstack + PGSIZE);
+    proc->wait_state = 0;
+    proc_initlock(proc, "process lock");
+    proc->cptr = proc->optr = proc->yptr = nullptr;
+    release(&procs_lock);
     return proc;
 }
 
@@ -250,20 +272,47 @@ void task_delay(volatile int count) {
     while (count--);
 }
 
+void proc_dump(void) {
+    acquire(&print_procs_lock);
+    static char *states[] = {
+        [UNUSED] "unused", [SLEEPING] "sleep ", [RUNNABLE] "runble", [RUNNING] "run   ", [ZOMBIE] "zombie",
+    };
+    Proc *p;
+    char *state;
+    cprintf("\nproc dump....................................\n\n");
+    List_entry *le = &proc_list;
+    while ((le = list_next(le)) != &proc_list) {
+        p = le2proc(le, list_link);
+        if (p->state >= 0 && p->state < NELEM(states) && states[p->state])
+            state = states[p->state];
+        else
+            state = "???";
+        if (p->parent != nullptr)
+            cprintf("pid : %d state: %s name : %s kstack index : %d cpuid is %d parent pid : %d", p->pid,
+                    state, p->name, KSTACK2INDEX(p->kstack), p->cpu - cpus, p->parent->pid);
+        else
+            cprintf("pid : %d state: %s name : %s kstack index : %d cpuid is %d", p->pid, state,
+                    p->name, KSTACK2INDEX(p->kstack), p->cpu - cpus);
+        cprintf("\n");
+    }
+    cprintf("\nend of proc dump.............................\n");
+    release(&print_procs_lock);
+}
+
 void scheduler(void) {
-    Proc *next, *prev = nullptr;
+    Proc *next;
     List_entry *le, *last;
     Cpu *c = mycpu();
-    c->proc = 0;
+    c->proc = nullptr;
+    c->prev = nullptr;
+    c->next = nullptr;
+    c->has_zombie = false;
     while (1) {
-        next = nullptr;
+    start:
         acquire(&procs_lock);
-        // if (prev != nullptr) {
-        //     last = &prev->list_link;
-        // } else {
-        //     last = &proc_list;
-        // }
-        last = (prev == nullptr) ? &proc_list : &prev->list_link;
+        next = nullptr;
+        last = (c->prev == nullptr) ? &proc_list : &c->prev->list_link;
+        // last = &proc_list;
         le = last;
         do {
             if ((le = list_next(le)) != &proc_list) {
@@ -271,18 +320,35 @@ void scheduler(void) {
                 if (next->state == RUNNABLE) break;
             }
         } while (le != last);
-        release(&procs_lock);
         if (next != nullptr && next->state == RUNNABLE) {
-            acquire(&next->lock);
-            if (next->state == RUNNABLE) {
-                next->state = RUNNING;
-                next->runs++;
-                c->proc = next;
-                swtch(&c->context, &next->context);
-                prev = c->proc;
-                c->proc = 0;
+            for (int i = 0; i < NCPU; i++) {
+                if (next == cpus[i].next) { 
+                    c->prev = cpus[i].next;
+                    release(&procs_lock);
+                    goto start;
+                }
             }
+            c->next = next;
+        }
+        release(&procs_lock);
+        if (c->next != nullptr) {
+            next = c->next;
+            assert(c->next->state == RUNNABLE);
+            acquire(&next->lock);
+            c->next->state = RUNNING;
+            c->next->runs++;
+            c->proc = c->prev = c->next;
+            c->proc->cpu = c;
+            sfence_vma();
+            swtch(&c->context, &c->next->context);
+            c->proc = nullptr;
+            c->next = nullptr;
             release(&next->lock);
+            if(c->has_zombie == true){
+                assert(c->prev->state == ZOMBIE);
+                c->has_zombie = false;
+                release(&procs_lock);
+            }
         } else {
             intr_on();
             asm volatile("wfi");
@@ -307,15 +373,16 @@ void do_sleep(void *chan, Spinlock *lk) {
     p->state = SLEEPING;
     sched();
     p->chan = nullptr;
-    if (lk != &p->lock) {
-        release(&p->lock);
-        acquire(lk);
-    }
+
     // This check is for kernel-mode processes. After entering kerneltrap() or usertrap(), hardware interrupts
     // are disabled. after entering scheduler() via yield() and after acquire(&p -> lock),interrupts
     // remain disabled even after release(). To ensure that kernel processes can still respond to interrupts
     // after calling the do_sleep() function, this check and adjustment are made.
     if (p->kernel_proc && mycpu()->intena == 0) { mycpu()->intena = 1; }
+    if (lk != &p->lock) {
+        release(&p->lock);
+        acquire(lk);
+    }
 }
 
 void do_wakeup(void *chan) {
@@ -333,12 +400,22 @@ void do_wakeup(void *chan) {
 
 static void put_pagetable(Mm_struct *mm) { FreePage(kva2page((uintptr_t)(mm->pagetable))); }
 
-static void put_kstack(Proc *proc) { free_pages(kva2page((proc->kstack)), KSTACKPAGE);}
+static void put_kstack(Proc *proc) {
+    // free_pages(kva2page((proc->kstack)), KSTACKPAGE);
+    unmap_range(kernel_pagetable, proc->kstack, proc->kstack + (KSTACKSIZE - PGSIZE));
+}
+
+static void free_proc(Proc *proc) {
+    assert(proc->state == ZOMBIE);
+    put_kstack(proc);
+    bitmap_scan_clear(kernel_stack_bitmap, KSTACK2INDEX(proc->kstack), 1);
+    kfree(proc);
+}
 
 void wakeup_proc(Proc *proc) {
     acquire(&proc->lock);
     assert(proc->state != ZOMBIE);
-    if (proc->chan == proc && proc->state == SLEEPING) {
+    if (proc->chan == proc && proc->state != RUNNABLE) {
         proc->state = RUNNABLE;
         proc->wait_state = 0;
     }
@@ -395,17 +472,16 @@ int do_fork(uint32_t clone_flags) {
     hash_proc(proc);
     set_links(proc);
     release(&procs_lock);
+    // proc_dump();
     return proc->pid;
 }
 
 void do_exit(int error_code) {
     Proc *current = myproc();
     if (current == initproc) panic("init exiting");
-    acquire(&current->lock);
+    acquire(&procs_lock);
     current->state = ZOMBIE;
     current->exit_code = error_code;
-    release(&current->lock);
-    acquire(&procs_lock);
     Proc *proc = current->parent;
     if (proc->wait_state == WT_CHILD) wakeup_proc(proc);
     while (current->cptr != nullptr) {
@@ -419,15 +495,15 @@ void do_exit(int error_code) {
             if (initproc->wait_state == WT_CHILD) { wakeup_proc(initproc); }
         }
     }
-    release(&procs_lock);
+    mycpu()->has_zombie = true;
+    // proc_dump();
     acquire(&current->lock);
     sched();
-    panic("do_exit will not return !!.\n", current->pid);
+    panic("do_exit will not return!!.\n");
 }
 
 int do_wait(int pid, int *code_store) {
     Proc *proc, *current = myproc();
-    // uintptr_t pa = va2pa(current->mm->pagetable, 0x10fa8);
     bool haskid;
 repeat:
     acquire(&procs_lock);
@@ -456,10 +532,9 @@ repeat:
     release(&procs_lock);
     return -E_BAD_PROC;
 found:
-    if (proc == initproc) panic("wait initproc");
-    unhash_proc(proc);
-    remove_links(proc);
     release(&procs_lock);
+    if (proc == initproc) panic("wait initproc");
+
     if (code_store != nullptr) {
         copy_kernel2user(current->mm->pagetable, (uintptr_t)code_store, (char *)&proc->exit_code,
                          sizeof(proc->exit_code));
@@ -472,9 +547,39 @@ found:
             mm_destroy(mm);
         }
     }
-    put_kstack(proc);
-    kfree(proc);
+    acquire(&procs_lock);
+    for (int i = 0; i < NCPU; i++) {
+        if (cpus[i].prev && cpus[i].prev == proc) {
+            List_entry *prev_list = &proc->list_link;
+            while (cpus[i].prev->state == ZOMBIE) {
+                prev_list = list_prev(prev_list);
+                if (prev_list == &proc_list) {
+                    cpus[i].prev = nullptr;
+                    break;
+                } else {
+                    cpus[i].prev = le2proc(prev_list, list_link);
+                }
+            }
+        }
+    }
+    unhash_proc(proc);
+    remove_links(proc);
+    free_proc(proc);
+    release(&procs_lock);
     return 0;
+}
+
+int do_kill(int pid) {
+    Proc *proc;
+    if ((proc = find_proc(pid)) != nullptr) {
+        if (!(proc->flags & PF_EXITING)) {
+            proc->flags |= PF_EXITING;
+            if (proc->wait_state & WT_INTERAUPTED) { wakeup_proc(proc); }
+            return 0;
+        }
+        return -E_KILLED;
+    }
+    return -E_INVAL;
 }
 
 static int load_icode(Proc *current, char *binary) {
@@ -590,7 +695,7 @@ int do_execve(char *path, char **argv) {
     uint64_t argc, sp, ustack[MAXARG + 1], stackbase;
     sp = USTACKADDR + USTACKSIZE;
     stackbase = USTACKADDR + PGSIZE;
-    for(argc = 0; argv[argc]; argc++){
+    for (argc = 0; argv[argc]; argc++) {
         assert(argc < MAXARG);
         sp -= strlen(argv[argc]) + 1;
         sp -= sp % 16;

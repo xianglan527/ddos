@@ -74,3 +74,10 @@ bad:
     for (i = 0; i < MAXARG && argv[i] != nullptr; i++) kfree(argv[i]);
     return -1;
 }
+
+uint64_t sys_kill(void){
+    int pid;
+    if(arg_int(0, &pid) < 0 )
+        return -1;
+    return do_kill(pid);
+}

@@ -60,15 +60,15 @@ CPUS := 8
 endif
 
 swap.img:
-	#${DD} if=/dev/zero of=$@ bs=64M count=1
-	${DD} if=/dev/urandom of=$@ bs=64M count=1
+	#${DD} if=/dev/zero of=$@ bs=256M count=1
+	${DD} if=/dev/urandom of=$@ bs=256M count=1
 
 fs.img:
-	# ${DD} if=/dev/zero of=$@ bs=128M count=1
-	${DD} if=/dev/urandom of=$@ bs=128M count=1
+	# ${DD} if=/dev/zero of=$@ bs=256M count=1
+	${DD} if=/dev/urandom of=$@ bs=256M count=1
 
 
-QEMUOPTS = -machine virt -bios none -kernel ${KERNEL_ELF} -m 256M -smp $(CPUS) -nographic
+QEMUOPTS = -machine virt -bios none -kernel ${KERNEL_ELF} -m 1024M -smp $(CPUS) -nographic
 QEMUOPTS += -global virtio-mmio.force-legacy=false
 QEMUOPTS += -device virtio-rng-device,bus=virtio-mmio-bus.0
 QEMUOPTS += -drive file=swap.img,if=none,format=raw,id=x0

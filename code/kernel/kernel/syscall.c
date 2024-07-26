@@ -21,6 +21,7 @@ extern uint64_t sys_exit(void);
 extern uint64_t sys_wait(void);
 extern uint64_t sys_yield(void);
 extern uint64_t sys_exec(void);
+extern uint64_t sys_kill(void);
 
 int fetch_addr(uint64_t addr, uint64_t *ip){
     Proc *current = myproc();
@@ -79,6 +80,7 @@ static uint64_t (*syscalls[])(void) = {
     [SYS_waitpid] = sys_wait,
     [SYS_exec] = sys_exec,
     [SYS_yield] = sys_yield,
+    [SYS_kill] = sys_kill,
 };
 
 void syscall(void) {

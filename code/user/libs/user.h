@@ -9,6 +9,7 @@ int fork(void);
 int exit(int) __attribute__((noreturn));
 int waitpid(int, int*);
 int yield(void);
+int kill(int);
 
 int wait(void);
 void putc(int fd, char c);
