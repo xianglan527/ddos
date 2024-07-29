@@ -1,6 +1,6 @@
 #ifndef __LIBS_USER_H__
 #define __LIBS_USER_H__
-
+#include "types.h"
 int write(int, const void*, int);
 int sti();
 int cli();
@@ -10,6 +10,9 @@ int exit(int) __attribute__((noreturn));
 int waitpid(int, int*);
 int yield(void);
 int kill(int);
+int sbrk(uintptr_t *);
+int sleep(ulong);
+uint64_t gettime(void);
 
 int wait(void);
 void putc(int fd, char c);

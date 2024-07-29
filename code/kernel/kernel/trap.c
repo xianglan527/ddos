@@ -95,6 +95,7 @@ Trap_eum trap_work() {
     } else if (scause == 0x8000000000000001L) {
         if (cpuid() == 0) {
             clockintr();
+            run_timer_list();
 #ifdef PRINT_TRICKS
             print_ticks();
 #endif

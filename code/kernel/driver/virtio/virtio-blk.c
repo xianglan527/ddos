@@ -274,7 +274,7 @@ static void virtio_blk_rw_asyn(struct blk_buf *b, char *blk_name) {
     // while (*pflag == 1);
 
     while (*pflag == 1){
-        do_sleep(b, &blk->blk_lock);
+        sleeping(b, &blk->blk_lock);
     }
     blk->info[index[0]] = NULL;
     release(&blk->blk_lock);

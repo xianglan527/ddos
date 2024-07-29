@@ -73,32 +73,14 @@ static inline uint64_t get_cpuid() {
     return x;
 }
 
-void user_task1() {
+void user_task() {
     printf("cpu: %d pid: %d running user_task1\n", get_cpuid(), getpid());
     char *args[] = {"usermain", 0};
     exec("usermain", args);
 }
 
-void user_task2() {
-    while (1) {
-        printf("cpu: %d pid: %d running user_task2\n", get_cpuid(), getpid());
-        yield();
-        task_delay(DELAY);
-    }
-}
-
-void user_task3() {
-    while (1) {
-        printf("cpu: %d pid: %d running user_task3\n", get_cpuid(), getpid());
-        yield();
-        task_delay(DELAY);
-    }
-}
 
 void os_main(void) {
-    // user_init(user_task0);
-    user_init(user_task1);
-    // user_init(user_task2);
-    // user_init(user_task3);
+    user_init(user_task);
     kernel_thread_init(kernel_init, "kernel_init");
 }

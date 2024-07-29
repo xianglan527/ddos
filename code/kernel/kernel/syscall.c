@@ -22,6 +22,9 @@ extern uint64_t sys_wait(void);
 extern uint64_t sys_yield(void);
 extern uint64_t sys_exec(void);
 extern uint64_t sys_kill(void);
+extern uint64_t sys_sbrk(void);
+extern uint64_t sys_sleep(void);
+extern uint64_t sys_gettime(void);
 
 int fetch_addr(uint64_t addr, uint64_t *ip){
     Proc *current = myproc();
@@ -58,6 +61,11 @@ int arg_int(int n, int *ip){
     return 0;
 }
 
+int arg_long(int n, long *ip) {
+    *ip = arg_raw(n);
+    return 0;
+}
+
 int arg_addr(int n, uint64_t *ip){
     *ip = arg_raw(n);
     return 0;
@@ -81,6 +89,9 @@ static uint64_t (*syscalls[])(void) = {
     [SYS_exec] = sys_exec,
     [SYS_yield] = sys_yield,
     [SYS_kill] = sys_kill,
+    [SYS_sbrk] = sys_sbrk,
+    [SYS_sleep] = sys_sleep,
+    [SYS_gettime] = sys_gettime,
 };
 
 void syscall(void) {

@@ -7,6 +7,7 @@
 #include "syscall.h"
 #include "stdio.h"
 
+extern uint64_t ticks;
 extern struct {
     Spinlock lock;
     int locking;
@@ -80,4 +81,21 @@ uint64_t sys_kill(void){
     if(arg_int(0, &pid) < 0 )
         return -1;
     return do_kill(pid);
+}
+
+uint64_t sys_sbrk(void) {
+    uint64_t store;
+    arg_addr(0, &store);
+    return do_brk((uintptr_t *)store);
+}
+
+uint64_t sys_sleep(void){
+    long time;
+    if(arg_long(0, &time) < 0)
+        return -1;
+    return do_sleep((ulong)time);
+}
+
+uint64_t sys_gettime(void) {
+    return ticks;
 }

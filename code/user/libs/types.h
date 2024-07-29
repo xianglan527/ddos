@@ -9,7 +9,7 @@
 #define nullptr ((void *)0)
 #endif
 
-typedef unsigned int bool;
+typedef _Bool bool;
 
 #define true 1
 #define false 0

@@ -19,6 +19,7 @@
 Cpu cpus[NCPU];
 Proc *initproc;
 List_entry proc_list;
+static List_entry timer_list;
 
 #define HASH_SHIFT 10
 #define HASH_LIST_SIZE (1 << HASH_SHIFT)
@@ -37,7 +38,7 @@ struct bitmap *kernel_stack_bitmap = nullptr;
 
 // to prevent deadlocks,the locking order must be procs_lock--->process lock.
 Spinlock procs_lock;
-
+Spinlock timer_lock;
 Spinlock print_procs_lock;
 
 extern char trampoline[];  // trampoline.S
@@ -61,11 +62,16 @@ repeat:
     return pid;
 }
 
+void timer_start_init(void){
+    list_init(&timer_list);
+    initlock(&timer_lock, "timer_lock");
+}
+
 void proc_init(void) {
     initlock(&procs_lock, "procs_lock");
     initlock(&print_procs_lock, "print_procs_lock");
     list_init(&proc_list);
-    kernel_stack_bitmap = bitmap_init(2 * NPROC);
+    kernel_stack_bitmap = bitmap_init(NPROC);
     for (int i = 0; i < HASH_LIST_SIZE; i++) { list_init(hash_list + i); }
 }
 
@@ -363,7 +369,7 @@ void either_copy_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len
     else { memmove(dst, (char *)src, len); }
 }
 
-void do_sleep(void *chan, Spinlock *lk) {
+void sleeping(void *chan, Spinlock *lk) {
     Proc *p = myproc();
     if (lk != &p->lock) {
         acquire(&p->lock);
@@ -377,7 +383,7 @@ void do_sleep(void *chan, Spinlock *lk) {
     // This check is for kernel-mode processes. After entering kerneltrap() or usertrap(), hardware interrupts
     // are disabled. after entering scheduler() via yield() and after acquire(&p -> lock),interrupts
     // remain disabled even after release(). To ensure that kernel processes can still respond to interrupts
-    // after calling the do_sleep() function, this check and adjustment are made.
+    // after calling the sleeping() function, this check and adjustment are made.
     if (p->kernel_proc && mycpu()->intena == 0) { mycpu()->intena = 1; }
     if (lk != &p->lock) {
         release(&p->lock);
@@ -414,7 +420,7 @@ static void free_proc(Proc *proc) {
 
 void wakeup_proc(Proc *proc) {
     acquire(&proc->lock);
-    assert(proc->state != ZOMBIE);
+    assert(proc->state != ZOMBIE && proc->state != UNUSED);
     if (proc->chan == proc && proc->state != RUNNABLE) {
         proc->state = RUNNABLE;
         proc->wait_state = 0;
@@ -438,6 +444,10 @@ static void copy_mm(uint32_t clone_flags, Proc *proc) {
     assert(ret == 0);
     unlock_mm(oldmm);
 good_mm:
+    if(mm != oldmm){
+        mm->brk_start = oldmm->brk_start;
+        mm->brk = oldmm->brk;
+    }
     mm_count_inc(mm);
 }
 
@@ -524,7 +534,7 @@ repeat:
         current->wait_state = WT_CHILD;
         release(&procs_lock);
         acquire(&current->lock);
-        do_sleep(current, &current->lock);
+        sleeping(current, &current->lock);
         release(&current->lock);
         if (current->flags & PF_EXITING) do_exit(-E_KILLED);
         goto repeat;
@@ -590,6 +600,7 @@ static int load_icode(Proc *current, char *binary) {
     assert(mm != nullptr);
     mm->pagetable = proc_pagetable(current);
     assert(mm->pagetable != nullptr);
+    mm->brk_start = 0;
     Page *page;
     struct elfhdr *elf = (struct elfhdr *)binary;
     struct proghdr *ph = (struct proghdr *)(binary + elf->phoff);
@@ -608,6 +619,9 @@ static int load_icode(Proc *current, char *binary) {
         if (vm_flags & VM_WRITE) perm |= PTE_W;
         ret = mm_map(mm, ph->vaddr, ph->memsz, vm_flags, nullptr);
         assert(ret == 0);
+        if(mm->brk_start < ph->vaddr + ph->memsz){
+            mm->brk_start = ph->vaddr + ph->memsz;
+        }
         char *from = binary + ph->off;
         size_t off, size;
         uintptr_t start = ph->vaddr, end, va = PGROUNDDOWN(start);
@@ -638,9 +652,7 @@ static int load_icode(Proc *current, char *binary) {
             start += size;
         }
     }
-    // ret = mm_map(mm, USTACKADDR, USTACKSIZE, VM_USER | VM_STACK | VM_READ | VM_WRITE | VM_EXEC, nullptr);
-    // uintptr_t mem = page2kva(alloc_pages(USTACKPAGE));
-    // mappages(mm->pagetable, USTACKADDR, USTACKSIZE, mem, PTE_W | PTE_R | PTE_U | PTE_X);
+    mm->brk_start = mm->brk = PGROUNDUP(mm->brk_start);
     ret = mm_map(mm, USTACKADDR, USTACKSIZE, VM_USER | VM_STACK | VM_READ | VM_WRITE | VM_EXEC, nullptr);
     assert(ret == 0);
     Page *pages = alloc_pages(USTACKPAGE);
@@ -713,4 +725,115 @@ int do_execve(char *path, char **argv) {
     current->trapframe->sp = sp;
     free_pages(pages, pages_num);
     return argc;
+}
+
+int do_brk(uintptr_t *brk_store){
+    assert(myproc() != nullptr);
+    Mm_struct *mm = myproc()->mm;
+    if(myproc()->kernel_proc == true)
+        panic("kernel thread call sys_brk!!!\n");
+    if(brk_store == nullptr)
+        return -E_INVAL;
+    uintptr_t brk;
+    either_copy_user2kernel(&brk, 1, (uint64_t)brk_store, sizeof(uintptr_t));
+    if(brk < mm->brk_start)
+        goto out;
+    uintptr_t newbrk = PGROUNDUP(brk), oldbrk = mm->brk;
+    assert(oldbrk % PGSIZE == 0);
+    if(newbrk == oldbrk)
+        goto out;
+    lock_mm(mm);
+    if(newbrk < oldbrk){
+        if(mm_unmap(mm, newbrk, oldbrk - newbrk) != 0)
+            goto out_unlock;
+    }else{
+        if(find_vma_intersection(mm, oldbrk, newbrk) != nullptr)
+            goto out_unlock;
+        if(mm_brk(mm, oldbrk, newbrk - oldbrk) != 0)
+            goto out_unlock;
+    }
+    mm->brk = newbrk;
+out_unlock:
+    unlock_mm(mm);
+out:
+    copy_kernel2user(myproc()->mm->pagetable, (uintptr_t)brk_store, (char *)&mm->brk, sizeof(mm->brk));
+    return 0;
+}
+
+static inline Timer *timer_init(Timer *timer, Proc *proc, ulong expires){
+    timer->expires = expires;
+    timer->proc = proc;
+    list_init(&timer->timer_link);
+    return timer;
+}
+
+static void add_timer(Timer *timer){
+    acquire(&timer_lock);
+    assert(timer->expires > 0 && timer->proc != nullptr);
+    assert(list_empty(&timer->timer_link));
+    List_entry *le = list_next(&timer_list);
+    while(le != &timer_list){
+        Timer *next = le2timer(le, timer_link);
+        if(timer->expires < next->expires){
+            next->expires -= timer->expires;
+            break;
+        }
+        timer->expires -= next->expires;
+        le = list_next(le);
+    }
+    list_add_before(le, &timer->timer_link);
+    release(&timer_lock);
+}
+
+static void del_timer(Timer *timer){
+    acquire(&timer_lock);
+    if(!list_empty(&timer->timer_link)){
+        if(timer->expires != 0){
+            List_entry *le = list_next(&timer->timer_link);
+            if(le != &timer_list){
+                Timer *next = le2timer(le, timer_link);
+                next->expires += timer->expires;
+            }
+        }
+        list_del_init(&timer->timer_link);
+    }
+    release(&timer_lock);
+}
+
+void run_timer_list(void){
+    acquire(&timer_lock);
+    List_entry *le = list_next(&timer_list);
+    while(le != &timer_list){
+        Timer *timer = le2timer(le, timer_link);
+        assert(timer->expires > 0);
+        timer->expires--;
+        if(timer->expires == 0){
+            Proc *proc = timer->proc;
+            assert((proc->wait_state & WT_TIMER) == WT_TIMER);
+            wakeup_proc(proc);
+            le = list_next(le);
+            // del_timer(timer);
+        }else{
+            break;
+        }
+    }
+    release(&timer_lock);
+}
+
+int do_sleep(ulong time){
+    if(time == 0)
+        return 0;
+    Proc *current = myproc();
+    acquire(&current->lock);
+    Timer __timer, *timer = timer_init(&__timer, current, time);
+    current->state = SLEEPING;
+    current->wait_state = WT_TIMER;
+    release(&current->lock);
+    // proc_dump();
+    add_timer(timer);
+    acquire(&current->lock);
+    sleeping(current, &current->lock);
+    release(&current->lock);
+    del_timer(timer);
+    return 0;
 }

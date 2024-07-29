@@ -37,7 +37,7 @@
 #define NPROC 2000
 #define NCPU 8
 #define STACK_SIZE 4096
-#define TIME_INTERVAL 1000000
+#define TIME_INTERVAL 100000
 #define SLAB_ALIGN 16
 #define RB_MIN_MAP_COUNT 32  // If the count of vma >32 then redblack tree link is used
 #define DELAY 1000
@@ -47,7 +47,7 @@
 
 #define lock_info_lens 100
 #define lock_info_nums 4000
-#define lock_info_nest 20
+#define lock_info_nest 50
 
 
 #endif  // __CONFIG_CONFIG_H__

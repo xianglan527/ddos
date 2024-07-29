@@ -22,6 +22,7 @@ Mm_struct *mm_create(void) {
         mm->pagetable = nullptr;
         mm->map_count = 0;
         mm->swap_address = 0;
+        mm->brk_start = mm->brk = 0;
         set_mm_count(mm, 0);
         initlock(&mm->mm_lock, "mm_lock");
     }
@@ -85,6 +86,13 @@ Vma_struct *find_vma(Mm_struct *mm, uintptr_t addr) {
         }
         if (vma != nullptr) mm->mmap_cache = vma;
     }
+    return vma;
+}
+
+Vma_struct *find_vma_intersection(Mm_struct *mm, uintptr_t start, uintptr_t end){
+    Vma_struct *vma = find_vma(mm, start);
+    if(vma != nullptr && end <= vma->vm_start)
+        vma = nullptr;
     return vma;
 }
 
@@ -364,6 +372,25 @@ bool user_mem_check(Mm_struct *mm, uintptr_t addr, size_t len, bool write){
         }
         return 1;
     }
+    return 0;
+}
+
+int mm_brk(Mm_struct *mm, uintptr_t addr, size_t len){
+    assert(mm->pagetable != kernel_pagetable);
+    uintptr_t start = PGROUNDDOWN(addr), end = PGROUNDUP(addr + len);
+    int ret;
+    if((ret = mm_unmap(mm, start, end - start)) != 0)
+        return ret;
+    uint32_t vm_flags = VM_READ | VM_WRITE | VM_USER;
+    Vma_struct *vma = find_vma(mm, start - 1);
+    if(vma != nullptr && vma->vm_end == start && vma->vm_flags == vm_flags){
+        vma->vm_end = end;
+        return 0;
+    }
+    if((vma = vma_create(start, end, vm_flags)) == nullptr){
+        return -E_NO_MEM;
+    }
+    insert_vma_struct(mm, vma);
     return 0;
 }
 

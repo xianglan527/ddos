@@ -25,4 +25,5 @@
 #define SYS_sti 22
 #define SYS_cli 23
 #define SYS_yield 24
+#define SYS_gettime 25
 #endif

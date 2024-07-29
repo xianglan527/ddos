@@ -16,7 +16,7 @@ OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
 XCFLAGS = 
-DEFS += -DPRINT_KERNEL_INFO
+# DEFS += -DPRINT_KERNEL_INFO
 
 CFLAGS += -Wall -O0 -Werror -fno-omit-frame-pointer -ggdb
 CFLAGS += -Wno-unused-function -Wno-unused-variable

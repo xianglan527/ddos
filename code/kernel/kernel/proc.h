@@ -8,7 +8,7 @@
 #include "vmm.h"
 
 typedef enum proc_state Proc_state;
-enum proc_state { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE, EXIT};
+enum proc_state { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE};
 
 // typedef struct spinlock Spinlock;
 typedef struct trapframe Trapframe;
@@ -119,6 +119,7 @@ struct proc {
 
 #define WT_INTERAUPTED 0x80000000
 #define WT_CHILD (0x00000001 | WT_INTERAUPTED)
+#define WT_TIMER (0x00000002 | WT_INTERAUPTED)
 
 #define le2proc(le, member) to_struct((le), Proc, member);
 
@@ -138,7 +139,14 @@ struct cpu {
 
 extern Cpu cpus[NCPU];
 
+typedef struct timer Timer;
+struct timer{
+    ulong expires;
+    Proc *proc;
+    List_entry timer_link;
+};
 
+#define le2timer(le, member)    to_struct((le), Timer, member)
 
 int cpuid();
 void scheduler(void);
@@ -153,7 +161,7 @@ void user_init(void (*start_routin)(void));
 void kernel_thread_init(void (*start_roution)(void *), void *arg);
 Proc *find_proc(int pid);
 void either_copy_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len);
-void do_sleep(void *chan, Spinlock *lk);
+void sleeping(void *chan, Spinlock *lk);
 void do_wakeup(void *chan);
 int do_fork(uint32_t clone_flags);
 void do_exit(int error_code);
@@ -161,6 +169,8 @@ int do_wait(int pid, int *code_store);
 int do_execve(char *name, char **argv);
 void proc_dump(void);
 int do_kill(int pid);
-
-
+int do_brk(uintptr_t *brk_store);
+void timer_start_init(void);
+void run_timer_list(void);
+int do_sleep(ulong time);
 #endif
