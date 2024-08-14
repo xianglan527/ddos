@@ -16,7 +16,7 @@ OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
 XCFLAGS = 
-# DEFS += -DPRINT_KERNEL_INFO
+DEFS += -DPRINT_KERNEL_INFO
 
 CFLAGS += -Wall -O0 -Werror -fno-omit-frame-pointer -ggdb
 CFLAGS += -Wno-unused-function -Wno-unused-variable
@@ -60,12 +60,12 @@ CPUS := 8
 endif
 
 swap.img:
-	#${DD} if=/dev/zero of=$@ bs=256M count=1
-	${DD} if=/dev/urandom of=$@ bs=256M count=1
+	${DD} if=/dev/zero of=$@ bs=1024M count=1
+	# ${DD} if=/dev/urandom of=$@ bs=1024M count=1
 
 fs.img:
-	# ${DD} if=/dev/zero of=$@ bs=256M count=1
-	${DD} if=/dev/urandom of=$@ bs=256M count=1
+	${DD} if=/dev/zero of=$@ bs=256M count=1
+	# ${DD} if=/dev/urandom of=$@ bs=256M count=1
 
 
 QEMUOPTS = -machine virt -bios none -kernel ${KERNEL_ELF} -m 1024M -smp $(CPUS) -nographic

@@ -99,3 +99,11 @@ uint64_t sys_sleep(void){
 uint64_t sys_gettime(void) {
     return ticks;
 }
+
+uint64_t sys_get_free_page_size(void){
+    return nr_free_pages();
+}
+
+uint64_t sys_get_slab_allocated_size(void){
+    return slab_allocated();
+}

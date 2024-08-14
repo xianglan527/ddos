@@ -59,8 +59,10 @@ static int pagetable_handler(bool write) {
         mm = check_mm_struct;  
     }
     else{
-        // if(myproc() == nullptr)
-        //     proc_dump();
+        if(myproc() == nullptr){
+            cprintf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+            proc_dump();
+        }   
         assert(myproc() != nullptr);
         mm = myproc()->mm;   
     }
@@ -112,28 +114,33 @@ Trap_eum trap_work() {
         else
             cprintf("trap_work: exception scause %p\n", r_scause());
 #endif
-        if (excep_code == 13 || excep_code == 15) {
-            if(excep_code == 13)
+        if (excep_code == 12 || excep_code == 13 || excep_code == 15) {
+            if (excep_code == 12 || excep_code == 13)
                 ret = pagetable_handler(false);
             else if(excep_code == 15)
                 ret = pagetable_handler(true);
             if (ret != 0) {
+                proc_mm_dump();
+                proc_dump();
+                dump_proc_mm_list();
+                cprintf("  excep_code %d  sepc=%p stval=%p\n", excep_code, r_sepc(), r_stval());
                 if (myproc() == nullptr)
                     panic("handle pgfault failed. %e\n", -ret);
                 else
                     panic("user pid%d: handle pgfault failed. %e\n", myproc()->pid, -ret);
             }
-        }
-        else{
+        } else {
+            proc_mm_dump();
+            proc_dump();
+            dump_proc_mm_list();
+            cprintf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
             if(myproc() == nullptr){
                 panic("no hangdle the exception function excep_code %d cpuid is:%d", excep_code, cpuid());
             }               
             else{
-                proc_dump();
                 panic("no hangdle the exception function pid : %d excep_code %d cpuid is:%d", myproc()->pid,
                       excep_code, cpuid());
             }
-                
         }
         return TRAP_EXCEPTION;
     } else
@@ -162,6 +169,7 @@ void kerneltrap() {
     w_sstatus(sstatus);
 }
 
+
 void usertrap(void) {
     Trap_eum trap_enum = TRAP_OTHER;
     if ((r_sstatus() & SSTATUS_SPP) != 0) panic("usertrap: not from user mode");
@@ -170,12 +178,12 @@ void usertrap(void) {
     p->trapframe->epc = r_sepc();
     if (intr_get() != 0) panic("usertrap: interrupts enabled");
     if (r_scause() == 8) {
-        if(p->flags & PF_EXITING){
-            do_exit(-E_KILLED);
-        }
         p->trapframe->epc += 4;
         intr_on();
         syscall();
+        if(p->flags & PF_EXITING){
+            do_exit(-E_KILLED);
+        }
     } else if ((trap_enum = trap_work()) == TRAP_OTHER) {
         p->flags |= PF_EXITING;
         cprintf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
@@ -195,7 +203,7 @@ void user_trap_ret() {
     w_stvec(TRAMPOLINE + (uservec - trampoline));
 
     p->trapframe->kernel_satp = r_satp();
-    p->trapframe->kernel_sp = p->kstack + STACK_SIZE;
+    p->trapframe->kernel_sp = p->kstack + KSTACKSIZE - PGSIZE;
     p->trapframe->kernel_trap = (uint64_t)usertrap;
     p->trapframe->kernel_hartid = r_tp();
     p->trapframe->tp = r_tp();
@@ -207,7 +215,6 @@ void user_trap_ret() {
     if (r_scause() == 8 && p->trapframe->a7 == SYS_cli) x &= ~SSTATUS_SPIE;
     w_sstatus(x);
     w_sepc(p->trapframe->epc);
-
     uint64_t satp = MAKE_SATP(p->mm->pagetable);
     uint64_t fn = TRAMPOLINE + (userret - trampoline);
     ((void (*)(uint64_t, uint64_t))fn)(TRAPFRAME, satp);

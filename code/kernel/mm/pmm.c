@@ -12,6 +12,7 @@ const Pmm_manager *pmm_manager;
 extern char kernel_etext[];
 extern char trampoline[];
 
+static Spinlock page_lock;
 
 Page *pages;
 
@@ -193,6 +194,7 @@ static void init_pmm_manager(void) {
     pmm_manager = &buddy_pmm_manager;
     cprintf("memory management: %s\n", pmm_manager->name);
     pmm_manager->init();
+    initlock(&page_lock, "page_lock");
 }
 
 static void init_memmap(Page *base, size_t n) { pmm_manager->init_memmap(base, n); }
@@ -209,15 +211,28 @@ static void page_init(void) {
 }
 
 Page *alloc_pages(size_t n) { 
-    return pmm_manager->alloc_pages(n); 
+    Page *pages;
+try_again:
+    acquire(&page_lock);
+    pages = pmm_manager->alloc_pages(n);
+    release(&page_lock);
+    if(pages == nullptr && try_free_pages(n))
+        goto try_again;
+    return pages;
 }
 
 void free_pages(Page *base, size_t n) {
+    acquire(&page_lock);
     pmm_manager->free_pages(base, n);
+    release(&page_lock);
 }
 
 size_t nr_free_pages(void){
-    return pmm_manager->nr_free_pages();
+    size_t ret;
+    acquire(&page_lock);
+    ret = pmm_manager->nr_free_pages();
+    release(&page_lock);
+    return ret;
 }
 
 void unmap_range(pagetable_t *pagetable, uintptr_t start, uintptr_t end){
@@ -233,6 +248,22 @@ void unmap_range(pagetable_t *pagetable, uintptr_t start, uintptr_t end){
         }
         start += PGSIZE;
     }while(start != 0 && start < end);
+}
+
+void unmap_range_without_free_page(pagetable_t *pagetable, uintptr_t start, uintptr_t end) {
+    assert(start % PGSIZE == 0 && end % PGSIZE == 0);
+    do {
+        pte_t *ptep = get_pte(pagetable, start, 0);
+        if (ptep == nullptr) {
+            start = ROUNDDOWN(start + PT2PGSIZE, PT2PGSIZE);
+            continue;
+        }
+        if (*ptep != 0) {
+            *ptep = 0;
+            tlb_invalidate(pagetable, start);
+        }
+        start += PGSIZE;
+    } while (start != 0 && start < end);
 }
 
 void exit_range(pagetable_t *pagetable, uintptr_t start, uintptr_t end){
@@ -290,6 +321,7 @@ void exit_range(pagetable_t *pagetable, uintptr_t start, uintptr_t end){
             FreePage(pa2page(PTE2PA(pgt2)));
         }
     }
+    sfence_vma();
 }
 
 int copy_range(pagetable_t *to, pagetable_t *from, uintptr_t start, uintptr_t end, bool share){
@@ -311,6 +343,7 @@ int copy_range(pagetable_t *to, pagetable_t *from, uintptr_t start, uintptr_t en
                 Page *page = pte2page(*ptep);
                 if(!share && (*ptep & PTE_PW)){
                     perm &= ~PTE_PW;
+                    page_insert(from, page, start, perm | (*ptep & PTE_SWAP));
                 }
                 ret = page_insert(to, page, start, perm);
                 assert(ret == 0);
@@ -434,8 +467,9 @@ static void page_remove_pte(pagetable_t *pagetable, uintptr_t va, pte_t *ptep) {
     if (*ptep & PTE_V) {
         Page *page = pte2page(*ptep);
         if(!PageSwap(page)){
-            if (page_ref_dec(page) == 0) 
+            if (page_ref_dec(page) == 0) {
                 FreePage(page);
+            }      
         }
         else{
             if(*ptep & PTE_D)
@@ -443,11 +477,11 @@ static void page_remove_pte(pagetable_t *pagetable, uintptr_t va, pte_t *ptep) {
             page_ref_dec(page);
         }
         *ptep = 0;
-        tlb_invalidate(pagetable, va);
     }else if(*ptep != 0){
         swap_remove_entry(*ptep);
         *ptep = 0;
     }
+    tlb_invalidate(pagetable, va);
 }
 
 int page_insert(pagetable_t *pagetable, Page *page, uintptr_t va, uint32_t perm) {
@@ -523,9 +557,6 @@ static void check_pagetable(void) {
 
     p2 = AllocPage();
     assert(page_insert(kernel_pagetable, p2, PGSIZE, PTE_U | PTE_W) == 0);
-    // vm_map_print(kernel_pagetable);
-    // vm_print(kernel_pagetable);
-    // while(1);
     assert((ptep = get_pte(kernel_pagetable, PGSIZE, 0)) != nullptr);
     assert(*ptep & PTE_U);
     assert(*ptep & PTE_W);
@@ -610,7 +641,6 @@ static void check_kernel_pagetable(void) {
     kvmmap(VIRTIO_START_ADDR, VIRTIO_START_ADDR, PGSIZE, PTE_R | PTE_W);
     kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
     kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
-    // kvmmap(KERNBASE, KERNBASE, PHYMEMSIZE, PTE_R | PTE_W);
     kvmmap(KERNBASE, KERNBASE, (uint64_t)kernel_etext - KERNBASE, PTE_R | PTE_X);
 
     kvmmap((uint64_t)kernel_etext, (uint64_t)kernel_etext, PHYSTOP - (uint64_t)kernel_etext, PTE_R | PTE_W);
@@ -629,8 +659,6 @@ static void check_kernel_pagetable(void) {
     assert(page_ref(p) == 1);
     assert(page_insert(kernel_pagetable, p, 0x100 + PGSIZE, PTE_R | PTE_W) == 0);
     assert(page_ref(p) == 2);
-
-    // vmprint(kernel_pagetable);
 
     const char *str = "ddos: hello world!";
     strcpy((void *)0x100, str);
@@ -698,5 +726,4 @@ void pmm_init(void) {
     check_kernel_pagetable();
 #endif
     init_kernel_pagetable();
-    // while (1);
 }

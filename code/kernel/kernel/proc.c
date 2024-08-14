@@ -1,6 +1,7 @@
 #include "proc.h"
 
 #include "assert.h"
+#include "bitmap.h"
 #include "config.h"
 #include "elf.h"
 #include "error.h"
@@ -11,15 +12,16 @@
 #include "spinlock.h"
 #include "stdio.h"
 #include "string.h"
+#include "swap.h"
 #include "syscall.h"
 #include "trap.h"
 #include "virtio-blk.h"
-#include "bitmap.h"
 
 Cpu cpus[NCPU];
 Proc *initproc;
 List_entry proc_list;
 static List_entry timer_list;
+List_entry proc_mm_list;
 
 #define HASH_SHIFT 10
 #define HASH_LIST_SIZE (1 << HASH_SHIFT)
@@ -28,6 +30,7 @@ static List_entry timer_list;
 static List_entry hash_list[HASH_LIST_SIZE];
 
 Proc *initproc = nullptr;
+Proc *daemonproc = nullptr;
 
 static ulong next_pid = 1;
 static ulong nr_process = 0;
@@ -40,6 +43,9 @@ struct bitmap *kernel_stack_bitmap = nullptr;
 Spinlock procs_lock;
 Spinlock timer_lock;
 Spinlock print_procs_lock;
+Spinlock proc_mm_list_lock;
+
+static volatile bool timer_init_ok = false;
 
 extern char trampoline[];  // trampoline.S
 extern char kernel_etext[];
@@ -48,7 +54,6 @@ void swtch(struct context *, struct context *);
 
 int alloc_pid() {
     int pid;
-    // acquire(&procs_lock);
     Proc *proc;
     List_entry *le = &proc_list;
     pid = next_pid;
@@ -58,21 +63,24 @@ repeat:
         proc = le2proc(le, list_link);
         if (proc->pid == next_pid) goto repeat;
     }
-    // release(&procs_lock);
     return pid;
 }
 
-void timer_start_init(void){
+void timer_start_init(void) {
     list_init(&timer_list);
     initlock(&timer_lock, "timer_lock");
+    timer_init_ok = true;
 }
 
 void proc_init(void) {
     initlock(&procs_lock, "procs_lock");
     initlock(&print_procs_lock, "print_procs_lock");
+    initlock(&proc_mm_list_lock, "proc_mm_list_lock");
     list_init(&proc_list);
+    list_init(&proc_mm_list);
     kernel_stack_bitmap = bitmap_init(NPROC);
     for (int i = 0; i < HASH_LIST_SIZE; i++) { list_init(hash_list + i); }
+    timer_start_init();
 }
 
 void fork_ret(void) {
@@ -85,19 +93,9 @@ pagetable_t *proc_pagetable(Proc *p) {
     pagetable = alloc_pagetable();
     if (pagetable == nullptr) return nullptr;
     mappages(pagetable, TRAMPOLINE, PGSIZE, (uint64_t)trampoline, PTE_R | PTE_X);
-
-    mappages(pagetable, TRAPFRAME, PGSIZE, (uint64_t)(p->trapframe), PTE_R | PTE_W);
+    page_insert(pagetable, pa2page((uint64_t)(p->trapframe)), TRAPFRAME, PTE_R | PTE_W);
     return pagetable;
 }
-
-// static int setup_kstack(Proc *proc) {
-//     Page *page = alloc_pages(KSTACKPAGE);
-//     if (page != nullptr) {
-//         proc->kstack = (uintptr_t)page2kva(page);
-//         return 0;
-//     }
-//     return -E_NO_MEM;
-// }
 
 static void hash_proc(Proc *proc) { list_add(hash_list + pid_hashfn(proc->pid), &proc->hash_link); }
 
@@ -140,12 +138,11 @@ static void proc_initlock(Proc *proc, char *name) {
     proc->lock.locked = 0;
     proc->lock.cpu = 0;
     proc->lock.info_index = KSTACK2INDEX(proc->kstack) + 200;
-    proc->lock.info_nest = 0;
+    atomic_set(&proc->lock.info_nest, 0);
     assert(proc->lock.info_index < lock_info_nums);
 }
 
 Proc *alloc_proc() {
-    acquire(&procs_lock);
     Proc *proc = kmalloc(sizeof(Proc));
     assert(proc != nullptr);
     proc->state = UNUSED;
@@ -157,6 +154,7 @@ Proc *alloc_proc() {
     proc->parent = nullptr;
     proc->mm = mm_create();
     assert(proc->mm != nullptr);
+    proc->mm->proc = proc;
     proc->flags = 0;
     memset(proc->name, 0, PROC_NAME_LEN);
     Page *pages = alloc_pages(KSTACKPAGE - 1);
@@ -168,10 +166,12 @@ Proc *alloc_proc() {
     assert(ret == 0);
     proc->kstack = va;
     memset(&proc->context, 0, sizeof(proc->context));
-    proc->context.sp = (uint64_t)(proc->kstack + PGSIZE);
+    proc->context.sp = (uint64_t)(proc->kstack + KSTACKSIZE - PGSIZE);
     proc->wait_state = 0;
     proc_initlock(proc, "process lock");
     proc->cptr = proc->optr = proc->yptr = nullptr;
+    acquire(&procs_lock);
+    proc->pid = alloc_pid();
     release(&procs_lock);
     return proc;
 }
@@ -189,8 +189,6 @@ char *get_proc_name(Proc *proc) {
 
 static void uvm_init(Mm_struct *mm) {
     pagetable_t *pagetable = mm->pagetable;
-    // uintptr_t mem = page2kva(alloc_pages(USTACKPAGE));
-    // mappages(pagetable, USTACKADDR, USTACKSIZE, mem, PTE_W | PTE_R | PTE_U | PTE_X);
     mm_map(mm, USTACKADDR, USTACKSIZE, VM_USER | VM_STACK | VM_READ | VM_WRITE | VM_EXEC, nullptr);
     mappages(pagetable, KERNBASE, (uint64_t)kernel_etext - KERNBASE, KERNBASE, PTE_R | PTE_U | PTE_X);
     mappages(pagetable, (uint64_t)kernel_etext, PHYSTOP - (uint64_t)kernel_etext, (uint64_t)kernel_etext,
@@ -211,8 +209,6 @@ void user_init(void (*start_routin)(void)) {
     p->trapframe->epc = (uint64_t)start_routin;  // user program counter
     p->trapframe->sp = USTACKADDR + USTACKSIZE;
     acquire(&procs_lock);
-    p->pid = alloc_pid();
-    // set_proc_name(p, "initcode");
     snprintf(p->name, sizeof(p->name), "initcode u_process_%d", p->pid);
     hash_proc(p);
     set_links(p);
@@ -228,6 +224,7 @@ static void kernel_thread_ret(void (*start_roution)(void *), void *arg) {
 void kernel_thread_init(void (*start_roution)(void *), void *arg) {
     Proc *proc = alloc_proc();
     assert(proc != nullptr);
+    daemonproc = proc;
     assert(kernel_pagetable != nullptr);
     proc->mm->pagetable = kernel_pagetable;
     proc->context.ra = (uint64_t)kernel_thread_ret;
@@ -236,8 +233,7 @@ void kernel_thread_init(void (*start_roution)(void *), void *arg) {
     proc->state = RUNNABLE;
     proc->kernel_proc = true;
     acquire(&procs_lock);
-    proc->pid = alloc_pid();
-    snprintf(proc->name, sizeof(proc->name), "k_process_%d", proc->pid);
+    snprintf(proc->name, sizeof(proc->name), "%s%d", (char *)arg, proc->pid);
     hash_proc(proc);
     set_links(proc);
     release(&procs_lock);
@@ -297,12 +293,30 @@ void proc_dump(void) {
             cprintf("pid : %d state: %s name : %s kstack index : %d cpuid is %d parent pid : %d", p->pid,
                     state, p->name, KSTACK2INDEX(p->kstack), p->cpu - cpus, p->parent->pid);
         else
-            cprintf("pid : %d state: %s name : %s kstack index : %d cpuid is %d", p->pid, state,
-                    p->name, KSTACK2INDEX(p->kstack), p->cpu - cpus);
+            cprintf("pid : %d state: %s name : %s kstack index : %d cpuid is %d", p->pid, state, p->name,
+                    KSTACK2INDEX(p->kstack), p->cpu - cpus);
         cprintf("\n");
     }
     cprintf("\nend of proc dump.............................\n");
     release(&print_procs_lock);
+}
+
+void proc_mm_dump(void) {
+    List_entry *le = &proc_list;
+    Proc *p;
+    while ((le = list_next(le)) != &proc_list) {
+        p = le2proc(le, list_link);
+        // if (p->pid == 3) {
+        //     vm_map_print(p->mm->pagetable);
+        //     // vm_print(p->mm->pagetable);
+        //     print_vma_list(p->mm);
+        // }
+        if (p->state == RUNNING) {
+            vm_map_print(p->mm->pagetable);
+            // vm_print(p->mm->pagetable);
+            print_vma_list(p->mm);
+        }
+    }
 }
 
 void scheduler(void) {
@@ -314,7 +328,7 @@ void scheduler(void) {
     c->next = nullptr;
     c->has_zombie = false;
     while (1) {
-    start:
+    // start:
         acquire(&procs_lock);
         next = nullptr;
         last = (c->prev == nullptr) ? &proc_list : &c->prev->list_link;
@@ -323,21 +337,23 @@ void scheduler(void) {
         do {
             if ((le = list_next(le)) != &proc_list) {
                 next = le2proc(le, list_link);
-                if (next->state == RUNNABLE) break;
-            }
-        } while (le != last);
-        if (next != nullptr && next->state == RUNNABLE) {
-            for (int i = 0; i < NCPU; i++) {
-                if (next == cpus[i].next) { 
-                    c->prev = cpus[i].next;
-                    release(&procs_lock);
-                    goto start;
+                if (next->state == RUNNABLE) {
+                    for (int i = 0; i < NCPU; i++) {
+                        if (next == cpus[i].next) {
+                            goto end;
+                        }   
+                    }
+                    if (next->set_cpu == nullptr || next->set_cpu == mycpu()) {
+                        c->next = next;
+                        break;
+                    }
                 }
             }
-            c->next = next;
-        }
+end:    ;
+        } while (le != last);
         release(&procs_lock);
         if (c->next != nullptr) {
+            // cprintf("ddddddddddddd\n");
             next = c->next;
             assert(c->next->state == RUNNABLE);
             acquire(&next->lock);
@@ -346,11 +362,16 @@ void scheduler(void) {
             c->proc = c->prev = c->next;
             c->proc->cpu = c;
             sfence_vma();
+            // cprintf("ssssssssssssssssssssss  ra is %p current pid is %d current cpu is %d\n",
+            //         c->next->context.ra,myproc()->pid, mycpu() - cpus);
             swtch(&c->context, &c->next->context);
+            // cprintf("vvvvvvvvvvvvvvvvvvvvv  ra is %p current pid is %d current cpu is %d\n",
+            //         c->next->context.ra, myproc()->pid, mycpu() - cpus);
+            sfence_vma();
             c->proc = nullptr;
             c->next = nullptr;
             release(&next->lock);
-            if(c->has_zombie == true){
+            if (c->has_zombie == true) {
                 assert(c->prev->state == ZOMBIE);
                 c->has_zombie = false;
                 release(&procs_lock);
@@ -404,11 +425,15 @@ void do_wakeup(void *chan) {
     release(&procs_lock);
 }
 
-static void put_pagetable(Mm_struct *mm) { FreePage(kva2page((uintptr_t)(mm->pagetable))); }
+static void put_pagetable(Mm_struct *mm) {
+    unmap_range_without_free_page(mm->pagetable, TRAMPOLINE, TRAMPOLINE + PGSIZE);
+    unmap_range(mm->pagetable, TRAPFRAME, TRAPFRAME + PGSIZE);
+    free_pagetable(mm->pagetable, 1);
+}
 
 static void put_kstack(Proc *proc) {
-    // free_pages(kva2page((proc->kstack)), KSTACKPAGE);
     unmap_range(kernel_pagetable, proc->kstack, proc->kstack + (KSTACKSIZE - PGSIZE));
+    exit_range(kernel_pagetable, proc->kstack, proc->kstack + (KSTACKSIZE - PGSIZE));
 }
 
 static void free_proc(Proc *proc) {
@@ -439,50 +464,40 @@ static void copy_mm(uint32_t clone_flags, Proc *proc) {
     }
     mm = proc->mm;
     assert(mm != nullptr);
-    lock_mm(oldmm);
+    acquire(&oldmm->mm_lock);
     ret = dup_mmap(mm, oldmm);
     assert(ret == 0);
-    unlock_mm(oldmm);
+    release(&oldmm->mm_lock);
 good_mm:
-    if(mm != oldmm){
+    if (mm != oldmm) {
         mm->brk_start = oldmm->brk_start;
         mm->brk = oldmm->brk;
     }
+    acquire(&proc_mm_list_lock);
+    list_add(&proc_mm_list, &mm->proc_mm_link);
+    release(&proc_mm_list_lock);
     mm_count_inc(mm);
 }
 
 int do_fork(uint32_t clone_flags) {
     Proc *proc, *current;
     current = myproc();
-    // vm_print(current->mm->pagetable);
-    // print_vma_list(current->mm);
     proc = alloc_proc();
-
     proc->mm->pagetable = proc_pagetable(proc);
     proc->state = RUNNABLE;
     proc->kernel_proc = 0;
     proc->context.ra = (uint64_t)fork_ret;
-
     assert(proc->mm->pagetable != nullptr);
     *(proc->trapframe) = *(current->trapframe);
     proc->trapframe->a0 = 0;
     assert(current->wait_state == 0);
     copy_mm(clone_flags, proc);
-
-    // mappages(proc->mm->pagetable, KERNBASE, (uint64_t)kernel_etext - KERNBASE, KERNBASE,
-    //          PTE_R | PTE_U | PTE_X);
-    // mappages(proc->mm->pagetable, (uint64_t)kernel_etext, PHYSTOP - (uint64_t)kernel_etext,
-    //          (uint64_t)kernel_etext, PTE_R | PTE_W | PTE_U);
-
     acquire(&procs_lock);
-    proc->pid = alloc_pid();
-    // set_proc_name(proc, current->name);
     snprintf(proc->name, sizeof(proc->name), "u_process_%d", proc->pid);
     proc->parent = current;
     hash_proc(proc);
     set_links(proc);
     release(&procs_lock);
-    // proc_dump();
     return proc->pid;
 }
 
@@ -492,6 +507,17 @@ void do_exit(int error_code) {
     acquire(&procs_lock);
     current->state = ZOMBIE;
     current->exit_code = error_code;
+    Mm_struct *mm = current->mm;
+    if (mm != nullptr) {
+        if (mm_count_dec(mm) == 0) {
+            exit_mmap(mm);
+            put_pagetable(mm);
+            acquire(&proc_mm_list_lock);
+            list_del(&mm->proc_mm_link);
+            release(&proc_mm_list_lock);
+            mm_destroy(mm);
+        }
+    }
     Proc *proc = current->parent;
     if (proc->wait_state == WT_CHILD) wakeup_proc(proc);
     while (current->cptr != nullptr) {
@@ -506,7 +532,6 @@ void do_exit(int error_code) {
         }
     }
     mycpu()->has_zombie = true;
-    // proc_dump();
     acquire(&current->lock);
     sched();
     panic("do_exit will not return!!.\n");
@@ -549,14 +574,6 @@ found:
         copy_kernel2user(current->mm->pagetable, (uintptr_t)code_store, (char *)&proc->exit_code,
                          sizeof(proc->exit_code));
     }
-    Mm_struct *mm = proc->mm;
-    if (mm != nullptr) {
-        if (mm_count_dec(mm) == 0) {
-            exit_mmap(mm);
-            put_pagetable(mm);
-            mm_destroy(mm);
-        }
-    }
     acquire(&procs_lock);
     for (int i = 0; i < NCPU; i++) {
         if (cpus[i].prev && cpus[i].prev == proc) {
@@ -598,6 +615,7 @@ static int load_icode(Proc *current, char *binary) {
     Mm_struct *mm;
     mm = mm_create();
     assert(mm != nullptr);
+    mm->proc = current;
     mm->pagetable = proc_pagetable(current);
     assert(mm->pagetable != nullptr);
     mm->brk_start = 0;
@@ -619,9 +637,7 @@ static int load_icode(Proc *current, char *binary) {
         if (vm_flags & VM_WRITE) perm |= PTE_W;
         ret = mm_map(mm, ph->vaddr, ph->memsz, vm_flags, nullptr);
         assert(ret == 0);
-        if(mm->brk_start < ph->vaddr + ph->memsz){
-            mm->brk_start = ph->vaddr + ph->memsz;
-        }
+        if (mm->brk_start < ph->vaddr + ph->memsz) { mm->brk_start = ph->vaddr + ph->memsz; }
         char *from = binary + ph->off;
         size_t off, size;
         uintptr_t start = ph->vaddr, end, va = PGROUNDDOWN(start);
@@ -643,6 +659,7 @@ static int load_icode(Proc *current, char *binary) {
             start += size;
             assert((end < va && start == end) || (end >= va && start == va));
         }
+
         while (start < end) {
             page = pagetable_alloc_page(mm->pagetable, va, perm);
             assert(page != nullptr);
@@ -659,6 +676,11 @@ static int load_icode(Proc *current, char *binary) {
     assert(pages != nullptr);
     ret = pages_insert(mm->pagetable, pages, USTACKADDR, PTE_W | PTE_R | PTE_U | PTE_X, USTACKPAGE);
     assert(ret == 0);
+    if(current != initproc){
+        acquire(&proc_mm_list_lock);
+        list_add(&proc_mm_list, &mm->proc_mm_link);
+        release(&proc_mm_list_lock);
+    }
     mm_count_inc(mm);
     current->mm = mm;
     ret = 0;
@@ -696,6 +718,9 @@ int do_execve(char *path, char **argv) {
         if (mm_count_dec(mm) == 0) {
             exit_mmap(mm);
             put_pagetable(mm);
+            acquire(&proc_mm_list_lock);
+            list_del(&mm->proc_mm_link);
+            release(&proc_mm_list_lock);
             mm_destroy(mm);
         }
         current->mm = nullptr;
@@ -727,54 +752,47 @@ int do_execve(char *path, char **argv) {
     return argc;
 }
 
-int do_brk(uintptr_t *brk_store){
+int do_brk(uintptr_t *brk_store) {
     assert(myproc() != nullptr);
     Mm_struct *mm = myproc()->mm;
-    if(myproc()->kernel_proc == true)
-        panic("kernel thread call sys_brk!!!\n");
-    if(brk_store == nullptr)
-        return -E_INVAL;
+    if (myproc()->kernel_proc == true) panic("kernel thread call sys_brk!!!\n");
+    if (brk_store == nullptr) return -E_INVAL;
     uintptr_t brk;
     either_copy_user2kernel(&brk, 1, (uint64_t)brk_store, sizeof(uintptr_t));
-    if(brk < mm->brk_start)
-        goto out;
+    if (brk < mm->brk_start) goto out;
     uintptr_t newbrk = PGROUNDUP(brk), oldbrk = mm->brk;
     assert(oldbrk % PGSIZE == 0);
-    if(newbrk == oldbrk)
-        goto out;
-    lock_mm(mm);
-    if(newbrk < oldbrk){
-        if(mm_unmap(mm, newbrk, oldbrk - newbrk) != 0)
-            goto out_unlock;
-    }else{
-        if(find_vma_intersection(mm, oldbrk, newbrk) != nullptr)
-            goto out_unlock;
-        if(mm_brk(mm, oldbrk, newbrk - oldbrk) != 0)
-            goto out_unlock;
+    if (newbrk == oldbrk) goto out;
+    acquire(&mm->mm_lock);
+    if (newbrk < oldbrk) {
+        if (mm_unmap(mm, newbrk, oldbrk - newbrk) != 0) goto out_unlock;
+    } else {
+        if (find_vma_intersection(mm, oldbrk, newbrk) != nullptr) goto out_unlock;
+        if (mm_brk(mm, oldbrk, newbrk - oldbrk) != 0) goto out_unlock;
     }
     mm->brk = newbrk;
 out_unlock:
-    unlock_mm(mm);
+    release(&mm->mm_lock);
 out:
     copy_kernel2user(myproc()->mm->pagetable, (uintptr_t)brk_store, (char *)&mm->brk, sizeof(mm->brk));
     return 0;
 }
 
-static inline Timer *timer_init(Timer *timer, Proc *proc, ulong expires){
+static inline Timer *timer_init(Timer *timer, Proc *proc, ulong expires) {
     timer->expires = expires;
     timer->proc = proc;
     list_init(&timer->timer_link);
     return timer;
 }
 
-static void add_timer(Timer *timer){
+static void add_timer(Timer *timer) {
     acquire(&timer_lock);
     assert(timer->expires > 0 && timer->proc != nullptr);
     assert(list_empty(&timer->timer_link));
     List_entry *le = list_next(&timer_list);
-    while(le != &timer_list){
+    while (le != &timer_list) {
         Timer *next = le2timer(le, timer_link);
-        if(timer->expires < next->expires){
+        if (timer->expires < next->expires) {
             next->expires -= timer->expires;
             break;
         }
@@ -783,14 +801,15 @@ static void add_timer(Timer *timer){
     }
     list_add_before(le, &timer->timer_link);
     release(&timer_lock);
+    // timer_dump();
 }
 
-static void del_timer(Timer *timer){
+static void del_timer(Timer *timer) {
     acquire(&timer_lock);
-    if(!list_empty(&timer->timer_link)){
-        if(timer->expires != 0){
+    if (!list_empty(&timer->timer_link)) {
+        if (timer->expires != 0) {
             List_entry *le = list_next(&timer->timer_link);
-            if(le != &timer_list){
+            if (le != &timer_list) {
                 Timer *next = le2timer(le, timer_link);
                 next->expires += timer->expires;
             }
@@ -798,39 +817,58 @@ static void del_timer(Timer *timer){
         list_del_init(&timer->timer_link);
     }
     release(&timer_lock);
+    // timer_dump();
 }
 
-void run_timer_list(void){
+void timer_dump(void) {
     acquire(&timer_lock);
     List_entry *le = list_next(&timer_list);
-    while(le != &timer_list){
+    if (le == &timer_list) {
+        release(&timer_lock);
+        return;
+    }
+    cprintf("\ntimer dump....................................\n\n");
+    while (le != &timer_list) {
+        Timer *timer = le2timer(le, timer_link);
+        cprintf("timer's proc pid is : %d  expires is %lu \n", timer->proc->pid, timer->expires);
+        le = list_next(le);
+    }
+    cprintf("\nend of timer dump.............................\n");
+    release(&timer_lock);
+}
+
+void run_timer_list(void) {
+    if (timer_init_ok == false) return;
+    // timer_dump();
+    acquire(&timer_lock);
+    List_entry *le = list_next(&timer_list);
+    if (le != &timer_list) {
         Timer *timer = le2timer(le, timer_link);
         assert(timer->expires > 0);
         timer->expires--;
-        if(timer->expires == 0){
+        while (timer->expires == 0) {
+            le = list_next(le);
             Proc *proc = timer->proc;
             assert((proc->wait_state & WT_TIMER) == WT_TIMER);
             wakeup_proc(proc);
-            le = list_next(le);
-            // del_timer(timer);
-        }else{
-            break;
+            list_del_init(&timer->timer_link);
+            if (le == &timer_list) { break; }
+            timer = le2timer(le, timer_link);
         }
     }
     release(&timer_lock);
 }
 
-int do_sleep(ulong time){
-    if(time == 0)
-        return 0;
+int do_sleep(ulong time) {
+    if (time == 0) return 0;
     Proc *current = myproc();
     acquire(&current->lock);
     Timer __timer, *timer = timer_init(&__timer, current, time);
     current->state = SLEEPING;
     current->wait_state = WT_TIMER;
     release(&current->lock);
-    // proc_dump();
     add_timer(timer);
+    // timer_dump();
     acquire(&current->lock);
     sleeping(current, &current->lock);
     release(&current->lock);

@@ -8,10 +8,12 @@
 #include "string.h"
 #include "swap.h"
 #include "trap.h"
+#include "proc.h"
 
 static void check_vmm(void);
 static void check_vma_struct(void);
 static void check_pgfault(void);
+
 
 Mm_struct *mm_create(void) {
     Mm_struct *mm = kmalloc(sizeof(Mm_struct));
@@ -25,6 +27,8 @@ Mm_struct *mm_create(void) {
         mm->brk_start = mm->brk = 0;
         set_mm_count(mm, 0);
         initlock(&mm->mm_lock, "mm_lock");
+        list_init(&mm->proc_mm_link);
+        mm->proc = nullptr;
     }
     return mm;
 }
@@ -521,10 +525,13 @@ static void check_pgfault(void) {
 }
 
 int do_pagatable_fault(Mm_struct *mm, uintptr_t addr, bool write) {
+    uint64_t scause = r_scause();
+    int excep_code = scause & 0xff;
     int ret = -E_INVAL;
-    lock_mm(mm);
+    acquire(&mm->mm_lock);
     Vma_struct *vma = find_vma(mm, addr);
-    if (vma == nullptr || vma->vm_start > addr) goto failed;
+    if (vma == nullptr || vma->vm_start > addr) 
+        goto failed;
     if(vma->vm_flags & VM_STACK){
         if(addr < vma->vm_start + PGSIZE)
             goto failed;
@@ -544,10 +551,12 @@ int do_pagatable_fault(Mm_struct *mm, uintptr_t addr, bool write) {
     ret = -E_NO_MEM;
 
     pte_t *ptep;
-    if ((ptep = get_pte(mm->pagetable, addr, 1)) == nullptr) goto failed;
+    Page *pagetmp;
+    if ((ptep = get_pte(mm->pagetable, addr, 1)) == nullptr) 
+        goto failed;
     if (*ptep == 0) {
         if(!(vma->vm_flags & VM_SHARE)){
-            if (pagetable_alloc_page(mm->pagetable, addr, perm) == 0) 
+            if ((pagetmp = pagetable_alloc_page(mm->pagetable, addr, perm)) == 0) 
                 goto failed;
         }
         else{
@@ -594,7 +603,7 @@ int do_pagatable_fault(Mm_struct *mm, uintptr_t addr, bool write) {
                 memcpy((void *)page2kva(newpage), (void *)page2kva(page), PGSIZE);
                 page = newpage, newpage = nullptr;
             }
-        }   
+        }
         page_insert(mm->pagetable, page, addr, perm);
         if(newpage != nullptr){
             FreePage(newpage);
@@ -603,6 +612,6 @@ int do_pagatable_fault(Mm_struct *mm, uintptr_t addr, bool write) {
     ret = 0;
 
 failed:
-    unlock_mm(mm);
+    release(&mm->mm_lock);
     return ret;
 }

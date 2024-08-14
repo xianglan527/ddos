@@ -113,6 +113,7 @@ struct proc {
     uint32_t wait_state;
     Proc *cptr, *yptr, *optr;
     Cpu *cpu;
+    Cpu *set_cpu;
 };
 
 #define PF_EXITING 0x00000001
@@ -120,11 +121,14 @@ struct proc {
 #define WT_INTERAUPTED 0x80000000
 #define WT_CHILD (0x00000001 | WT_INTERAUPTED)
 #define WT_TIMER (0x00000002 | WT_INTERAUPTED)
+#define WT_KSWAPD 0x00000003
 
 #define le2proc(le, member) to_struct((le), Proc, member);
 
 extern List_entry proc_list;
 extern Proc *initproc;
+extern List_entry proc_mm_list;
+extern Proc *daemonproc;
 
 typedef struct cpu Cpu;
 struct cpu {
@@ -162,15 +166,22 @@ void kernel_thread_init(void (*start_roution)(void *), void *arg);
 Proc *find_proc(int pid);
 void either_copy_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len);
 void sleeping(void *chan, Spinlock *lk);
+void wakeup_proc(Proc *proc);
 void do_wakeup(void *chan);
 int do_fork(uint32_t clone_flags);
 void do_exit(int error_code);
 int do_wait(int pid, int *code_store);
 int do_execve(char *name, char **argv);
 void proc_dump(void);
+void proc_mm_dump(void);
 int do_kill(int pid);
 int do_brk(uintptr_t *brk_store);
 void timer_start_init(void);
 void run_timer_list(void);
+void timer_dump(void);
 int do_sleep(ulong time);
+
+static inline void set_proc_cpu(Proc *proc, Cpu *cpu) { proc->set_cpu = cpu; }
+
+static inline void clear_proc_cpu(Proc *proc, Cpu *cpu) { proc->set_cpu = nullptr; }
 #endif

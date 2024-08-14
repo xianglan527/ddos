@@ -31,5 +31,9 @@ size_t swap_page_count(Page *page);
 void swap_duplicate(swap_entry_t entry);
 int swap_in_page(swap_entry_t entry, Page **pagep);
 int swap_copy_entry(swap_entry_t entry, swap_entry_t *store);
-
+void kswap_main(void);
+void dump_proc_mm_list(void);
+size_t swap_page_num(void);
+size_t swap_page_inactive_num(void);
+size_t swap_page_active_num(void);
 #endif

@@ -7,6 +7,8 @@
 #include "uprintf.h"
 #include "user.h"
 #include "assert.h"
+#include "string.h"
+#include "slab.h"
 
 Atomic share;
 bool tf0 = 0, tf1 = 0, tf2 = 0, tf3 = 0;
@@ -73,14 +75,14 @@ static inline uint64_t get_cpuid() {
     return x;
 }
 
+
 void user_task() {
     printf("cpu: %d pid: %d running user_task1\n", get_cpuid(), getpid());
     char *args[] = {"usermain", 0};
     exec("usermain", args);
 }
 
-
 void os_main(void) {
     user_init(user_task);
-    kernel_thread_init(kernel_init, "kernel_init");
+    kernel_thread_init(daemon_proc, "daemon_proc");
 }

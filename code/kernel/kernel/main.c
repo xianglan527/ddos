@@ -44,7 +44,7 @@ void basic_test(void) {
 
 void main(){
     if(cpuid() == 0){
-        timer_start_init();
+        // timer_start_init();
         initlock_info();
         console_init();
         cprintf("xv6 kernel is booting\n");

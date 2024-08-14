@@ -178,7 +178,6 @@ int printf(const char *fmt, ...) {
     va_list ap;
     int cnt;
     va_start(ap, fmt);
-    int pp = MAXPATH;
     cnt = uvsnprintf(str, MAXPATH, fmt, ap);
     va_end(ap);
     if (cnt != -1) puts(1, str);

@@ -108,6 +108,7 @@ extern size_t npage;
 #define PTE_PW (1L << 2)
 
 #define PTE_USER    (PTE_V | PTE_W | PTE_U | PTE_X)
+#define PTE_SWAP    (PTE_V | PTE_A | PTE_D)
 
 #define PA2PTE(pa) ((((uint64_t)(pa)) >> 12) << 10)
 
@@ -164,6 +165,7 @@ void init_kernel_pagetable(void);
 Page *pagetable_alloc_page(pagetable_t *pagetable, uintptr_t va, uint32_t perm);
 uintptr_t va2pa(pagetable_t *pagetable, uint64_t va);
 void unmap_range(pde_t *pgdir, uintptr_t start, uintptr_t end);
+void unmap_range_without_free_page(pagetable_t *pagetable, uintptr_t start, uintptr_t end);
 void exit_range(pde_t *pgdir, uintptr_t start, uintptr_t end);
 int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end, bool share);
 
@@ -177,7 +179,8 @@ static inline uintptr_t page2pa(Page *page) { return (page2ppn(page) << PGSHIFT)
 static inline uintptr_t page2kva(Page *page) { return page2pa(page); }
 
 static inline Page *pa2page(uintptr_t pa) {
-    if (PPN(pa) >= npage) panic("pa2page called with invalid pa");
+    if (PPN(pa) >= npage) 
+        panic("pa2page called with invalid pa");
     return &pages[PPN(pa)];
 }
 

@@ -2,6 +2,7 @@
 #define __KERNEL_SPINLOCK_H__
 #include "stdarg.h"
 #include "types.h"
+#include "atomic.h"
 typedef struct cpu Cpu;
 typedef struct spinlock Spinlock;
 struct spinlock{
@@ -9,7 +10,8 @@ struct spinlock{
     char *name;
     Cpu *cpu; 
     long info_index;
-    long info_nest;
+    // long info_nest;
+    Atomic info_nest;
 };
 void acquire_with_info(Spinlock *lk,const char *file, int line, const char *func);
 void release_with_info(Spinlock *lk, const char *file, int line, const char *func);
@@ -24,5 +26,4 @@ void pop_off(void);
 // void acquire(Spinlock *lk);
 // void release(struct spinlock *lk);
 void initlock_info(void);
-
 #endif

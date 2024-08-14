@@ -9,10 +9,13 @@ int fork(void);
 int exit(int) __attribute__((noreturn));
 int waitpid(int, int*);
 int yield(void);
+int exec(char *path, char **argv);
 int kill(int);
 int sbrk(uintptr_t *);
 int sleep(ulong);
 uint64_t gettime(void);
+uint64_t get_free_page_size(void);
+uint64_t get_slab_allocated_size(void);
 
 int wait(void);
 void putc(int fd, char c);

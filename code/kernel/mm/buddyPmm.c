@@ -1,4 +1,5 @@
 #include "buddyPmm.h"
+#include "stdio.h"
 
 #define MAX_ORDER 10
 
@@ -6,9 +7,10 @@ static Free_area free_area[MAX_ORDER + 1];
 
 #define free_list(x) (free_area[x].free_list)
 #define nr_free(x) (free_area[x].nr_free)
-static Spinlock page_lock;
 
 #define MAX_ZONE_NUM 10
+
+static void buddy_free_pages(Page *base, size_t n);
 
 struct {
     Page *mem_base;
@@ -19,7 +21,6 @@ static void buddy_init(void) {
         list_init(&free_list(i));
         nr_free(i) = 0;
     }
-    initlock(&page_lock, "page_lock");
 }
 
 static void buddy_init_memmap(Page *base, size_t n) {
@@ -58,7 +59,6 @@ static inline size_t getorder(size_t n) {
 }
 
 static inline Page *buddy_alloc_pages_sub(size_t order) {
-    acquire(&page_lock);
     assert(order <= MAX_ORDER);
     size_t cur_order;
     for (cur_order = order; cur_order <= MAX_ORDER; cur_order++) {
@@ -78,11 +78,9 @@ static inline Page *buddy_alloc_pages_sub(size_t order) {
                 list_add(&free_list(cur_order), &(buddy->page_link));
             }
             ClearPageProperty(page);
-            release(&page_lock);
             return page;
         }
     }
-    release(&page_lock);
     return nullptr;
 }
 
@@ -90,7 +88,7 @@ static Page *buddy_alloc_pages(size_t n) {
     assert(n > 0);
     size_t order = getorder(n), order_size = 1 << order;
     Page *page = buddy_alloc_pages_sub(order);
-    if (page != nullptr && n != order_size) free_pages(page + n, order_size - n);
+    if (page != nullptr && n != order_size) buddy_free_pages(page + n, order_size - n);
     return page;
 }
 
@@ -109,7 +107,6 @@ static inline Page *idx2page(int zone_num, ppn_t idx) { return zones[zone_num].m
 
 static void buddy_free_pages_sub(Page *base, size_t order) {
     ppn_t buddy_idx, page_idx = page2idx(base);
-    acquire(&page_lock);
     assert((page_idx & ((1 << order) - 1)) == 0);
     Page *p = base;
     for (; p != base + (1 << order); p++) {
@@ -133,11 +130,11 @@ static void buddy_free_pages_sub(Page *base, size_t order) {
     SetPageProperty(page);
     nr_free(order)++;
     list_add(&free_list(order), &(page->page_link));
-    release(&page_lock);
 }
 
 static void buddy_free_pages(Page *base, size_t n) {
     assert(n > 0);
+    // cprintf("ooooooooooooooooooooooooooo paga pa is %p\n", page2pa(base));
     if (n == 1)
         buddy_free_pages_sub(base, 0);
     else {

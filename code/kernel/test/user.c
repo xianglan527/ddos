@@ -1,6 +1,5 @@
 #include "user.h"
 #include "string.h"
-
 int wait(void) {
     int ret;
     ret = waitpid(0, (void *)0);

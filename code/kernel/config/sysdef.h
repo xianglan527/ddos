@@ -26,4 +26,6 @@
 #define SYS_cli 23
 #define SYS_yield 24
 #define SYS_gettime 25
+#define SYS_get_free_page_size 26
+#define SYS_get_slab_allocated_size 27
 #endif

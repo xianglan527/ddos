@@ -30,9 +30,9 @@ void __panic(const char *file, int line, const char *fmt, ...){
     cprintf("\n");
     va_end(ap);
 panic_dead:
-    cprintf("backtrace......:\n");
-    backtrace();
-    cprintf("end of backtrace......:\n");
+    // cprintf("backtrace......:\n");
+    // backtrace();
+    // cprintf("end of backtrace......:\n");
     cprintf("The kernel has crashed. Please force shutdown!!!\n ");
     pr.locking = 0;
     is_panic = 1;

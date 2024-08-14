@@ -32,6 +32,8 @@ struct vma_struct {
 #define VM_SHARE 0x00000010
 #define VM_USER 0x00000020
 
+typedef struct proc Proc;
+
 typedef struct mm_struct Mm_struct;
 struct mm_struct {
     List_entry mmap_list;
@@ -43,7 +45,12 @@ struct mm_struct {
     Atomic mm_count;
     Spinlock mm_lock;
     uintptr_t brk_start, brk;
+    List_entry proc_mm_link;
+    Proc *proc;
 };
+
+
+#define le2mm(le, member)   to_struct((le), Mm_struct, member)
 
 static inline long mm_count(Mm_struct *mm) { return atomic_read(&mm->mm_count); }
 
@@ -53,13 +60,13 @@ static inline long mm_count_inc(Mm_struct *mm) { return atomic_add_return(&mm->m
 
 static inline long mm_count_dec(Mm_struct *mm) { return atomic_sub_return(&mm->mm_count, 1); }
 
-static inline void lock_mm(Mm_struct *mm) {
-    if (mm != nullptr) acquire(&mm->mm_lock);
-}
+// static inline void lock_mm(Mm_struct *mm) {
+//     if (mm != nullptr) acquire(&mm->mm_lock);
+// }
 
-static inline void unlock_mm(Mm_struct *mm) {
-    if (mm != nullptr) release(&mm->mm_lock);
-}
+// static inline void unlock_mm(Mm_struct *mm) {
+//     if (mm != nullptr) release(&mm->mm_lock);
+// }
 
 Vma_struct *find_vma(Mm_struct *mm, uintptr_t addr);
 Vma_struct *vma_create(uintptr_t vm_start, uintptr_t vm_end, uint32_t vm_flags);

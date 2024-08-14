@@ -27,11 +27,10 @@ void initlock(Spinlock *lk, char *name) {
     lk->locked = 0;
     lk->cpu = 0;
     lk->info_index = atomic_add_return(&lock_info_index, 1);
-    lk->info_nest = 0;
+    // lk->info_nest = 0;
+    atomic_set(&lk->info_nest, 0);
     assert(lk->info_index < lock_info_nums);
 }
-
-
 
 int holding(Spinlock *lk) {
     int r;
@@ -56,7 +55,17 @@ void pop_off(void) {
 }
 
 static void push_spinlock_info(int index, int nest, const char *file, int line, const char *func) {
-    assert(nest < lock_info_nest - 1);
+    // assert(nest < lock_info_nest - 1);
+    if(!(nest < lock_info_nest - 1)){
+        pr.locking = 0;
+        int i = 0;
+        for (i = 0; i < nest; i++) {
+            cprintf("%d : file %s line %d func %s\n", i, lock_lock_info[index][i].file,
+                    lock_lock_info[index][i].line, lock_lock_info[index][i].func);
+        }
+        cprintf("%d : file %s line %d func %s\n", i, file, line, func);
+        panic("too many nest");
+    }
     strncpy(lock_lock_info[index][nest].file, file, lock_info_lens);
     lock_lock_info[index][nest].line = line;
     strncpy(lock_lock_info[index][nest].func, func, lock_info_lens);
@@ -67,7 +76,7 @@ void acquire_with_info(Spinlock *lk, const char *file, int line, const char *fun
     if (holding(lk)) {
         pr.locking = 0;
         int i = 0;
-        for (i = 0; i < lk->info_nest; i++) {
+        for (i = 0; i < atomic_read(&lk->info_nest); i++) {
             cprintf("%d : file %s line %d func %s\n", i, lock_lock_info[lk->info_index][i].file,
                     lock_lock_info[lk->info_index][i].line, lock_lock_info[lk->info_index][i].func);
         }
@@ -78,15 +87,16 @@ void acquire_with_info(Spinlock *lk, const char *file, int line, const char *fun
     while (__sync_lock_test_and_set(&lk->locked, 1) != 0);
     __sync_synchronize();
     lk->cpu = mycpu();
-    push_spinlock_info(lk->info_index, lk->info_nest, file, line, func);
-    lk->info_nest++;
+    push_spinlock_info(lk->info_index, atomic_read(&lk->info_nest), file, line, func);
+    // lk->info_nest++;
+    atomic_inc(&lk->info_nest);
 }
 
 void release_with_info(Spinlock *lk, const char *file, int line, const char *func) {
     if (!holding(lk)) {
         pr.locking = 0;
         int i = 0;
-        for (i = 0; i < lk->info_nest; i++) { 
+        for (i = 0; i < atomic_read(&lk->info_nest); i++) {
             cprintf("%d : file %s line %d func %s\n", i, lock_lock_info[lk->info_index][i].file,
                     lock_lock_info[lk->info_index][i].line, lock_lock_info[lk->info_index][i].func);
         }
@@ -97,5 +107,6 @@ void release_with_info(Spinlock *lk, const char *file, int line, const char *fun
     __sync_synchronize();
     __sync_lock_release(&lk->locked);
     pop_off();
-    lk->info_nest--;
+    // lk->info_nest--;
+    atomic_dec(&lk->info_nest);
 }

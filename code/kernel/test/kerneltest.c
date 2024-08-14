@@ -20,6 +20,7 @@
 #include "virtio.h"
 #include "virtio_device.h"
 #include "vmm.h"
+// #include "swapfs.h"
 
 static void virtio_mmio_rng_test(void) {
     uint32_t buf[4] = {0};
@@ -40,26 +41,28 @@ static void virtio_mmio_rng_test(void) {
 #define DATA_LEN (64 * BLK_1K)  // 64KB
 uint32_t wdata[DATA_LEN / 4] = {0};
 uint32_t rdata[DATA_LEN / 4] = {0};
-// #define TEST_CNT (64 * 1024 * 1024 / DATA_LEN)  // 64MB
-#define TEST_CNT 10
+#define TEST_CNT (128 * 1024 * 1024 / DATA_LEN)  // 64MB
+// #define TEST_CNT 10
 static void virtio_mmio_blk_test(char *name) {
     int dlen = DATA_LEN;
     struct blk_buf req[1] = {0};
 
-    for (int i = 0; i < dlen / 4; ++i) { wdata[i] = rand() & INT_MASK; }
     cprintf("blk test...");
     for (int n = 0; n < TEST_CNT; ++n) {
+        for (int i = 0; i < dlen / 4; ++i) { wdata[i] = simulate_rand() & INT_MASK; }
         req[0].addr = n * dlen;
         req[0].data = wdata;
         req[0].data_len = dlen;
         req[0].is_write = 1;
         virtio_blk_rw(&req[0], name);
+        // virtio_blk_rw_syn(&req[0], name);
         for (int j = 0; j < dlen / 4; ++j) { rdata[j] = 0; }
         req[0].addr = n * dlen;
         req[0].data = rdata;
         req[0].data_len = dlen;
         req[0].is_write = 0;
         virtio_blk_rw(&req[0], name);
+        // virtio_blk_rw_syn(&req[0], name);
         for (int j = 0; j < dlen / 4; ++j) {
             if (rdata[j] != wdata[j]) {
                 cprintf("blk write or read failed\n");
@@ -83,11 +86,12 @@ void kernel_test(){
 #endif
 }
 
-void kernel_init(void *arg) {
+void daemon_proc(void *arg) {
     Proc *p = myproc();
     kernel_test();
     while (1) {
-        cprintf("%s running %s ... all test passed\n", p->name, (const char *)arg);
-        task_delay(DELAY);
+        // cprintf("%s running %s ... all test passed\n", p->name, (const char *)arg);
+        kswap_main();
+        // task_delay(DELAY);
     }
 }

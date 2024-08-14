@@ -25,6 +25,8 @@ extern uint64_t sys_kill(void);
 extern uint64_t sys_sbrk(void);
 extern uint64_t sys_sleep(void);
 extern uint64_t sys_gettime(void);
+extern uint64_t sys_get_free_page_size(void);
+extern uint64_t sys_get_slab_allocated_size(void);
 
 int fetch_addr(uint64_t addr, uint64_t *ip){
     Proc *current = myproc();
@@ -92,6 +94,8 @@ static uint64_t (*syscalls[])(void) = {
     [SYS_sbrk] = sys_sbrk,
     [SYS_sleep] = sys_sleep,
     [SYS_gettime] = sys_gettime,
+    [SYS_get_free_page_size] = sys_get_free_page_size,
+    [SYS_get_slab_allocated_size] = sys_get_slab_allocated_size,
 };
 
 void syscall(void) {

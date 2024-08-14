@@ -64,6 +64,27 @@ struct virtio_blk_req {
   uint64_t sector;
 };
 
+#define BSIZE 1024  // block size
+// struct buf {
+//     int valid;  // has data been read from disk?
+//     int disk;   // does disk "own" buf?
+//     uint dev;
+//     uint blockno;
+//     struct sleeplock lock;
+//     uint refcnt;
+//     struct buf *prev;  // LRU cache list
+//     struct buf *next;
+//     uchar data[BSIZE];
+// };
+
+struct blk_buf {
+    uint64_t addr;  // bytes address
+    void *data;
+    uint64_t data_len;
+    uint16_t is_write;
+    uint16_t flag;
+    bool syn;
+};
 struct virtio_blk {
 	char blk_name[64];
 	int idx;
@@ -79,28 +100,10 @@ struct virtio_blk {
 	uint32_t qsize;	// queue0 size
     uint16_t used_idx;
 	uint16_t avail_idx;
+	struct blk_buf *blk_buffer;
 };
 
-#define BSIZE 1024  // block size
-// struct buf {
-//     int valid;  // has data been read from disk?
-//     int disk;   // does disk "own" buf?
-//     uint dev;
-//     uint blockno;
-//     struct sleeplock lock;
-//     uint refcnt;
-//     struct buf *prev;  // LRU cache list
-//     struct buf *next;
-//     uchar data[BSIZE];
-// };
 
-struct blk_buf {
-    uint64_t 	addr;       // bytes address
-    void  	*data;
-    uint64_t 	data_len;
-    uint16_t  	is_write;
-    uint16_t  	flag;
-};
 int virtio_blk_init(uint32_t base, int idx);
 int virtio_blk_add(uint32_t base, char *name,int idx);
 void virtio_blk_cfg(struct virtio_blk *blk);
@@ -108,4 +111,6 @@ void virtio_blk_rw(struct blk_buf *b, char *blk_name);
 void virtio_blk_intr(int idx);
 struct virtio_blk *find_blk_by_name(char *name);
 struct virtio_blk *find_blk_by_index(int idx);
+void virtio_blk_rw_syn(struct blk_buf *b, char *blk_name);
+void virtio_blk_rw_asyn(struct blk_buf *b, char *blk_name);
 #endif /* VIRTIO_BLK_H_ */
