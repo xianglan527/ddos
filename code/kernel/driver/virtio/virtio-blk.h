@@ -100,7 +100,8 @@ struct virtio_blk {
 	uint32_t qsize;	// queue0 size
     uint16_t used_idx;
 	uint16_t avail_idx;
-	struct blk_buf *blk_buffer;
+	// struct blk_buf *blk_buffer;
+	bool syn;
 };
 
 

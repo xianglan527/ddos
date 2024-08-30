@@ -193,18 +193,16 @@ bool try_free_pages(size_t n) {
     Wait __wait, *wait = &__wait;
     wait_init(wait, current);
     acquire(&kswapd_done_lock);
-    acquire(&current->lock);
-    current->state = SLEEPING;
-    current->wait_state = WT_KSWAPD;
-    release(&current->lock);
     wait_queue_add(&kswapd_done, wait);
-    release(&kswapd_done_lock);
-    acquire(&current->lock);
+    // release(&kswapd_done_lock);
+    // acquire(&current->lock);
+    current->wait_state = WT_KSWAPD;
     set_proc_cpu(current, mycpu());
-    sleeping(current, &current->lock);
+    sleeping(current, &kswapd_done_lock);
     assert(current->set_cpu == mycpu());
     clear_proc_cpu(current, mycpu());
-    release(&current->lock);
+    // release(&current->lock);
+    release(&kswapd_done_lock);
     assert(!wait_in_queue(wait) && wait->wakeup_flags == WT_KSWAPD);
     return true;
 }
@@ -394,6 +392,7 @@ static int swap_out_vma(Mm_struct *mm, Vma_struct *vma, uintptr_t addr, size_t r
             if (*ptep & PTE_A) {
                 *ptep &= ~PTE_A;
                 tlb_invalidate(mm->pagetable, addr);
+                // sfence_vma();
                 goto try_next_entry;
             }
             if (!PageSwap(page)) {
@@ -412,6 +411,7 @@ static int swap_out_vma(Mm_struct *mm, Vma_struct *vma, uintptr_t addr, size_t r
             page_ref_dec(page);
             *ptep = entry;
             tlb_invalidate(mm->pagetable, addr);
+            // sfence_vma();
             mm->swap_address = addr + PGSIZE;
             free_count++, require--;
             if ((vma->vm_flags & VM_SHARE) && page_ref(page) == 1) {
@@ -1018,7 +1018,9 @@ static void check_mm_shm_swap(void) {
     assert(ret == 0);
     assert((vma->vm_flags & VM_SHARE) && vma->shmem == shmem && shmem_ref(shmem) == 2);
 
-    for (i = 0; i < 4; i++) { *(char *)(addr0 + i * PGSIZE) = (char)(i * i); }
+    for (i = 0; i < 4; i++) { 
+        *(char *)(addr0 + i * PGSIZE) = (char)(i * i); 
+    }
     for (i = 0; i < 4; i++) {
         assert(*(char *)(addr1 + i * PGSIZE) == (char)(i * i));
         *(char *)(addr1 + i * PGSIZE) = (char)(-i * i);

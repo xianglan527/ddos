@@ -15,5 +15,4 @@ int arg_addr(int n, uint64_t *ip);
 int arg_str(int n, char *buf, int max);
 void syscall(void);
 
-#define CLONE_VM 0x00000100
 #endif

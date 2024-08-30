@@ -1,6 +1,8 @@
 #ifndef __KERNEL_RISCV_H__
 #define __KERNEL_RISCV_H__
 #include "types.h"
+// #include "proc.h"
+// #include "stdio.h"
 
 static inline uint64_t r_mhartid() {
     uint64_t x;
@@ -44,6 +46,7 @@ static inline uint64_t r_sstatus() {
 }
 
 static inline void w_sstatus(uint64_t x) { asm volatile("csrw sstatus, %0" : : "r"(x)); }
+
 
 // Supervisor Interrupt Pending
 static inline uint64_t r_sip() {
@@ -171,16 +174,36 @@ static inline uint64_t r_time() {
 }
 
 // enable device interrupts
-static inline void intr_on() { w_sstatus(r_sstatus() | SSTATUS_SIE); }
+static inline void intr_on() {
+    w_sstatus(r_sstatus() | SSTATUS_SIE);
+}
+
+// // enable device interrupts
+// static inline void intr_on() {
+//     w_mstatus(r_mstatus() | MSTATUS_MIE);
+// }
 
 // disable device interrupts
-static inline void intr_off() { w_sstatus(r_sstatus() & ~SSTATUS_SIE); }
+static inline void intr_off() {
+    w_sstatus(r_sstatus() & ~SSTATUS_SIE);
+}
+
+// // disable device interrupts
+// static inline void intr_off() {
+//     w_mstatus(r_mstatus() | ~MSTATUS_MIE);
+// }
 
 // are device interrupts enabled?
 static inline int intr_get() {
     uint64_t x = r_sstatus();
     return (x & SSTATUS_SIE) != 0;
 }
+
+// // are device interrupts enabled?
+// static inline int intr_get() {
+//     uint64_t x = r_mstatus();
+//     return (x & MSTATUS_MIE) != 0;
+// }
 
 static inline uint64_t r_sp() {
     uint64_t x;

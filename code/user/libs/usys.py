@@ -7,8 +7,8 @@ def main():
     print("#include \"sysdef.h\"")
     print(".section .text")
     def entry(name):
-        print(f".global {name}")
-        print(f"{name}:")
+        print(f".global __{name}__")
+        print(f"__{name}__:")
         print(f" li a7, SYS_{name}")
         print(" ecall")
         print(" ret")
@@ -17,7 +17,7 @@ def main():
         "fork", "exit", "waitpid", "pipe", "read", "write", "close", "kill", "exec",
         "open", "mknod", "unlink", "fstat", "link", "mkdir", "chdir", "dup",
         "getpid", "sbrk", "sleep", "uptime", "sti", "cli", "yield", "gettime", 
-        "get_free_page_size", "get_slab_allocated_size",
+        "get_free_page_size", "get_slab_allocated_size", "clone", "exit_thread", "mmap", "munmap", "shmem"
     ]
 
     for syscall in syscalls:

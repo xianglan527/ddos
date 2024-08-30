@@ -174,14 +174,15 @@ struct virtio_blk *find_blk_by_index(int idx) {
 }
 
 void virtio_blk_rw_syn(struct blk_buf *b, char *blk_name) {
-    b->syn = true;
+    // b->syn = true;
     int index[3];
     int qnum = 0;
     uint64_t sector = b->addr / SECTOR_SZIE;
     struct virtio_blk *blk = find_blk_by_name(blk_name);
     assert(blk != nullptr);
     acquire(&blk->blk_lock);
-    blk->blk_buffer = b;
+    // blk->blk_buffer = b;
+    blk->syn = true;
     if (blk == nullptr) panic("the %s does not exist\n", blk_name);
     // if (b->is_write == true) {
     //     cprintf("rrrrrrrrrrrr11111111 addr is %p offset(sector) is %d neirong is %p current pid is %d\n", b->data,
@@ -237,19 +238,21 @@ void virtio_blk_rw_syn(struct blk_buf *b, char *blk_name) {
     //             b->data, b->addr / SECTOR_SZIE, *(long *)((uintptr_t)(b->data) + 3824),
     //             myproc()->pid);
     // }
-    blk->blk_buffer = nullptr;
+    // blk->blk_buffer = nullptr;
     release(&blk->blk_lock);
+    blk->syn = false;
 }
 
 void virtio_blk_rw_asyn(struct blk_buf *b, char *blk_name) {
-    b->syn = false;
+    // b->syn = false;
     int index[3];
     int qnum = 0;
     uint64_t sector = b->addr / SECTOR_SZIE;
     struct virtio_blk *blk = find_blk_by_name(blk_name);
     assert(blk != nullptr);
     acquire(&blk->blk_lock);
-    blk->blk_buffer = b;
+    // blk->blk_buffer = b;
+    blk->syn = false;
     if (blk == nullptr) 
         panic("the %s does not exist\n", blk_name);
     int idx = blk->idx;
@@ -314,11 +317,11 @@ void virtio_blk_intr(int idx) {
     struct virtio_blk *blk = find_blk_by_index(idx);
     assert(blk != nullptr);
     acquire(&blk->blk_lock);
-    if(blk->blk_buffer == nullptr || blk->blk_buffer->syn == true){
+    if(blk->syn == true){
         release(&blk->blk_lock);
         return;
     }
-    assert(blk->blk_buffer->syn == false);
+    assert(blk->syn == false);
     virtio_mmio_set_ack(idx);
     // the device increments disk.used->idx when it
     // adds an entry to the used ring.

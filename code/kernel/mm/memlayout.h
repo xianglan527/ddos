@@ -70,6 +70,8 @@
 //   ...
 //   TRAPFRAME (p->trapframe, used by the trampoline)
 //   TRAMPOLINE (the same page as in the kernel)
-#define TRAPFRAME (TRAMPOLINE - PGSIZE)
+// #define TRAPFRAME (TRAMPOLINE - PGSIZE)
+
+#define TRAPFRAME(p) (TRAMPOLINE - ((p) + 1) * PGSIZE)
 
 #endif

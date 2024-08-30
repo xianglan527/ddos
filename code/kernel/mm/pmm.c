@@ -12,6 +12,8 @@ const Pmm_manager *pmm_manager;
 extern char kernel_etext[];
 extern char trampoline[];
 
+extern Spinlock print_struct_lock;
+
 static Spinlock page_lock;
 
 Page *pages;
@@ -179,6 +181,7 @@ static void __vm_print(pagetable_t *pagetable, int level, int pg_index[2][3], si
 }
 
 void vm_print(pagetable_t *pagetable) {
+    // acquire(&print_struct_lock);
     cprintf("page vm table %p\n", pagetable);
     int pg_index[2][3];
     memset(pg_index, 0, sizeof(pg_index));
@@ -186,6 +189,7 @@ void vm_print(pagetable_t *pagetable) {
     vm_print_state = VM_PRINT_OUT;
     cur_perm = 0;
     __vm_print(pagetable, 1, pg_index, &index);
+    // release(&print_struct_lock);
     return;
 }
 
@@ -218,6 +222,8 @@ try_again:
     release(&page_lock);
     if(pages == nullptr && try_free_pages(n))
         goto try_again;
+    if(pages != nullptr)
+        memset((void *)page2kva(pages), 0, n * PGSIZE);
     return pages;
 }
 
@@ -295,6 +301,7 @@ void exit_range(pagetable_t *pagetable, uintptr_t start, uintptr_t end){
         }
         if(pg3_empty){
             ((pte_t *)PTE2PA(pgt2))[pde_idx2] = 0;
+            sfence_vma();
             FreePage(pa2page(PTE2PA(pgt3)));
         } 
     }
@@ -318,10 +325,10 @@ void exit_range(pagetable_t *pagetable, uintptr_t start, uintptr_t end){
         }
         if (pg2_empty) {
             pagetable[pde_idx1] = 0;
+            sfence_vma();
             FreePage(pa2page(PTE2PA(pgt2)));
         }
-    }
-    sfence_vma();
+    }  
 }
 
 int copy_range(pagetable_t *to, pagetable_t *from, uintptr_t start, uintptr_t end, bool share){
@@ -351,6 +358,8 @@ int copy_range(pagetable_t *to, pagetable_t *from, uintptr_t start, uintptr_t en
                 swap_entry_t entry = *ptep;
                 swap_duplicate(entry);
                 *nptep = entry;
+                tlb_invalidate(to, start);
+                // sfence_vma();
             }
         }
         start += PGSIZE;
@@ -376,6 +385,8 @@ pte_t *get_pte(pagetable_t *pagetable, uint64_t va, int alloc) {
             pagetable = (pde_t *)page2pa(page);
             memset(pagetable, 0, PGSIZE);
             *pte = PA2PTE(pagetable) | PTE_V;
+            tlb_invalidate(pagetable, va);
+            // sfence_vma();
         }
     }
     return &pagetable[PX(0, va)];
@@ -482,6 +493,7 @@ static void page_remove_pte(pagetable_t *pagetable, uintptr_t va, pte_t *ptep) {
         *ptep = 0;
     }
     tlb_invalidate(pagetable, va);
+    // sfence_vma();
 }
 
 int page_insert(pagetable_t *pagetable, Page *page, uintptr_t va, uint32_t perm) {
@@ -498,6 +510,7 @@ int page_insert(pagetable_t *pagetable, Page *page, uintptr_t va, uint32_t perm)
 out:
     *ptep = PA2PTE(page2pa(page)) | PTE_V | perm;
     tlb_invalidate(pagetable, va);
+    // sfence_vma();
     return 0; 
 }
 

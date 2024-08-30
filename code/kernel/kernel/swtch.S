@@ -8,7 +8,6 @@
 .globl swtch
 swtch:
         mv t0, a0
-
         sd ra, 0(t0)
         sd sp, 8(t0)
 
@@ -33,8 +32,6 @@ swtch:
         sd s9, 152(t0)
         sd s10, 160(t0)
         sd s11, 168(t0)
-
-
 
 
         mv t1, a1

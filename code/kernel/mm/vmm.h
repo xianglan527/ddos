@@ -47,6 +47,8 @@ struct mm_struct {
     uintptr_t brk_start, brk;
     List_entry proc_mm_link;
     Proc *proc;
+    bool share;
+    Atomic mm_share_count;
 };
 
 

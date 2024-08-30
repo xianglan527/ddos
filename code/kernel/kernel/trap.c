@@ -1,7 +1,9 @@
 #include "trap.h"
+
 #include "assert.h"
 #include "config.h"
 #include "console.h"
+#include "error.h"
 #include "memlayout.h"
 #include "plic.h"
 #include "proc.h"
@@ -11,12 +13,13 @@
 #include "uart.h"
 #include "virtio_device.h"
 #include "vmm.h"
-#include "error.h"
 
 Spinlock tickslock;
 uint64_t ticks;
 extern char trampoline[], uservec[], userret[];
 extern pagetable_t* kernel_pagetable;
+
+extern Spinlock print_struct_lock;
 
 void kernelvec();
 
@@ -53,18 +56,17 @@ static void print_ticks() { cprintf("ticks is :%d\n", ticks); }
 
 static int pagetable_handler(bool write) {
     extern Mm_struct* check_mm_struct;
-    Mm_struct *mm;
-    if (check_mm_struct != nullptr) { 
+    Mm_struct* mm;
+    if (check_mm_struct != nullptr) {
         assert(myproc() == nullptr);
-        mm = check_mm_struct;  
-    }
-    else{
-        if(myproc() == nullptr){
+        mm = check_mm_struct;
+    } else {
+        if (myproc() == nullptr) {
             cprintf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
             proc_dump();
-        }   
+        }
         assert(myproc() != nullptr);
-        mm = myproc()->mm;   
+        mm = myproc()->mm;
     }
     return do_pagatable_fault(mm, r_stval(), write);
 }
@@ -74,8 +76,7 @@ Trap_eum trap_work() {
     int ret = 0;
     if ((scause & 0x8000000000000000L) && (scause & 0xff) == 9) {
         int irq = plic_claim();
-        if(!irq)
-            return TRAP_INT;
+        if (!irq) return TRAP_INT;
 
         switch (irq) {
             case 1 ... VIRTIO_DEVICE_NUM: {
@@ -117,30 +118,37 @@ Trap_eum trap_work() {
         if (excep_code == 12 || excep_code == 13 || excep_code == 15) {
             if (excep_code == 12 || excep_code == 13)
                 ret = pagetable_handler(false);
-            else if(excep_code == 15)
+            else if (excep_code == 15)
                 ret = pagetable_handler(true);
             if (ret != 0) {
-                proc_mm_dump();
+                acquire(&print_struct_lock);
+                // proc_mm_dump();
                 proc_dump();
-                dump_proc_mm_list();
+                // dump_proc_mm_list();
                 cprintf("  excep_code %d  sepc=%p stval=%p\n", excep_code, r_sepc(), r_stval());
+                // release(&print_struct_lock);
                 if (myproc() == nullptr)
-                    panic("handle pgfault failed. %e\n", -ret);
+                    cprintf("handle pgfault failed. %e\n", -ret);
                 else
-                    panic("user pid%d: handle pgfault failed. %e\n", myproc()->pid, -ret);
+                    cprintf("user pid%d: handle pgfault failed. %e\n", myproc()->pid, -ret);
+                release(&print_struct_lock);
+                panic("pagetable_handler error");
             }
         } else {
-            proc_mm_dump();
+            acquire(&print_struct_lock);
+            // proc_mm_dump();
             proc_dump();
-            dump_proc_mm_list();
+            // dump_proc_mm_list();
             cprintf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-            if(myproc() == nullptr){
-                panic("no hangdle the exception function excep_code %d cpuid is:%d", excep_code, cpuid());
-            }               
-            else{
-                panic("no hangdle the exception function pid : %d excep_code %d cpuid is:%d", myproc()->pid,
+            // release(&print_struct_lock);
+            if (myproc() == nullptr) {
+                cprintf("no hangdle the exception function excep_code %d cpuid is:%d", excep_code, cpuid());
+            } else {
+                cprintf("no hangdle the exception function pid : %d excep_code %d cpuid is:%d", myproc()->pid,
                       excep_code, cpuid());
             }
+            release(&print_struct_lock);
+            panic("no hangdle the exception function");
         }
         return TRAP_EXCEPTION;
     } else
@@ -152,6 +160,17 @@ void kerneltrap() {
     uint64_t sepc = r_sepc();
     uint64_t sstatus = r_sstatus();
     uint64_t scause = r_scause();
+    Proc *current = nullptr;
+    uint64_t sp = 0;
+    uintptr_t stackTop = 0;
+    // if(myproc() != nullptr){
+    //     current = myproc();
+    //     sp = r_sp();
+    //     stackTop = current->kstack + KSTACKSIZE - PGSIZE;
+    //     if(stackTop - sp > PGSIZE){
+    //         panic("too much nest");
+    //     }
+    // }
     if ((sstatus & SSTATUS_SPP) == 0) panic("kerneltrap: not from supervisor mode");
     if (intr_get() != 0) panic("kerneltrap: interrupts enabled");
     if ((trap_enum = trap_work()) == TRAP_OTHER) {
@@ -159,16 +178,18 @@ void kerneltrap() {
         cprintf("sepc=%p stval=%p\n", sepc, r_stval());
         panic("kerneltrap");
     }
-    if (trap_enum == TRAP_SOFT_INT && myproc() != 0 && myproc()->state == RUNNING) {
-        do_yield();
-    }
+    // Switching tasks within a kernel interrupt can lead to excessive nesting, meaning that continuously
+    // entering kernel interrupts will keep consuming stack space. To prevent this, a simple solution is to
+    // disable task switching in this context. This might not be a perfect fix, but current test results
+    // indicate that it effectively resolves the bug
+    //  if (trap_enum == TRAP_SOFT_INT && myproc() != 0 && myproc()->state == RUNNING) { do_yield(); }
 
     // the yield() may have caused some traps to occur,
     // so restore trap registers for use by kernelvec.S's sepc instruction.
+
     w_sepc(sepc);
     w_sstatus(sstatus);
 }
-
 
 void usertrap(void) {
     Trap_eum trap_enum = TRAP_OTHER;
@@ -181,19 +202,16 @@ void usertrap(void) {
         p->trapframe->epc += 4;
         intr_on();
         syscall();
-        if(p->flags & PF_EXITING){
-            do_exit(-E_KILLED);
-        }
+        // may_killed();
     } else if ((trap_enum = trap_work()) == TRAP_OTHER) {
         p->flags |= PF_EXITING;
+        p->exit_code = E_KILLED;
         cprintf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
         cprintf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     } else if (trap_enum == TRAP_SOFT_INT && myproc() != 0 && myproc()->state == RUNNING) {
         do_yield();
     }
-    if(p->flags & PF_EXITING){
-        do_exit(-E_KILLED);
-    }
+    may_killed();
     user_trap_ret();
 }
 
@@ -217,5 +235,5 @@ void user_trap_ret() {
     w_sepc(p->trapframe->epc);
     uint64_t satp = MAKE_SATP(p->mm->pagetable);
     uint64_t fn = TRAMPOLINE + (userret - trampoline);
-    ((void (*)(uint64_t, uint64_t))fn)(TRAPFRAME, satp);
+    ((void (*)(uint64_t, uint64_t))fn)(TRAPFRAME(p->mm_index), satp);
 }

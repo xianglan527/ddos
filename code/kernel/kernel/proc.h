@@ -114,6 +114,8 @@ struct proc {
     Proc *cptr, *yptr, *optr;
     Cpu *cpu;
     Cpu *set_cpu;
+    List_entry thread_group;
+    int mm_index;
 };
 
 #define PF_EXITING 0x00000001
@@ -138,7 +140,6 @@ struct cpu {
     int intena;       // Were interrupts enabled before push_off()?
     Proc *prev;
     Proc *next;
-    bool has_zombie;
 };
 
 extern Cpu cpus[NCPU];
@@ -168,7 +169,7 @@ void either_copy_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len
 void sleeping(void *chan, Spinlock *lk);
 void wakeup_proc(Proc *proc);
 void do_wakeup(void *chan);
-int do_fork(uint32_t clone_flags);
+int do_fork(uint32_t clone_flags, uintptr_t stack);
 void do_exit(int error_code);
 int do_wait(int pid, int *code_store);
 int do_execve(char *name, char **argv);
@@ -180,7 +181,11 @@ void timer_start_init(void);
 void run_timer_list(void);
 void timer_dump(void);
 int do_sleep(ulong time);
-
+void may_killed(void);
+void do_exit_thread(int error_code);
+int do_mmap(uintptr_t *addr_store, size_t len, uint32_t mmap_flags);
+int do_munmap(uintptr_t addr, size_t len);
+int do_shmem(uintptr_t *addr_store, size_t len, uint32_t mmap_flags);
 static inline void set_proc_cpu(Proc *proc, Cpu *cpu) { proc->set_cpu = cpu; }
 
 static inline void clear_proc_cpu(Proc *proc, Cpu *cpu) { proc->set_cpu = nullptr; }

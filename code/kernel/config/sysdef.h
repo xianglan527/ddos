@@ -28,4 +28,15 @@
 #define SYS_gettime 25
 #define SYS_get_free_page_size 26
 #define SYS_get_slab_allocated_size 27
+#define SYS_clone 28
+#define SYS_exit_thread 29
+#define SYS_mmap 30
+#define SYS_munmap 31
+#define SYS_shmem 32
+
+#define CLONE_VM 0x00000100
+#define CLONE_THREAD 0x00000200
+
+#define MMAP_WRITE 0x00000100
+#define MMAP_STACK 0x00000200
 #endif

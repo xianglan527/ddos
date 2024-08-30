@@ -10,6 +10,8 @@
 #include "trap.h"
 #include "proc.h"
 
+extern Spinlock print_struct_lock;
+
 static void check_vmm(void);
 static void check_vma_struct(void);
 static void check_pgfault(void);
@@ -26,9 +28,11 @@ Mm_struct *mm_create(void) {
         mm->swap_address = 0;
         mm->brk_start = mm->brk = 0;
         set_mm_count(mm, 0);
+        atomic_set(&mm->mm_share_count, 0);
         initlock(&mm->mm_lock, "mm_lock");
         list_init(&mm->proc_mm_link);
         mm->proc = nullptr;
+        mm->share = false;
     }
     return mm;
 }
@@ -329,6 +333,7 @@ void exit_mmap(Mm_struct *mm){
     assert(mm != nullptr);
     pagetable_t *pagatable = mm->pagetable;
     List_entry *list = &mm->mmap_list, *le = list;
+    // print_vma_list(mm);
     while((le = list_next(le)) != list){
         Vma_struct *vma = le2vma(le, list_link);
         unmap_range(pagatable, vma->vm_start, vma->vm_end);
@@ -344,9 +349,9 @@ void exit_mmap(Mm_struct *mm){
 }
 
 int64_t get_unmapped_area(Mm_struct *mm, size_t len){
-    if(len == 0 || len >= MAXVA )
+    if(len == 0 || len >= TRAPFRAME(NPROC) )
         return 0;
-    uintptr_t start = MAXVA - len;
+    uintptr_t start = TRAPFRAME(NPROC) - len;
     List_entry *list = &mm->mmap_list, *le = list;
     while((le = list_prev(le)) != list){
         Vma_struct *vma = le2vma(le, list_link);
@@ -425,13 +430,17 @@ void print_vma_list(Mm_struct *mm) {
     Vma_struct *vma = nullptr;
     if(mm == nullptr)
         return;
+    // acquire(&print_struct_lock);
     List_entry *list = &mm->mmap_list, *le = list;
+    cprintf("print_vma_list start: ...............\n");
     while ((le = list_next(le)) != list) {
         vma = le2vma(le, list_link);
-        cprintf("vma->start is : 0x%016x     ", vma->vm_start);
-        cprintf("vma->end is : 0x%016x       ", vma->vm_end);
+        cprintf("vma->start is : %p     ", vma->vm_start);
+        cprintf("vma->end is : %p       ", vma->vm_end);
         cprintf("vma->flags is : %s\n", vma_flags2str(vma->vm_flags));
     }
+    cprintf("print_vma_list end: ...............\n\n");
+    // release(&print_struct_lock);
 }
 
 static void check_vma_struct(void) {
@@ -525,6 +534,7 @@ static void check_pgfault(void) {
 }
 
 int do_pagatable_fault(Mm_struct *mm, uintptr_t addr, bool write) {
+    Proc *ppp = myproc();
     uint64_t scause = r_scause();
     int excep_code = scause & 0xff;
     int ret = -E_INVAL;
@@ -571,13 +581,20 @@ int do_pagatable_fault(Mm_struct *mm, uintptr_t addr, bool write) {
             if(*sh_ptep & PTE_V){
                 page_insert(mm->pagetable, pa2page(PTE2PA(*sh_ptep)), addr, perm);
             }else{
-                swap_duplicate(*ptep);
+                swap_duplicate(*sh_ptep);
                 *ptep = *sh_ptep;
+                // sfence_vma();
+                tlb_invalidate(mm->pagetable, addr);
             }
         }
     } else {
         Page *page, *newpage = nullptr;
         bool cow = ((vma->vm_flags & (VM_SHARE | VM_WRITE)) == VM_WRITE);
+        if((write && (*ptep & PTE_PW) && cow)){
+            assert(mm->share == true);
+            ret = 0;
+            goto exit;
+        }
         assert(!(*ptep & PTE_V) || (write && !(*ptep & PTE_PW) && cow));
         if(cow){
             newpage = AllocPage();
@@ -610,7 +627,7 @@ int do_pagatable_fault(Mm_struct *mm, uintptr_t addr, bool write) {
         }
     }
     ret = 0;
-
+exit:
 failed:
     release(&mm->mm_lock);
     return ret;

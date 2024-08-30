@@ -5,5 +5,6 @@
 #include "types.h"
 
 void *malloc(size_t size);
+void *shmem_malloc(size_t size);
 void free(void *ap);
 #endif

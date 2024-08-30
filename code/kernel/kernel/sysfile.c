@@ -29,7 +29,7 @@ uint64_t sys_cli(void) { return 0; }
 
 uint64_t sys_getpid(void) { return myproc()->pid; }
 
-uint64_t sys_fork(void) { return do_fork(0); }
+uint64_t sys_fork(void) { return do_fork(0, 0); }
 
 uint64_t sys_exit(void) {
     int n;
@@ -106,4 +106,47 @@ uint64_t sys_get_free_page_size(void){
 
 uint64_t sys_get_slab_allocated_size(void){
     return slab_allocated();
+}
+
+uint64_t sys_clone(void){
+    int32_t clone_flags;
+    uintptr_t stack;
+    arg_int(0, &clone_flags);
+    arg_addr(1, &stack);
+    return do_fork((uint32_t)clone_flags, stack);
+}
+
+uint64_t sys_exit_thread(void){
+    int error_code;
+    arg_int(0, &error_code);
+    do_exit_thread(error_code);
+    return 0;
+}
+
+uint64_t sys_mmap(void){
+    uintptr_t addr_store;
+    long len;
+    int mmap_flags;
+    arg_addr(0, &addr_store);
+    arg_long(1, &len);
+    arg_int(2, &mmap_flags);
+    return do_mmap((uintptr_t *)addr_store, (size_t)len, (uint32_t)mmap_flags);
+}
+
+uint64_t sys_munmap(void) {
+    uintptr_t addr;
+    long len;
+    arg_addr(0, &addr);
+    arg_long(1, &len);
+    return do_munmap(addr, (size_t)len);
+}
+
+uint64_t sys_shmem(void) {
+    uintptr_t addr_store;
+    long len;
+    int mmap_flags;
+    arg_addr(0, &addr_store);
+    arg_long(1, &len);
+    arg_int(2, &mmap_flags);
+    return do_shmem((uintptr_t *)addr_store, (size_t)len, (uint32_t)mmap_flags);
 }

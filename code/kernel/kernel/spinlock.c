@@ -51,7 +51,9 @@ void pop_off(void) {
         panic("pop_off - interruptible");
     if (c->noff < 1) panic("pop_off");
     c->noff -= 1;
-    if (c->noff == 0 && c->intena) intr_on();
+    if (c->noff == 0 && c->intena) {
+        intr_on();
+    }
 }
 
 static void push_spinlock_info(int index, int nest, const char *file, int line, const char *func) {

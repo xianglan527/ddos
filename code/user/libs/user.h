@@ -1,13 +1,13 @@
 #ifndef __LIBS_USER_H__
 #define __LIBS_USER_H__
 #include "types.h"
-int write(int, const void*, int);
+int write(int, const void *, int);
 int sti();
 int cli();
 int getpid(void);
 int fork(void);
 int exit(int) __attribute__((noreturn));
-int waitpid(int, int*);
+int waitpid(int, int *);
 int yield(void);
 int exec(char *path, char **argv);
 int kill(int);
@@ -16,8 +16,13 @@ int sleep(ulong);
 uint64_t gettime(void);
 uint64_t get_free_page_size(void);
 uint64_t get_slab_allocated_size(void);
+int mmap(uintptr_t *addr_store, size_t len, uint32_t mmap_flags);
+int munmap(uintptr_t addr, size_t len);
+int shmem(uintptr_t *addr_store, size_t len, uint32_t mmap_flags);
+int clone(uint32_t clone_flags, uintptr_t stack, int (*fn)(void *), void *arg);
 
 int wait(void);
 void putc(int fd, char c);
 void puts(int fd, char *str);
+
 #endif
