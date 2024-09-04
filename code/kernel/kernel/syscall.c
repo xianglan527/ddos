@@ -35,17 +35,25 @@ extern uint64_t sys_shmem(void);
 
 int fetch_addr(uint64_t addr, uint64_t *ip){
     Proc *current = myproc();
-    if(user_mem_check(current->mm, addr, sizeof(*ip), true) == 0)
+    acquire(&current->mm->mm_lock);
+    if(user_mem_check(current->mm, addr, sizeof(*ip), true) == 0){
+        release(&current->mm->mm_lock);
         return -1;
+    }
     copy_user2kernel(current->mm->pagetable, (char *)ip, addr, sizeof(*ip));
+    release(&current->mm->mm_lock);
     return 0;
 }
 
 int fetch_str(uint64_t addr, char *buf, int max){
     Proc *current = myproc();
+    acquire(&current->mm->mm_lock);
     int err = copystr_user2kernel(current->mm->pagetable, buf, addr, max);
-    if(err < 0)
+    if(err < 0){
+        release(&current->mm->mm_lock);
         return err;
+    }
+    release(&current->mm->mm_lock);
     return strlen(buf);
 }
 

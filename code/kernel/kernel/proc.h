@@ -6,6 +6,7 @@
 #include "stdarg.h"
 #include "types.h"
 #include "vmm.h"
+#include "sched.h"
 
 typedef enum proc_state Proc_state;
 enum proc_state { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE};
@@ -116,6 +117,7 @@ struct proc {
     Cpu *set_cpu;
     List_entry thread_group;
     int mm_index;
+    List_entry run_link;
 };
 
 #define PF_EXITING 0x00000001
@@ -140,6 +142,9 @@ struct cpu {
     int intena;       // Were interrupts enabled before push_off()?
     Proc *prev;
     Proc *next;
+    Run_queue rq;
+    Sched_class *sc;
+    Spinlock cpu_lock;
 };
 
 extern Cpu cpus[NCPU];
@@ -186,7 +191,6 @@ void do_exit_thread(int error_code);
 int do_mmap(uintptr_t *addr_store, size_t len, uint32_t mmap_flags);
 int do_munmap(uintptr_t addr, size_t len);
 int do_shmem(uintptr_t *addr_store, size_t len, uint32_t mmap_flags);
-static inline void set_proc_cpu(Proc *proc, Cpu *cpu) { proc->set_cpu = cpu; }
-
-static inline void clear_proc_cpu(Proc *proc, Cpu *cpu) { proc->set_cpu = nullptr; }
+void set_proc_cpu(Proc *proc, Cpu *cpu);
+void clear_proc_cpu(Proc *proc, Cpu *cpu);
 #endif

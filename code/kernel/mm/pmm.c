@@ -6,6 +6,8 @@
 #include "stdio.h"
 #include "string.h"
 #include "swap.h"
+#include "proc.h"
+#include "stdio.h"
 
 const Pmm_manager *pmm_manager;
 

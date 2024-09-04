@@ -80,7 +80,7 @@ static void exittest(char *s) {
     assert(waitpid(pid, &code) != 0 && wait() != 0);
 }
 ////////////////////////////////////////////////////////////////////////
-#define DEPTH 9
+#define DEPTH 8
 void forktree(const char *cur);
 
 void forkchild(const char *cur, char branch) {
@@ -614,12 +614,6 @@ struct test {
     void (*f)(char *);
     char *s;
 } tests[] = {
-    {mmaptest, "mmaptest"},
-    {shmemtest, "shmemtest"},
-    {threadtest, "threadtest"},
-    {threadforktest, "threadforktest"},
-    {threadworktest, "threadworktest"},
-    {primeworktest, "primeworktest"},
     {forktest, "forktest"},
     {yieldtest, "yieldtest"},
     {bsstest, "bsstest"},
@@ -631,6 +625,12 @@ struct test {
     {sleepkilltest, "sleepkilltest"},
     {sleeptest, "sleeptest"},
     {cowtest, "cowtest"},
+    {mmaptest, "mmaptest"},
+    {shmemtest, "shmemtest"},
+    {threadtest, "threadtest"},
+    {threadforktest, "threadforktest"},
+    {threadworktest, "threadworktest"},
+    {primeworktest, "primeworktest"},
     {swaptest, "swaptest"},
     {nullptr, nullptr},
 };

@@ -16,6 +16,7 @@
 #include "config.h"
 #include "rand.h"
 #include "swap.h"
+#include "sched.h"
 
 volatile static int started = 0;
 
@@ -63,6 +64,7 @@ void main(){
         virtio_device_init();
         __sync_synchronize();
         swap_init();
+        sched_init();
         os_main();
         started = 1;
     }else{
@@ -72,6 +74,7 @@ void main(){
         kvm_init_hart();
         plic_init_hart();
         trap_init_hart();
+        sched_init();
     }
     scheduler();
     // while(1);

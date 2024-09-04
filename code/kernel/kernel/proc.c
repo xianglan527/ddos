@@ -17,6 +17,7 @@
 #include "syscall.h"
 #include "trap.h"
 #include "virtio-blk.h"
+#include "sched.h"
 
 Cpu cpus[NCPU];
 Proc *initproc;
@@ -119,7 +120,9 @@ Proc *find_proc(int pid) {
 }
 
 static void set_links(Proc *proc) {
+    assert(proc->state == RUNNABLE);
     list_add(&proc_list, &proc->list_link);
+    sched_class_enqueue(proc);
     proc->yptr = nullptr;
     if (proc->parent != nullptr) {
         if ((proc->optr = proc->parent->cptr) != nullptr) { proc->optr->yptr = proc; }
@@ -130,6 +133,7 @@ static void set_links(Proc *proc) {
 
 static void remove_links(Proc *proc) {
     list_del(&proc->list_link);
+    sched_class_dequeue(proc);
     if (proc->optr != nullptr) { proc->optr->yptr = proc->yptr; }
     if (proc->yptr != nullptr) {
         proc->yptr->optr = proc->optr;
@@ -138,6 +142,17 @@ static void remove_links(Proc *proc) {
     }
     // nr_process--;
 }
+
+void set_proc_cpu(Proc *proc, Cpu *cpu) {
+    proc->set_cpu = cpu;
+    assert(proc->cpu != nullptr);
+    if (proc->cpu == proc->set_cpu) return;
+    if (!list_empty(&proc->run_link)) { sched_class_dequeue(proc); }
+    sched_class_enqueue(proc);
+    // proc->set_cpu = nullptr;
+}
+
+void clear_proc_cpu(Proc *proc, Cpu *cpu) { proc->set_cpu = nullptr; }
 
 static void proc_initlock(Proc *proc, char *name) {
     proc->lock.name = name;
@@ -185,6 +200,7 @@ Proc *alloc_proc() {
     // release(&procs_lock);
     list_init(&proc->thread_group);
     proc->mm_index = 0;
+    list_init(&proc->run_link);
     return proc;
 }
 
@@ -339,43 +355,46 @@ void proc_mm_dump(void) {
 }
 
 void scheduler(void) {
-    Proc *next;
+    // Proc *next;
     List_entry *le, *last;
     Cpu *c = mycpu();
     c->proc = nullptr;
     c->prev = nullptr;
     c->next = nullptr;
     while (1) {
-        acquire(&procs_lock);
-        next = nullptr;
-        c->next = nullptr;
-        last = (c->prev == nullptr) ? &proc_list : &c->prev->list_link;
-        // last = &proc_list;
-        le = last;
-        do {
-            if ((le = list_next(le)) != &proc_list) {
-                next = le2proc(le, list_link);
-                if (next->state == RUNNABLE) {
-                    for (int i = 0; i < NCPU; i++) {
-                        if (next == cpus[i].next) { goto end; }
-                    }
-                    if (next->set_cpu == nullptr || next->set_cpu == mycpu()) {
-                        c->next = next;
-                        break;
-                    }
-                }
-            }
-        end:;
-        } while (le != last);
+        // acquire(&procs_lock);
+        // next = nullptr;
+        // c->next = nullptr;
+        // last = (c->prev == nullptr) ? &proc_list : &c->prev->list_link;
+        // // last = &proc_list;
+        // le = last;
+        // do {
+        //     if ((le = list_next(le)) != &proc_list) {
+        //         next = le2proc(le, list_link);
+        //         if (next->state == RUNNABLE) {
+        //             for (int i = 0; i < NCPU; i++) {
+        //                 if (next == cpus[i].next) { goto end; }
+        //             }
+        //             if (next->set_cpu == nullptr || next->set_cpu == mycpu()) {
+        //                 c->next = next;
+        //                 break;
+        //             }
+        //         }
+        //     }
+        // end:;
+        // } while (le != last);
+    
+        c->next = sched_class_pick_next();
+
         if (c->next != nullptr) {
-            next = c->next;
-            assert(c->next->state == RUNNABLE);
-            acquire(&next->lock);
+            // next = c->next;
+            assert(c->next->state == RUNNABLE && c->next->cpu == c);
+            acquire(&c->next->lock);
             c->next->state = RUNNING;
             c->next->runs++;
             c->proc = c->prev = c->next;
-            c->proc->cpu = c;
-            release(&procs_lock);
+            // c->proc->cpu = c;
+            // release(&procs_lock);
             sfence_vma();
             // cprintf("ssssssssssssssssssssss  ra is %p current pid is %d current cpu is %d\n",
             //         c->next->context.ra, myproc()->pid, mycpu() - cpus);
@@ -383,10 +402,10 @@ void scheduler(void) {
             // cprintf("vvvvvvvvvvvvvvvvvvvvv ra is %p current pid is %d current cpu is %d\n",
             //         c->next->context.ra, myproc()->pid, mycpu() - cpus);
             c->proc = nullptr;
-            release(&next->lock);
+            release(&c->next->lock);
             if (c->prev->state == ZOMBIE) { release(&procs_lock); }
         } else {
-            release(&procs_lock);
+            // release(&procs_lock);
             intr_on();
             asm volatile("wfi");
         }
@@ -395,8 +414,9 @@ void scheduler(void) {
 
 void either_copy_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len) {
     Proc *p = myproc();
-    if (user_src)
+    if (user_src){
         copy_user2kernel(p->mm->pagetable, dst, src, len);
+    }
     else { memmove(dst, (char *)src, len); }
 }
 
@@ -451,6 +471,7 @@ static void free_proc(Proc *proc) {
     put_kstack(proc);
     bitmap_scan_clear(kernel_stack_bitmap, KSTACK2INDEX(proc->kstack), 1);
     atomic_dec(&nr_process);
+    // list_del(&proc->run_link);
     kfree(proc);
 }
 
@@ -541,15 +562,15 @@ int do_fork(uint32_t clone_flags, uintptr_t stack) {
     proc->trapframe->a0 = 0;
     assert(current->wait_state == 0);
     snprintf(proc->name, sizeof(proc->name), "u_process_%d", proc->pid);
-    proc->parent = current;
-    hash_proc(proc);
-    set_links(proc);
     if (clone_flags & CLONE_THREAD) {
         list_add_before(&current->thread_group, &proc->thread_group);
         assert(proc->mm_index >= 1);
         page_insert(proc->mm->pagetable, pa2page((uint64_t)(proc->trapframe)), TRAPFRAME(proc->mm_index),
                     PTE_R | PTE_W);
     }
+    proc->parent = current;
+    hash_proc(proc);
+    set_links(proc);
     release(&procs_lock);
     return proc->pid;
 }
@@ -653,20 +674,20 @@ repeat:
     return -E_BAD_PROC;
 found:
     if (proc == initproc) panic("wait initproc");
-    for (int i = 0; i < NCPU; i++) {
-        if (cpus[i].prev && cpus[i].prev == proc) {
-            List_entry *prev_list = &proc->list_link;
-            while (cpus[i].prev->state == ZOMBIE) {
-                prev_list = list_prev(prev_list);
-                if (prev_list == &proc_list) {
-                    cpus[i].prev = nullptr;
-                    break;
-                } else {
-                    cpus[i].prev = le2proc(prev_list, list_link);
-                }
-            }
-        }
-    }
+    // for (int i = 0; i < NCPU; i++) {
+    //     if (cpus[i].prev && cpus[i].prev == proc) {
+    //         List_entry *prev_list = &proc->list_link;
+    //         while (cpus[i].prev->state == ZOMBIE) {
+    //             prev_list = list_prev(prev_list);
+    //             if (prev_list == &proc_list) {
+    //                 cpus[i].prev = nullptr;
+    //                 break;
+    //             } else {
+    //                 cpus[i].prev = le2proc(prev_list, list_link);
+    //             }
+    //         }
+    //     }
+    // }
     unhash_proc(proc);
     remove_links(proc);
     free_proc(proc);
@@ -803,6 +824,7 @@ int do_execve(char *path, char **argv) {
     Proc *current = myproc();
     safestrcpy(current->name, last, sizeof(current->name));
     Mm_struct *mm = current->mm;
+    acquire(&mm->mm_lock);
     if (mm != nullptr) {
         if (mm_count_dec(mm) == 0) {
             exit_mmap(mm);
@@ -814,6 +836,7 @@ int do_execve(char *path, char **argv) {
         }
         current->mm = nullptr;
     }
+    release(&mm->mm_lock);
     int ret;
     ret = load_icode(current, binary);
     assert(ret == 0);
@@ -835,7 +858,9 @@ int do_execve(char *path, char **argv) {
     sp -= (argc + 1) * sizeof(uint64_t);
     sp -= sp % 16;
     assert(sp >= stackbase);
+    acquire(&current->mm->mm_lock);
     copy_kernel2user(current->mm->pagetable, sp, (char *)ustack, (argc + 1) * sizeof(uint64_t));
+    release(&current->mm->mm_lock);
     current->trapframe->a1 = sp;
     current->trapframe->epc = ((struct elfhdr *)binary)->entry;
     current->trapframe->sp = sp;
@@ -876,7 +901,7 @@ static inline Timer *timer_init(Timer *timer, Proc *proc, ulong expires) {
 }
 
 static void add_timer(Timer *timer) {
-    // acquire(&timer_lock);
+    acquire(&timer_lock);
     assert(timer->expires > 0 && timer->proc != nullptr);
     assert(list_empty(&timer->timer_link));
     List_entry *le = list_next(&timer_list);
@@ -890,12 +915,12 @@ static void add_timer(Timer *timer) {
         le = list_next(le);
     }
     list_add_before(le, &timer->timer_link);
-    // release(&timer_lock);
+    release(&timer_lock);
     // timer_dump();
 }
 
 static void del_timer(Timer *timer) {
-    // acquire(&timer_lock);
+    acquire(&timer_lock);
     if (!list_empty(&timer->timer_link)) {
         if (timer->expires != 0) {
             List_entry *le = list_next(&timer->timer_link);
@@ -906,7 +931,7 @@ static void del_timer(Timer *timer) {
         }
         list_del_init(&timer->timer_link);
     }
-    // release(&timer_lock);
+    release(&timer_lock);
     // timer_dump();
 }
 
@@ -942,6 +967,7 @@ void run_timer_list(void) {
             assert((proc->wait_state & WT_TIMER) == WT_TIMER);
             wakeup_proc(proc);
             list_del_init(&timer->timer_link);
+            // del_timer(timer);
             if (le == &timer_list) { break; }
             timer = le2timer(le, timer_link);
         }
@@ -952,14 +978,16 @@ void run_timer_list(void) {
 int do_sleep(ulong time) {
     if (time == 0) return 0;
     Proc *current = myproc();
-    acquire(&timer_lock);
+    // acquire(&timer_lock);
     Timer __timer, *timer = timer_init(&__timer, current, time);
     current->wait_state = WT_TIMER;
     add_timer(timer);
     // timer_dump();
-    sleeping(current, &timer_lock);
+    acquire(&current->lock);
+    sleeping(current, &current->lock);
+    release(&current->lock);
     del_timer(timer);
-    release(&timer_lock);
+    // release(&timer_lock);
     return 0;
 }
 

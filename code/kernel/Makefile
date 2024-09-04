@@ -11,6 +11,7 @@ K_SRCS_PATH += \
 		code/kernel/mm \
 		code/kernel/fs \
 		code/kernel/syn \
+		code/kernel/schedule \
 
 
 CFLAGS += \
@@ -24,3 +25,4 @@ CFLAGS += \
 		-I./code/kernel/mm \
 		-I./code/kernel/fs \
 		-I./code/kernel/syn \
+		-I./code/kernel/schedule \

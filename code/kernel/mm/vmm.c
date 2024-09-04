@@ -324,7 +324,6 @@ int dup_mmap(Mm_struct *to, Mm_struct *from){
             return -E_NO_MEM;
         }
     }
-    // vm_print(to->pagetable);
     // print_vma_list(to);
     return 0;
 }
@@ -534,7 +533,6 @@ static void check_pgfault(void) {
 }
 
 int do_pagatable_fault(Mm_struct *mm, uintptr_t addr, bool write) {
-    Proc *ppp = myproc();
     uint64_t scause = r_scause();
     int excep_code = scause & 0xff;
     int ret = -E_INVAL;

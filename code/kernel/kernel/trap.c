@@ -13,6 +13,7 @@
 #include "uart.h"
 #include "virtio_device.h"
 #include "vmm.h"
+#include "sched.h"
 
 Spinlock tickslock;
 uint64_t ticks;
