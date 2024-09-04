@@ -12,6 +12,7 @@ typedef struct run_queue Run_queue;
 struct run_queue {
     List_entry run_list;
     Atomic proc_num;
+    ulong max_time_slice;
 };
 
 typedef struct sched_class Sched_class;

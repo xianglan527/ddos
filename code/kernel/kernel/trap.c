@@ -210,7 +210,10 @@ void usertrap(void) {
         cprintf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
         cprintf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     } else if (trap_enum == TRAP_SOFT_INT && myproc() != 0 && myproc()->state == RUNNING) {
-        do_yield();
+        sched_class_proc_tick(myproc());
+        if(myproc()->need_resched == true){
+            do_yield();
+        }
     }
     may_killed();
     user_trap_ret();

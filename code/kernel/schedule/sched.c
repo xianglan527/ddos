@@ -1,5 +1,5 @@
 #include "sched.h"
-#include "sched_FCFS.h"
+#include "sched_RR.h"
 #include "proc.h"
 #include "spinlock.h"
 #include "config.h"
@@ -8,8 +8,10 @@ extern Cpu cpus[NCPU];
 
 void sched_init(void) {
     Cpu *cpu = mycpu();
-    cpu->sc = &FCFS_sched_class;
+    // cpu->sc = &FCFS_sched_class;
+    cpu->sc = &RR_sched_class;
     initlock(&cpu->cpu_lock, "cpu_lock");
+    cpu->rq.max_time_slice = MAX_TIME_SLICE;
     cpu->sc->init(cpu);
 }
 

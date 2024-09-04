@@ -49,6 +49,6 @@
 #define lock_info_nums 4000
 #define lock_info_nest 100
 
-
+#define MAX_TIME_SLICE 20;
 
 #endif  // __CONFIG_CONFIG_H__

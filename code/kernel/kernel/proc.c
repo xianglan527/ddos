@@ -201,6 +201,8 @@ Proc *alloc_proc() {
     list_init(&proc->thread_group);
     proc->mm_index = 0;
     list_init(&proc->run_link);
+    proc->time_slice = 0;
+    proc->need_resched = false;
     return proc;
 }
 
@@ -297,6 +299,7 @@ void sched(void) {
 
 void do_yield(void) {
     Proc *p = myproc();
+    p->need_resched = false;
     acquire(&p->lock);
     p->state = RUNNABLE;
     sched();
@@ -569,6 +572,8 @@ int do_fork(uint32_t clone_flags, uintptr_t stack) {
                     PTE_R | PTE_W);
     }
     proc->parent = current;
+    proc->time_slice = current->time_slice / 2;
+    current->time_slice -= proc->time_slice;
     hash_proc(proc);
     set_links(proc);
     release(&procs_lock);

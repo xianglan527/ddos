@@ -118,6 +118,8 @@ struct proc {
     List_entry thread_group;
     int mm_index;
     List_entry run_link;
+    ulong time_slice;
+    bool need_resched;
 };
 
 #define PF_EXITING 0x00000001
