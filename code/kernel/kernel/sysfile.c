@@ -6,6 +6,7 @@
 #include "string.h"
 #include "syscall.h"
 #include "stdio.h"
+#include "mbox.h"
 
 extern uint64_t ticks;
 extern struct {
@@ -149,4 +150,98 @@ uint64_t sys_shmem(void) {
     arg_long(1, &len);
     arg_int(2, &mmap_flags);
     return do_shmem((uintptr_t *)addr_store, (size_t)len, (uint32_t)mmap_flags);
+}
+
+uint64_t sys_sem_init(void){
+    int value;
+    arg_int(0, &value);
+    return ipc_sem_init(value);
+}
+
+uint64_t sys_sem_post(void){
+    long sem_id;
+    arg_long(0, &sem_id);
+    return ipc_sem_post((sem_t)sem_id);
+}
+
+uint64_t sys_sem_wait(void) {
+    long sem_id;
+    arg_long(0, &sem_id);
+    long timeout;
+    arg_long(1, &timeout);
+    return ipc_sem_wait((sem_t)sem_id, (ulong)timeout);
+}
+
+uint64_t sys_sem_free(void) {
+    long sem_id;
+    arg_long(0, &sem_id);
+    return ipc_sem_free((sem_t)sem_id);
+}
+
+uint64_t sys_sem_get_value(void){
+    long sem_id;
+    arg_long(0, &sem_id);
+    uintptr_t value_store;
+    arg_addr(1, &value_store);
+    return ipc_sem_get_value((sem_t)sem_id, (int *)value_store);
+}
+
+uint64_t sys_event_send(void) {
+    int pid;
+    arg_int(0, &pid);
+    int event_num;
+    arg_int(1, &event_num);
+    long timeout;
+    arg_long(2, &timeout);
+    return ipc_event_send(pid, event_num, (ulong)timeout);
+}
+
+uint64_t sys_event_recv(void) {
+    uint64_t pid_store;
+    uint64_t event_num_store;
+    arg_addr(0, &pid_store);
+    arg_addr(1, &event_num_store);
+    long timeout;
+    arg_long(2, &timeout);
+    return ipc_event_recv((int *)pid_store, (int *)event_num_store, (ulong)timeout);
+}
+
+uint64_t sys_mbox_init(void) {
+    long max_slots;
+    arg_long(0, &max_slots);
+    return ipc_mbox_init((size_t)max_slots);
+}
+
+uint64_t sys_mbox_send(void) {
+    int id;
+    arg_int(0, &id);
+    uintptr_t buf;
+    arg_addr(1, &buf);
+    long timeout;
+    arg_long(2, &timeout);
+    return ipc_mbox_send(id, (Mboxbuf *)buf, (ulong)timeout);
+}
+
+uint64_t sys_mbox_recv(void) {
+    int id;
+    arg_int(0, &id);
+    uintptr_t buf;
+    arg_addr(1, &buf);
+    long timeout;
+    arg_long(2, &timeout);
+    return ipc_mbox_recv(id, (Mboxbuf *)buf, (ulong)timeout);
+}
+
+uint64_t sys_mbox_free(void) {
+    int id;
+    arg_int(0, &id);
+    return ipc_mbox_free(id);
+}
+
+uint64_t sys_mbox_info(void) {
+    int id;
+    arg_int(0, &id);
+    uintptr_t info;
+    arg_addr(1, &info);
+    return ipc_mbox_info(id, (Mboxinfo *)info);
 }

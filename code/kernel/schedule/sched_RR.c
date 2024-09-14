@@ -46,6 +46,7 @@ static void RR_proc_tick(Proc *proc) {
     }
     if(proc->time_slice == 0){
         proc->need_resched = true;
+        proc->time_slice = proc->cpu->rq.max_time_slice;
     }
 }
 

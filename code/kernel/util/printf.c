@@ -15,6 +15,8 @@ static const char *const error_string[MAXERROR + 1] = {
     [E_INVAL_ELF] = "invalid elf file",
     [E_KILLED] = "process is killed",
     [E_PANIC] = "panic failure",
+    [E_TIMEOUT] "timeout",
+    [E_TOO_BIG] "argument is too big",
 };
 
 static void printnum(void (*putch)(int, void *), void *putdat, uint64_t num, unsigned base, int width,

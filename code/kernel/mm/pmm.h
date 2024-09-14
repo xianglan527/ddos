@@ -106,6 +106,7 @@ extern size_t npage;
 #define PTE_D (1L << 7)
 #define PTE_MASK ((1L << 6) - 1)
 #define PTE_PW (1L << 2)
+#define PTE_S (1L << 8)    //stack flag
 
 #define PTE_USER    (PTE_V | PTE_W | PTE_U | PTE_X)
 #define PTE_SWAP    (PTE_V | PTE_A | PTE_D)

@@ -17,6 +17,7 @@
 #include "rand.h"
 #include "swap.h"
 #include "sched.h"
+#include "syn.h"
 
 volatile static int started = 0;
 
@@ -62,14 +63,13 @@ void main(){
         proc_init();
         // basic_test();
         virtio_device_init();
-        __sync_synchronize();
+        sync_init();
         swap_init();
         sched_init();
         os_main();
         started = 1;
     }else{
         while (started == 0);
-        __sync_synchronize();
         cprintf("hart %d starting\n", cpuid());
         kvm_init_hart();
         plic_init_hart();

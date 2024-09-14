@@ -33,4 +33,6 @@ bool wait_in_queue(Wait *wait);
 void wakeup_wait(Wait_queue *queue, Wait *wait, uint32_t wakeup_flags, bool del);
 void wakeup_first(Wait_queue *queue, uint32_t wakeup_flags, bool del);
 void wakeup_queue(Wait_queue *queue, uint32_t wakeup_flags, bool del);
+void wait_current_set(Wait_queue *queue, Wait *wait, uint32_t wait_state);
+void wait_current_del(Wait_queue *queue, Wait *wait);
 #endif

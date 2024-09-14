@@ -46,9 +46,12 @@
 #define CLEAN_PROC_EXIT_NUM 32
 
 #define lock_info_lens 100
-#define lock_info_nums 4000
-#define lock_info_nest 100
+#define lock_info_nums 16000
+#define lock_info_nest 25
 
 #define MAX_TIME_SLICE 20;
+
+#define MAX_MSG_SLOTS 0x1000
+#define MAX_MSG_BYTES 0x10000
 
 #endif  // __CONFIG_CONFIG_H__

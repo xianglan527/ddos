@@ -12,7 +12,7 @@ int thread(int (*fn)(void *), void *arg, Thread *tidp){
         return ret;
     }
     assert(stack != 0);
-    if((ret = clone((CLONE_VM | CLONE_THREAD), stack + THREAD_STACKSIZE, fn, arg)) < 0){
+    if ((ret = clone((CLONE_VM | CLONE_THREAD | CLONE_SEM), stack + THREAD_STACKSIZE, fn, arg)) < 0) {
         munmap(stack, THREAD_STACKSIZE);
         return ret;
     }

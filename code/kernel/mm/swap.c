@@ -199,10 +199,10 @@ bool try_free_pages(size_t n) {
     current->wait_state = WT_KSWAPD;
     set_proc_cpu(current, mycpu());
     sleeping(current, &kswapd_done_lock);
+    release(&kswapd_done_lock);
     assert(current->set_cpu == mycpu());
     clear_proc_cpu(current, mycpu());
     // release(&current->lock);
-    release(&kswapd_done_lock);
     assert(!wait_in_queue(wait) && wait->wakeup_flags == WT_KSWAPD);
     return true;
 }
@@ -503,8 +503,8 @@ repeat:
     }
     atomic_set(&pressure, 0);
     guard = 0;
+    // proc_dump();
     kswapd_wakeup_all();
-    do_sleep(10);
 }
 
 static void check_swap(void) {

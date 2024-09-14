@@ -6,7 +6,7 @@
 typedef struct cpu Cpu;
 typedef struct spinlock Spinlock;
 struct spinlock{
-    bool locked;
+    volatile bool locked;
     char *name;
     Cpu *cpu; 
     long info_index;

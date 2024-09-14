@@ -350,7 +350,13 @@ int copy_range(pagetable_t *to, pagetable_t *from, uintptr_t start, uintptr_t en
             if(*ptep & PTE_V){
                 uint32_t perm = (*ptep & PTE_USER);
                 Page *page = pte2page(*ptep);
-                if(!share && (*ptep & PTE_PW)){
+                if(*ptep & PTE_S){
+                    assert(share == false);
+                    page = AllocPage();
+                    assert(page != nullptr);
+                    memcpy((void *)page2kva(page), (void *)page2kva(pte2page(*ptep)), PGSIZE);
+                }
+                else if(!share && (*ptep & PTE_PW)){
                     perm &= ~PTE_PW;
                     page_insert(from, page, start, perm | (*ptep & PTE_SWAP));
                 }

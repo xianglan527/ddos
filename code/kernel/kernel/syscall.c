@@ -32,6 +32,18 @@ extern uint64_t sys_exit_thread(void);
 extern uint64_t sys_mmap(void);
 extern uint64_t sys_munmap(void);
 extern uint64_t sys_shmem(void);
+extern uint64_t sys_sem_init(void);
+extern uint64_t sys_sem_post(void);
+extern uint64_t sys_sem_wait(void);
+extern uint64_t sys_sem_free(void);
+extern uint64_t sys_sem_get_value(void);
+extern uint64_t sys_event_send(void);
+extern uint64_t sys_event_recv(void);
+extern uint64_t sys_mbox_init(void);
+extern uint64_t sys_mbox_send(void);
+extern uint64_t sys_mbox_recv(void);
+extern uint64_t sys_mbox_free(void);
+extern uint64_t sys_mbox_info(void);
 
 int fetch_addr(uint64_t addr, uint64_t *ip){
     Proc *current = myproc();
@@ -114,6 +126,18 @@ static uint64_t (*syscalls[])(void) = {
     [SYS_mmap] = sys_mmap,
     [SYS_munmap] = sys_munmap,
     [SYS_shmem] = sys_shmem,
+    [SYS_sem_init] = sys_sem_init,
+    [SYS_sem_post] = sys_sem_post,
+    [SYS_sem_wait] = sys_sem_wait,
+    [SYS_sem_free] = sys_sem_free,
+    [SYS_sem_get_value] = sys_sem_get_value,
+    [SYS_event_send] = sys_event_send,
+    [SYS_event_recv] = sys_event_recv,
+    [SYS_mbox_init] = sys_mbox_init,
+    [SYS_mbox_send] = sys_mbox_send,
+    [SYS_mbox_recv] = sys_mbox_recv,
+    [SYS_mbox_free] = sys_mbox_free,
+    [SYS_mbox_info] = sys_mbox_info,
 };
 
 void syscall(void) {

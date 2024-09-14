@@ -20,6 +20,7 @@
 #include "virtio.h"
 #include "virtio_device.h"
 #include "vmm.h"
+#include "mbox.h"
 // #include "swapfs.h"
 
 static void virtio_mmio_rng_test(void) {
@@ -92,6 +93,8 @@ void daemon_proc(void *arg) {
     while (1) {
         // cprintf("%s running %s ... all test passed\n", p->name, (const char *)arg);
         kswap_main();
+        mbox_cleanup();
+        do_sleep(10);
         // task_delay(DELAY);
     }
 }

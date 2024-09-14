@@ -33,9 +33,22 @@
 #define SYS_mmap 30
 #define SYS_munmap 31
 #define SYS_shmem 32
+#define SYS_sem_init 33
+#define SYS_sem_post 34
+#define SYS_sem_wait 35
+#define SYS_sem_free 36
+#define SYS_sem_get_value 37
+#define SYS_event_send 38
+#define SYS_event_recv 39
+#define SYS_mbox_init 40
+#define SYS_mbox_send 41
+#define SYS_mbox_recv 42
+#define SYS_mbox_free 43
+#define SYS_mbox_info 44 
 
 #define CLONE_VM 0x00000100
 #define CLONE_THREAD 0x00000200
+#define CLONE_SEM 0x00000400
 
 #define MMAP_WRITE 0x00000100
 #define MMAP_STACK 0x00000200

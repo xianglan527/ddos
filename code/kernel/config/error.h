@@ -12,7 +12,9 @@
 #define E_INVAL_ELF 8     // Invalid elf file
 #define E_KILLED 9        // Process is killed
 #define E_PANIC 10        // Panic Failure
+#define E_TIMEOUT 11      // Timeout
+#define E_TOO_BIG 12      // Argument is Too Big
 /* the maximum allowed */
-#define MAXERROR 10
+#define MAXERROR 12
 
 #endif 

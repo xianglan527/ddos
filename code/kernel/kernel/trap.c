@@ -183,7 +183,12 @@ void kerneltrap() {
     // entering kernel interrupts will keep consuming stack space. To prevent this, a simple solution is to
     // disable task switching in this context. This might not be a perfect fix, but current test results
     // indicate that it effectively resolves the bug
-    //  if (trap_enum == TRAP_SOFT_INT && myproc() != 0 && myproc()->state == RUNNING) { do_yield(); }
+    if (trap_enum == TRAP_SOFT_INT && myproc() != 0 && myproc()->state == RUNNING) {
+        sched_class_proc_tick(myproc());
+        if (myproc()->need_resched == true && myproc()->kernel_proc == true) { 
+            do_yield(); 
+        }
+    }
 
     // the yield() may have caused some traps to occur,
     // so restore trap registers for use by kernelvec.S's sepc instruction.

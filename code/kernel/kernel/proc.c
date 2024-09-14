@@ -9,6 +9,7 @@
 #include "hash.h"
 #include "printf.h"
 #include "riscv.h"
+#include "sched.h"
 #include "slab.h"
 #include "spinlock.h"
 #include "stdio.h"
@@ -17,7 +18,6 @@
 #include "syscall.h"
 #include "trap.h"
 #include "virtio-blk.h"
-#include "sched.h"
 
 Cpu cpus[NCPU];
 Proc *initproc;
@@ -52,6 +52,8 @@ static volatile bool timer_init_ok = false;
 
 extern char trampoline[];  // trampoline.S
 extern char kernel_etext[];
+
+extern ulong ticks;
 
 static void __do_exit(void);
 static int __do_kill(Proc *proc, int error_code);
@@ -203,6 +205,8 @@ Proc *alloc_proc() {
     list_init(&proc->run_link);
     proc->time_slice = 0;
     proc->need_resched = false;
+    proc->sem_queue = nullptr;
+    event_init(&proc->event);
     return proc;
 }
 
@@ -328,8 +332,10 @@ void proc_dump(void) {
             state = "???";
         if (p->parent != nullptr)
             cprintf(
-                "pid : %d state: %s name : %s kstack index : %d kstack is :%p cpuid is %d mm_index : %d parent pid : %d",
-                p->pid, state, p->name, KSTACK2INDEX(p->kstack), p->kstack, p->cpu - cpus, p->mm_index, p->parent->pid);
+                "pid : %d state: %s name : %s kstack index : %d kstack is :%p cpuid is %d mm_index : %d "
+                "parent pid : %d",
+                p->pid, state, p->name, KSTACK2INDEX(p->kstack), p->kstack, p->cpu - cpus, p->mm_index,
+                p->parent->pid);
         else
             cprintf("pid : %d state: %s name : %s kstack index : %d kstack is :%p cpuid is %d mm_index : %d",
                     p->pid, state, p->name, KSTACK2INDEX(p->kstack), p->kstack, p->cpu - cpus, p->mm_index);
@@ -386,8 +392,12 @@ void scheduler(void) {
         //     }
         // end:;
         // } while (le != last);
-    
+
         c->next = sched_class_pick_next();
+
+        // acquire(&print_struct_lock);
+        // proc_dump();
+        // release(&print_struct_lock);
 
         if (c->next != nullptr) {
             // next = c->next;
@@ -409,18 +419,23 @@ void scheduler(void) {
             if (c->prev->state == ZOMBIE) { release(&procs_lock); }
         } else {
             // release(&procs_lock);
+            // int old_intr = intr_get();
             intr_on();
             asm volatile("wfi");
+            // if(old_intr == 0){
+            //     intr_off();
+            // }
         }
     }
 }
 
 void either_copy_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len) {
     Proc *p = myproc();
-    if (user_src){
+    if (user_src) {
         copy_user2kernel(p->mm->pagetable, dst, src, len);
+    } else {
+        memmove(dst, (char *)src, len);
     }
-    else { memmove(dst, (char *)src, len); }
 }
 
 void sleeping(void *chan, Spinlock *lk) {
@@ -539,6 +554,33 @@ static void copy_mm(uint32_t clone_flags, Proc *proc) {
     atomic_inc(&mm->mm_share_count);
 }
 
+static void copy_sem(uint32_t clone_flags, Proc *proc) {
+    Proc *current = myproc();
+    Sem_queue *sem_queue, *old_sem_queue = current->sem_queue;
+    assert(old_sem_queue != nullptr);
+    if (clone_flags & CLONE_SEM) {
+        sem_queue = old_sem_queue;
+        goto good_sem_queue;
+    }
+    assert((sem_queue = sem_queue_create()) != nullptr);
+    acquire(&old_sem_queue->sem_queue_lock);
+    dup_sem_queue(sem_queue, old_sem_queue);
+    release(&old_sem_queue->sem_queue_lock);
+good_sem_queue:
+    atomic_inc(&sem_queue->count);
+    proc->sem_queue = sem_queue;
+}
+
+static void put_sem_queue(Proc *proc) {
+    Sem_queue *sem_queue = proc->sem_queue;
+    if (sem_queue != nullptr) {
+        if (atomic_sub_return(&sem_queue->count, 1) == 0) {
+            exit_sem_queue(sem_queue);
+            sem_queue_destroy(sem_queue);
+        }
+    }
+}
+
 void may_killed(void) {
     acquire(&procs_lock);
     if (myproc() != nullptr && myproc()->flags & PF_EXITING) {
@@ -562,6 +604,7 @@ int do_fork(uint32_t clone_flags, uintptr_t stack) {
     proc->mm_index = atomic_read(&proc->mm->mm_share_count) - 1;
     *(proc->trapframe) = *(current->trapframe);
     if (stack != 0) { proc->trapframe->sp = stack; }
+    copy_sem(clone_flags, proc);
     proc->trapframe->a0 = 0;
     assert(current->wait_state == 0);
     snprintf(proc->name, sizeof(proc->name), "u_process_%d", proc->pid);
@@ -595,6 +638,7 @@ static void __do_exit() {
             mm_destroy(mm);
         }
     }
+    put_sem_queue(current);
     Proc *proc, *parent;
     proc = parent = current->parent;
     do {
@@ -615,6 +659,7 @@ static void __do_exit() {
         }
     }
     acquire(&current->lock);
+    wakeup_queue(&current->event.wait_queue, WT_INTERAUPTED, 1);
     current->state = ZOMBIE;
     sched();
     panic("do_exit will not return!!.\n");
@@ -703,7 +748,8 @@ found:
                          sizeof(proc->exit_code));
         release(&current->mm->mm_lock);
     }
-    // cprintf("do exit...current pid is %d proc pid is %d mm_count is %d cpuid is %d\n", myproc()->pid, proc->pid,
+    // cprintf("do exit...current pid is %d proc pid is %d mm_count is %d cpuid is %d\n", myproc()->pid,
+    // proc->pid,
     //         mm_count(current->mm), mycpu() - cpus);
     return 0;
 }
@@ -789,7 +835,7 @@ static int load_icode(Proc *current, char *binary) {
     assert(ret == 0);
     Page *pages = alloc_pages(USTACKPAGE);
     assert(pages != nullptr);
-    ret = pages_insert(mm->pagetable, pages, USTACKADDR, PTE_W | PTE_R | PTE_U | PTE_X, USTACKPAGE);
+    ret = pages_insert(mm->pagetable, pages, USTACKADDR, PTE_W | PTE_R | PTE_U | PTE_X | PTE_S, USTACKPAGE);
     assert(ret == 0);
     if (current != initproc) {
         acquire(&proc_mm_list_lock);
@@ -842,6 +888,9 @@ int do_execve(char *path, char **argv) {
         current->mm = nullptr;
     }
     release(&mm->mm_lock);
+    put_sem_queue(current);
+    assert((current->sem_queue = sem_queue_create()) != nullptr);
+    atomic_inc(&current->sem_queue->count);
     int ret;
     ret = load_icode(current, binary);
     assert(ret == 0);
@@ -906,7 +955,7 @@ static inline Timer *timer_init(Timer *timer, Proc *proc, ulong expires) {
 }
 
 static void add_timer(Timer *timer) {
-    acquire(&timer_lock);
+    // acquire(&timer_lock);
     assert(timer->expires > 0 && timer->proc != nullptr);
     assert(list_empty(&timer->timer_link));
     List_entry *le = list_next(&timer_list);
@@ -920,12 +969,11 @@ static void add_timer(Timer *timer) {
         le = list_next(le);
     }
     list_add_before(le, &timer->timer_link);
-    release(&timer_lock);
-    // timer_dump();
+    // release(&timer_lock);
 }
 
 static void del_timer(Timer *timer) {
-    acquire(&timer_lock);
+    // acquire(&timer_lock);
     if (!list_empty(&timer->timer_link)) {
         if (timer->expires != 0) {
             List_entry *le = list_next(&timer->timer_link);
@@ -934,9 +982,10 @@ static void del_timer(Timer *timer) {
                 next->expires += timer->expires;
             }
         }
+        // cprintf("eeeeeeeeeeeee current pid is %d current cpu is %d\n", myproc()->pid, mycpu() - cpus);
         list_del_init(&timer->timer_link);
     }
-    release(&timer_lock);
+    // release(&timer_lock);
     // timer_dump();
 }
 
@@ -960,7 +1009,9 @@ void timer_dump(void) {
 void run_timer_list(void) {
     if (timer_init_ok == false) return;
     // timer_dump();
+    // cprintf("00000000000  current cpu is %d\n", mycpu() - cpus);
     acquire(&timer_lock);
+    // cprintf("111111111111  current cpu is %d\n",  mycpu() - cpus);
     List_entry *le = list_next(&timer_list);
     if (le != &timer_list) {
         Timer *timer = le2timer(le, timer_link);
@@ -969,31 +1020,77 @@ void run_timer_list(void) {
         while (timer->expires == 0) {
             le = list_next(le);
             Proc *proc = timer->proc;
-            assert((proc->wait_state & WT_TIMER) == WT_TIMER);
+            // assert((proc->wait_state & WT_TIMER) == WT_TIMER);
+            if(proc->wait_state != 0){
+                assert(proc->wait_state & WT_INTERAUPTED);
+            }
             wakeup_proc(proc);
+            // cprintf("rrrrrrrrrrrrrrr proc pid is %d current cpu is %d\n", proc->pid, mycpu() - cpus);
             list_del_init(&timer->timer_link);
             // del_timer(timer);
             if (le == &timer_list) { break; }
             timer = le2timer(le, timer_link);
         }
     }
+    // cprintf("2222222222222  current cpu is %d\n", mycpu() - cpus);
     release(&timer_lock);
 }
 
 int do_sleep(ulong time) {
     if (time == 0) return 0;
     Proc *current = myproc();
-    // acquire(&timer_lock);
+    acquire(&timer_lock);
     Timer __timer, *timer = timer_init(&__timer, current, time);
     current->wait_state = WT_TIMER;
+    // cprintf("333333333333333 current pid is %d current cpu is %d\n", current->pid, mycpu() - cpus);
     add_timer(timer);
+    // cprintf("44444444444444 current pid is %d current cpu is %d\n", current->pid, mycpu() - cpus);
     // timer_dump();
-    acquire(&current->lock);
-    sleeping(current, &current->lock);
-    release(&current->lock);
+    // acquire(&current->lock);
+    // cprintf("ddddddddddddddd current pid is %d current cpu is %d\n", current->pid, mycpu() - cpus);
+    sleeping(current, &timer_lock);
+    // cprintf("ooooooooooooooo current pid is %d current cpu is %d\n", current->pid, mycpu() - cpus);
+    // release(&current->lock);
+    // cprintf("555555555555555 current pid is %d current cpu is %d\n", current->pid, mycpu() - cpus);
     del_timer(timer);
-    // release(&timer_lock);
+    // cprintf("666666666666666 current pid is %d current cpu is %d\n", current->pid, mycpu() - cpus);
+    release(&timer_lock);
+    // cprintf("777777777777777 current pid is %d current cpu is %d\n", current->pid, mycpu() - cpus);
     return 0;
+}
+
+void ipc_add_timer(Timer *timer) {
+    if (timer != nullptr) {
+        // acquire(&timer_lock);
+        add_timer(timer);
+        // release(&timer_lock);
+    }
+}
+
+void ipc_del_timer(Timer *timer) {
+    if (timer != nullptr) {
+        // acquire(&timer_lock);
+        del_timer(timer);
+        // release(&timer_lock);
+    }
+}
+
+Timer *ipc_timer_init(ulong timeout, ulong *saved_ticks, Timer *timer) {
+    if (timeout != 0) { 
+        *saved_ticks = ticks; 
+        return timer_init(timer, myproc(), timeout);
+    }
+    return nullptr;
+}
+
+int ipc_check_timeout(ulong timeout, ulong saved_ticks){
+    if(timeout != 0){
+        ulong delt = (ulong)(ticks - saved_ticks);
+        if(delt >= timeout){
+            return -E_TIMEOUT;
+        }
+    }
+    return -1;
 }
 
 int do_mmap(uintptr_t *addr_store, size_t len, uint32_t mmap_flags) {

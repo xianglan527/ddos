@@ -91,3 +91,18 @@ void wakeup_queue(Wait_queue *queue, uint32_t wakeup_flags, bool del){
         }
     }
 }
+
+void wait_current_set(Wait_queue *queue, Wait *wait, uint32_t wait_state){
+    Proc *current = myproc();
+    assert(current != nullptr);
+    wait_init(wait, current);
+    // current->state = SLEEPING;
+    current->wait_state = wait_state;
+    wait_queue_add(queue, wait);
+}
+
+void wait_current_del(Wait_queue *queue, Wait *wait) {
+    if(wait_in_queue(wait)){
+        wait_queue_del(queue, wait);
+    }
+}

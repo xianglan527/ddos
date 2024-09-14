@@ -536,6 +536,8 @@ int do_pagatable_fault(Mm_struct *mm, uintptr_t addr, bool write) {
     uint64_t scause = r_scause();
     int excep_code = scause & 0xff;
     int ret = -E_INVAL;
+    // vm_print(mm->pagetable);
+    // print_vma_list(mm);
     acquire(&mm->mm_lock);
     Vma_struct *vma = find_vma(mm, addr);
     if (vma == nullptr || vma->vm_start > addr) 

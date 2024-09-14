@@ -7,6 +7,8 @@
 #include "types.h"
 #include "vmm.h"
 #include "sched.h"
+#include "sem.h"
+#include "event.h"
 
 typedef enum proc_state Proc_state;
 enum proc_state { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE};
@@ -120,6 +122,8 @@ struct proc {
     List_entry run_link;
     ulong time_slice;
     bool need_resched;
+    Sem_queue *sem_queue;
+    Event event;
 };
 
 #define PF_EXITING 0x00000001
@@ -128,6 +132,12 @@ struct proc {
 #define WT_CHILD (0x00000001 | WT_INTERAUPTED)
 #define WT_TIMER (0x00000002 | WT_INTERAUPTED)
 #define WT_KSWAPD 0x00000003
+#define WT_KSEM 0x00000100
+#define WT_USEM (0x00000101 | WT_INTERAUPTED)
+#define WT_EVENT_SEND (0x00000110 | WT_INTERAUPTED)
+#define WT_EVENT_RECV (0x00000111 | WT_INTERAUPTED)
+#define WT_MBOX_SEND (0x00000120 | WT_INTERAUPTED)
+#define WT_MBOX_RECV (0x00000121 | WT_INTERAUPTED)
 
 #define le2proc(le, member) to_struct((le), Proc, member);
 
@@ -195,4 +205,8 @@ int do_munmap(uintptr_t addr, size_t len);
 int do_shmem(uintptr_t *addr_store, size_t len, uint32_t mmap_flags);
 void set_proc_cpu(Proc *proc, Cpu *cpu);
 void clear_proc_cpu(Proc *proc, Cpu *cpu);
+void ipc_add_timer(Timer *timer);
+void ipc_del_timer(Timer *timer);
+Timer *ipc_timer_init(ulong timeout, ulong *saved_ticks, Timer *timer);
+int ipc_check_timeout(ulong timeout, ulong saved_ticks);
 #endif
