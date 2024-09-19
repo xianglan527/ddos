@@ -2,6 +2,7 @@
 #define __LIBS_USER_H__
 #include "mboxbuf.h"
 #include "types.h"
+#include "sigaction.h"
 int write(int, const void *, int);
 int sti();
 int cli();
@@ -41,5 +42,6 @@ int mbox_recv(int id, Mboxbuf *buf);
 int mbox_recv_timeout(int id, Mboxbuf *buf, ulong timeout);
 int mbox_free(int id);
 int mbox_info(int id, Mboxinfo *info);
-
+int set_sigaction(int sig, Sigaction *sa);
+int send_signal(int pid, int sig);
 #endif

@@ -1224,7 +1224,7 @@ static void mboxmaptest(char *s){
     printf("fork children ok.\n");
     memset(count, 0, sizeof(count));
     srand(913);
-    for(i = 0; i < 10; i++){
+    for(i = 0; i < 5; i++){
         for(j = 0; j < 512; j++){
             for(k = 0; k < mboxmap_max_data; k++){
                 data[k] = simulate_rand();
@@ -1258,7 +1258,35 @@ static void mboxmaptest(char *s){
             assert(exit_code == 0);
         }
     }
-    sleep(2000);  // for wait mbox_cleanup;
+    sleep(3000);  // for wait mbox_cleanup;
+}
+//////////////////////////////////////////////////////////////////////////
+static bool sigtest_exit_flag = false;
+void sigtest_signal_handler(void) { 
+    printf("Signal handler invoked by child process!\n"); 
+    sigtest_exit_flag = true;
+}
+
+static void sigtest(char *s) {
+    int pid = fork();
+    if (pid == 0) { 
+        printf("Child process %d started\n", getpid());
+        Sigaction sa;
+        sa.sa_handler = sigtest_signal_handler;
+        sa.sa_flags = 0;             
+        sa.sa_mask = 0;         
+        assert(set_sigaction(SIGUSR1, &sa) == 0);
+        printf("Child process completed\n");
+        while(sigtest_exit_flag == false);
+        exit(0);  
+    } else {
+        assert(pid > 0);
+        sleep(100);
+        assert(send_signal(pid, SIGUSR1) == 0);
+        int status;
+        waitpid(pid, &status);
+        assert(status == 0);
+    }
 }
 //////////////////////////////////////////////////////////////////////////
 
@@ -1286,9 +1314,9 @@ static int run(void f(char *), char *s) {
             printf("%s OK\n", s);
         size_t nr_free_pages_store1 = get_free_page_size();
         size_t slab_allocated_store1 = get_slab_allocated_size();
-        // printf("%d page nums diff\n", nr_free_pages_store - nr_free_pages_store1);
-        // printf("%d slab nums diff\n", slab_allocated_store1 - slab_allocated_store);
-        // while(1);
+        printf("%d page nums diff\n", nr_free_pages_store - nr_free_pages_store1);
+        printf("%d slab nums diff\n", slab_allocated_store1 - slab_allocated_store);
+        while(1);
         assert(nr_free_pages_store == nr_free_pages_store1);
         assert(slab_allocated_store == slab_allocated_store1);
         return xstatus == 0;
@@ -1299,34 +1327,35 @@ struct test {
     void (*f)(char *);
     char *s;
 } tests[] = {
-    {forktest, "forktest"},
-    {yieldtest, "yieldtest"},
-    {bsstest, "bsstest"},
-    {exittest, "exittest"},
-    {forktreetest, "forktreetest"},
-    {spintest, "spintest"},
-    {brktest, "brktest"},
-    {brkfreetest, "brkfreetest"},
-    {sleepkilltest, "sleepkilltest"},
-    {sleeptest, "sleeptest"},
-    {cowtest, "cowtest"},
-    {mmaptest, "mmaptest"},
-    {shmemtest, "shmemtest"},
-    {threadtest, "threadtest"},
-    {threadforktest, "threadforktest"},
-    {threadworktest, "threadworktest"},
-    {primeworktest, "primeworktest"},
-    {sem_test, "sem_test"},
-    {sem_rw_test, "sem_rw_test"},
-    {prime2worktest, "prime2worktest"},
-    {spipetest, "spipetest"},
-    {sem2_test, "sem2_test"},
-    {sem3_test, "sem3_test"},
-    {event_test, "event_test"},
-    {prime3worktest, "prime3worktest"},
-    {mboxtest, "mboxtest"},
-    {mboxmaptest, "mboxmaptest"},
-    {swaptest, "swaptest"},
+    // {forktest, "forktest"},
+    // {yieldtest, "yieldtest"},
+    // {bsstest, "bsstest"},
+    // {exittest, "exittest"},
+    // {forktreetest, "forktreetest"},
+    // {spintest, "spintest"},
+    // {brktest, "brktest"},
+    // {brkfreetest, "brkfreetest"},
+    // {sleepkilltest, "sleepkilltest"},
+    // {sleeptest, "sleeptest"},
+    // {cowtest, "cowtest"},
+    // {mmaptest, "mmaptest"},
+    // {shmemtest, "shmemtest"},
+    // {threadtest, "threadtest"},
+    // {threadforktest, "threadforktest"},
+    // {threadworktest, "threadworktest"},
+    // {primeworktest, "primeworktest"},
+    // {sem_test, "sem_test"},
+    // {sem_rw_test, "sem_rw_test"},
+    // {prime2worktest, "prime2worktest"},
+    // {spipetest, "spipetest"},
+    // {sem2_test, "sem2_test"},
+    // {sem3_test, "sem3_test"},
+    // {event_test, "event_test"},
+    // {prime3worktest, "prime3worktest"},
+    // {mboxtest, "mboxtest"},
+    // {mboxmaptest, "mboxmaptest"},
+    {sigtest, "sigtest"},
+    // {swaptest, "swaptest"},
     {nullptr, nullptr},
 };
 

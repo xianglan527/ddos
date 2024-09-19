@@ -7,6 +7,7 @@
 #include "syscall.h"
 #include "stdio.h"
 #include "mbox.h"
+#include "signal.h"
 
 extern uint64_t ticks;
 extern struct {
@@ -244,4 +245,24 @@ uint64_t sys_mbox_info(void) {
     uintptr_t info;
     arg_addr(1, &info);
     return ipc_mbox_info(id, (Mboxinfo *)info);
+}
+
+uint64_t sys_set_sigaction(void) {
+    int sig;
+    arg_int(0, &sig);
+    uintptr_t sa;
+    arg_addr(1, &sa);
+    return ipc_set_sigaction(sig, (Sigaction *)sa);
+}
+
+uint64_t sys_send_signal(void) {
+    int pid;
+    arg_int(0, &pid);
+    int sig;
+    arg_int(1, &sig);
+    return ipc_send_signal(pid, sig);
+}
+
+uint64_t sys_sigreturn(void){
+    return ipc_sigreturn();
 }

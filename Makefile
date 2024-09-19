@@ -56,7 +56,7 @@ KERNEL_ELF = ${KERNEL_PATH}/kernel.elf
 KERNEL_BIN = ${KERNEL_PATH}/kernel.bin
 
 ifndef CPUS
-CPUS := 8
+CPUS := 1
 endif
 
 swap.img:

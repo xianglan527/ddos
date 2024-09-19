@@ -44,11 +44,15 @@
 #define SYS_mbox_send 41
 #define SYS_mbox_recv 42
 #define SYS_mbox_free 43
-#define SYS_mbox_info 44 
+#define SYS_mbox_info 44
+#define SYS_set_sigaction 45
+#define SYS_send_signal 46
+#define SYS_sigreturn 47
 
 #define CLONE_VM 0x00000100
 #define CLONE_THREAD 0x00000200
 #define CLONE_SEM 0x00000400
+#define CLONE_SIGACTION 0x00000800
 
 #define MMAP_WRITE 0x00000100
 #define MMAP_STACK 0x00000200

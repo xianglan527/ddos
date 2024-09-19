@@ -14,6 +14,7 @@
 #include "virtio_device.h"
 #include "vmm.h"
 #include "sched.h"
+#include "signal.h"
 
 Spinlock tickslock;
 uint64_t ticks;
@@ -188,6 +189,9 @@ void kerneltrap() {
         if (myproc()->need_resched == true && myproc()->kernel_proc == true) { 
             do_yield(); 
         }
+        if(!list_empty(&myproc()->siginfo_list)){
+            do_signal();
+        }
     }
 
     // the yield() may have caused some traps to occur,
@@ -218,6 +222,9 @@ void usertrap(void) {
         sched_class_proc_tick(myproc());
         if(myproc()->need_resched == true){
             do_yield();
+        }
+        if(!list_empty(&myproc()->siginfo_list)){
+            do_signal();
         }
     }
     may_killed();

@@ -207,6 +207,9 @@ Proc *alloc_proc() {
     proc->need_resched = false;
     proc->sem_queue = nullptr;
     event_init(&proc->event);
+    proc->sig_blocked = 0;
+    list_init(&proc->siginfo_list);
+    signal_init(&proc->signal);
     return proc;
 }
 
@@ -581,6 +584,14 @@ static void put_sem_queue(Proc *proc) {
     }
 }
 
+static void put_siginfo(Proc *proc) {
+    List_entry *list = &proc->siginfo_list, *le = list;
+    while ((le = list_next(le)) != list) {
+        list_del(le);
+        kfree(le2siginfo(le, siginfo_link));
+    }
+}
+
 void may_killed(void) {
     acquire(&procs_lock);
     if (myproc() != nullptr && myproc()->flags & PF_EXITING) {
@@ -605,6 +616,9 @@ int do_fork(uint32_t clone_flags, uintptr_t stack) {
     *(proc->trapframe) = *(current->trapframe);
     if (stack != 0) { proc->trapframe->sp = stack; }
     copy_sem(clone_flags, proc);
+    if (clone_flags & CLONE_SIGACTION) {
+        sigaction_copy(&proc->signal, &current->signal);
+    }
     proc->trapframe->a0 = 0;
     assert(current->wait_state == 0);
     snprintf(proc->name, sizeof(proc->name), "u_process_%d", proc->pid);
@@ -639,6 +653,7 @@ static void __do_exit() {
         }
     }
     put_sem_queue(current);
+    put_siginfo(current);
     Proc *proc, *parent;
     proc = parent = current->parent;
     do {

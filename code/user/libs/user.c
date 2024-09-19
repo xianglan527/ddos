@@ -43,6 +43,9 @@ int __mbox_send__(int id, Mboxbuf *buf, ulong timeout);
 int __mbox_recv__(int id, Mboxbuf *buf, ulong timeout);
 int __mbox_free__(int id);
 int __mbox_info__(int id, Mboxinfo *info);
+int __set_sigaction__(int sig, Sigaction *sa);
+int __send_signal__(int pid, int sig);
+int __sigreturn__(void);
 
 int write(int fd, const void *c, int len){
     return __write__(fd, c ,len);
@@ -205,4 +208,17 @@ int mbox_free(int id){
 
 int mbox_info(int id, Mboxinfo *info){
     return __mbox_info__(id, info);
+}
+
+int set_sigaction(int sig, Sigaction *sa){
+    return __set_sigaction__(sig, sa);
+}
+
+int send_signal(int pid, int sig){
+    return __send_signal__(pid, sig);
+}
+
+// The function should not be called explicitly
+int sigreturn(void){
+    return __sigreturn__();
 }
