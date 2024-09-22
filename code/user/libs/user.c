@@ -46,6 +46,10 @@ int __mbox_info__(int id, Mboxinfo *info);
 int __set_sigaction__(int sig, Sigaction *sa);
 int __send_signal__(int pid, int sig);
 int __sigreturn__(void);
+int __setpriority__(int pid, int priority);
+int __getpriority__(int pid);
+uint64_t __get_proc_runticks__(int pid);
+int __set_proc_cpu__(int pid, int cpuid);
 
 int write(int fd, const void *c, int len){
     return __write__(fd, c ,len);
@@ -221,4 +225,20 @@ int send_signal(int pid, int sig){
 // The function should not be called explicitly
 int sigreturn(void){
     return __sigreturn__();
+}
+
+int setpriority(int pid, int priority){
+    return __setpriority__(pid, priority);
+}
+
+int getpriority(int pid){
+    return __getpriority__(pid);
+}
+
+uint64_t get_proc_runticks(int pid){
+    return __get_proc_runticks__(pid);
+}
+
+int set_proc_cpu(int pid, int cpuid){
+    return __set_proc_cpu__(pid, cpuid);
 }

@@ -49,7 +49,8 @@
 #define lock_info_nums 16000
 #define lock_info_nest 25
 
-#define MAX_TIME_SLICE 20;
+#define MAX_TIME_SLICE 200;
+#define MIN_TIME_SLICE 5
 
 #define MAX_MSG_SLOTS 0x1000
 #define MAX_MSG_BYTES 0x10000

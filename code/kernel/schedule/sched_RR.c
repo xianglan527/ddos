@@ -14,6 +14,9 @@ static void RR_enqueue(Cpu *cpu, Proc *proc) {
     if (proc->time_slice == 0 || proc->time_slice > cpu->rq.max_time_slice) {
         proc->time_slice = cpu->rq.max_time_slice;
     }
+    else if(proc->time_slice < cpu->rq.max_time_slice){
+        proc->time_slice = cpu->rq.min_time_slice;
+    }
     atomic_inc(&cpu->rq.proc_num);
 }
 
@@ -50,6 +53,23 @@ static void RR_proc_tick(Proc *proc) {
     }
 }
 
+static Rq_run_info RR_get_rq_run_info(Cpu *cpu) {
+    Rq_run_info info;
+    info.proc_count = 0;
+    info.rq_total_value = 0;
+    Proc *next;
+    List_entry *le = list_next(&cpu->rq.run_list);
+    while (le != &cpu->rq.run_list) {
+        next = le2proc(le, run_link);
+        if (next->state == RUNNABLE && next->state == RUNNING) {
+            info.rq_total_value += next->time_slice;
+            info.proc_count++;
+        }
+        le = list_next(le);
+    }
+    return info;
+}
+
 Sched_class RR_sched_class = {
     .name = "RR_scheduler",
     .init = RR_init,
@@ -57,4 +77,5 @@ Sched_class RR_sched_class = {
     .dequeue = RR_dequeue,
     .pick_next = RR_pick_next,
     .proc_tick = RR_proc_tick,
+    .get_rq_run_info = RR_get_rq_run_info,
 };

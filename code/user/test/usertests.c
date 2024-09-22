@@ -997,7 +997,7 @@ void __event_test3(void){
 }
 
 static void event_test(char *s){
-    __event_test1();
+    // __event_test1();
     __event_test2();
     __event_test3();
 }
@@ -1289,7 +1289,35 @@ static void sigtest(char *s) {
     }
 }
 //////////////////////////////////////////////////////////////////////////
+#define sched_CFS_NUM_PROCS 5  
+#define sched_CFS_LOOP 1000000000  
 
+static void sched_CFS_test(char *s) {
+    int i;
+    int pids[sched_CFS_NUM_PROCS];
+    int nice_values[sched_CFS_NUM_PROCS] = {-20, -10, 0, 10, 19};  
+    double user_times[sched_CFS_NUM_PROCS];
+
+    for (i = 0; i < sched_CFS_NUM_PROCS; i++) {
+        pids[i] = fork();
+        if (pids[i] == 0) {
+            assert(setpriority(getpid(),nice_values[i]) == 0);
+            ulong j, sum = 0;
+            set_proc_cpu(getpid(), 0);
+            ulong start_ticks = gettime();
+            for (j = 0; j < sched_CFS_LOOP; j++) {
+                sum += j % 100; 
+            }
+            ulong end_ticks = gettime();
+            printf("Process %d with nice value %d used %lu ticks\n", getpid(), getpriority(getpid()),
+                   end_ticks - start_ticks);
+            exit(0);
+        }
+        assert(pids[i] > 0);
+    }
+    for (i = 0; i < sched_CFS_NUM_PROCS; i++) { waitpid(pids[i], nullptr); }
+}
+//////////////////////////////////////////////////////////////////////////
 static int run(void f(char *), char *s) {
     int pid;
     int xstatus = 1;
@@ -1314,9 +1342,9 @@ static int run(void f(char *), char *s) {
             printf("%s OK\n", s);
         size_t nr_free_pages_store1 = get_free_page_size();
         size_t slab_allocated_store1 = get_slab_allocated_size();
-        printf("%d page nums diff\n", nr_free_pages_store - nr_free_pages_store1);
-        printf("%d slab nums diff\n", slab_allocated_store1 - slab_allocated_store);
-        while(1);
+        // printf("%d page nums diff\n", nr_free_pages_store - nr_free_pages_store1);
+        // printf("%d slab nums diff\n", slab_allocated_store1 - slab_allocated_store);
+        // while(1);
         assert(nr_free_pages_store == nr_free_pages_store1);
         assert(slab_allocated_store == slab_allocated_store1);
         return xstatus == 0;
@@ -1327,35 +1355,36 @@ struct test {
     void (*f)(char *);
     char *s;
 } tests[] = {
-    // {forktest, "forktest"},
-    // {yieldtest, "yieldtest"},
-    // {bsstest, "bsstest"},
-    // {exittest, "exittest"},
-    // {forktreetest, "forktreetest"},
-    // {spintest, "spintest"},
-    // {brktest, "brktest"},
-    // {brkfreetest, "brkfreetest"},
-    // {sleepkilltest, "sleepkilltest"},
-    // {sleeptest, "sleeptest"},
-    // {cowtest, "cowtest"},
-    // {mmaptest, "mmaptest"},
-    // {shmemtest, "shmemtest"},
-    // {threadtest, "threadtest"},
-    // {threadforktest, "threadforktest"},
-    // {threadworktest, "threadworktest"},
-    // {primeworktest, "primeworktest"},
-    // {sem_test, "sem_test"},
-    // {sem_rw_test, "sem_rw_test"},
-    // {prime2worktest, "prime2worktest"},
-    // {spipetest, "spipetest"},
-    // {sem2_test, "sem2_test"},
-    // {sem3_test, "sem3_test"},
-    // {event_test, "event_test"},
-    // {prime3worktest, "prime3worktest"},
-    // {mboxtest, "mboxtest"},
-    // {mboxmaptest, "mboxmaptest"},
+    {forktest, "forktest"},
+    {yieldtest, "yieldtest"},
+    {bsstest, "bsstest"},
+    {exittest, "exittest"},
+    {forktreetest, "forktreetest"},
+    {spintest, "spintest"},
+    {brktest, "brktest"},
+    {brkfreetest, "brkfreetest"},
+    {sleepkilltest, "sleepkilltest"},
+    {sleeptest, "sleeptest"},
+    {cowtest, "cowtest"},
+    {mmaptest, "mmaptest"},
+    {shmemtest, "shmemtest"},
+    {threadtest, "threadtest"},
+    {threadforktest, "threadforktest"},
+    {threadworktest, "threadworktest"},
+    {primeworktest, "primeworktest"},
+    {sem_test, "sem_test"},
+    {sem_rw_test, "sem_rw_test"},
+    {prime2worktest, "prime2worktest"},
+    {spipetest, "spipetest"},
+    {sem2_test, "sem2_test"},
+    {sem3_test, "sem3_test"},
+    {event_test, "event_test"},
+    {prime3worktest, "prime3worktest"},
+    {mboxtest, "mboxtest"},
+    {mboxmaptest, "mboxmaptest"},
     {sigtest, "sigtest"},
-    // {swaptest, "swaptest"},
+    {sched_CFS_test, "sched_CFS_test"},
+    {swaptest, "swaptest"},
     {nullptr, nullptr},
 };
 

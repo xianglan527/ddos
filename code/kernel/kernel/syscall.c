@@ -47,6 +47,10 @@ extern uint64_t sys_mbox_info(void);
 extern uint64_t sys_set_sigaction(void);
 extern uint64_t sys_send_signal(void);
 extern uint64_t sys_sigreturn(void);
+extern uint64_t sys_setpriority(void);
+extern uint64_t sys_getpriority(void);
+extern uint64_t sys_get_proc_runticks(void);
+extern uint64_t sys_set_proc_cpu(void);
 
 int fetch_addr(uint64_t addr, uint64_t *ip){
     Proc *current = myproc();
@@ -144,6 +148,10 @@ static uint64_t (*syscalls[])(void) = {
     [SYS_set_sigaction] = sys_set_sigaction,
     [SYS_send_signal] = sys_send_signal,
     [SYS_sigreturn] = sys_sigreturn,
+    [SYS_setpriority] = sys_setpriority,
+    [SYS_getpriority] = sys_getpriority,
+    [SYS_get_proc_runticks] = sys_get_proc_runticks,
+    [SYS_set_proc_cpu] = sys_set_proc_cpu,
 };
 
 void syscall(void) {

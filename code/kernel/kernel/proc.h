@@ -11,6 +11,7 @@
 #include "event.h"
 #include "signal.h"
 #include "riscv.h"
+#include "rbtree.h"
 
 typedef enum proc_state Proc_state;
 enum proc_state { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE};
@@ -82,14 +83,39 @@ struct proc {
     int mm_index;
     List_entry run_link;
     ulong time_slice;
+    ulong alloc_time_slice;
     bool need_resched;
     Sem_queue *sem_queue;
     Event event;
     uint64_t sig_blocked;
     List_entry siginfo_list;
     Signal signal;
-    // Trapframe saved_trapframe;
+    int priority;    //-20 ~ 19
+    uint64_t vruntime; 
+    Rb_node rb_link;
 };
+
+#define rbn2proc(node)  (to_struct(node, Proc, rb_link))
+
+static inline int proc_vruntime_compare_node(Rb_node *node1, Rb_node *node2){
+    if (rbn2proc(node1) ->vruntime > rbn2proc(node2)->vruntime){
+        return 1;
+    }else if(rbn2proc(node1) ->vruntime < rbn2proc(node2)->vruntime){
+        return -1;
+    }else{
+        return 0;
+    }
+}
+
+static inline int proc_vruntime_compare_value(Rb_node *node1, void *value) {
+    if (rbn2proc(node1)->vruntime > (uint64_t)value) {
+        return 1;
+    } else if (rbn2proc(node1)->vruntime < (uint64_t)value) {
+        return -1;
+    } else {
+        return 0;
+    }
+}
 
 #define PF_EXITING 0x00000001
 

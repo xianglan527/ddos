@@ -8,6 +8,7 @@
 #include "stdio.h"
 #include "mbox.h"
 #include "signal.h"
+#include "error.h"
 
 extern uint64_t ticks;
 extern struct {
@@ -265,4 +266,57 @@ uint64_t sys_send_signal(void) {
 
 uint64_t sys_sigreturn(void){
     return ipc_sigreturn();
+}
+
+uint64_t sys_setpriority(void){
+    int pid;
+    arg_int(0, &pid);
+    int priority;
+    arg_int(1, &priority);
+    Proc *proc = find_proc(pid);
+    if(proc == nullptr){
+        return -E_INVAL;
+    }
+    acquire(&proc->lock);
+    proc->priority = priority;
+    release(&proc->lock);
+    return 0;
+}
+
+uint64_t sys_getpriority(void) {
+    int pid;
+    arg_int(0, &pid);
+    Proc *proc = find_proc(pid);
+    int ret = -E_INVAL;
+    if (proc == nullptr) { return ret; }
+    acquire(&proc->lock);
+    ret = proc->priority;
+    release(&proc->lock);
+    return ret;
+}
+
+uint64_t sys_get_proc_runticks(void) {
+    int pid;
+    arg_int(0, &pid);
+    Proc *proc = find_proc(pid);
+    assert(proc != nullptr);
+    ulong ret;
+    acquire(&proc->lock);
+    ret = proc->runs;
+    release(&proc->lock);
+    return ret;
+}
+
+uint64_t sys_set_proc_cpu(void) {
+    int pid;
+    arg_int(0, &pid);
+    int cpuid;
+    arg_int(1, &cpuid);
+    Proc *proc = find_proc(pid);
+    if (proc == nullptr) { return -E_INVAL; }
+    if (cpuid < 0 || cpuid >= NCPU) { return -E_INVAL; }
+    // acquire(&proc->lock);
+    set_proc_cpu(proc, &cpus[cpuid]);
+    // release(&proc->lock);
+    return 0;
 }

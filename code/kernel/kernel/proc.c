@@ -55,6 +55,8 @@ extern char kernel_etext[];
 
 extern ulong ticks;
 
+extern Sched_class CFS_sched_class;
+
 static void __do_exit(void);
 static int __do_kill(Proc *proc, int error_code);
 
@@ -146,11 +148,16 @@ static void remove_links(Proc *proc) {
 }
 
 void set_proc_cpu(Proc *proc, Cpu *cpu) {
+    acquire(&proc->lock);
     proc->set_cpu = cpu;
     assert(proc->cpu != nullptr);
-    if (proc->cpu == proc->set_cpu) return;
+    if (proc->cpu == proc->set_cpu) {
+        release(&proc->lock);
+        return;
+    }
     if (!list_empty(&proc->run_link)) { sched_class_dequeue(proc); }
     sched_class_enqueue(proc);
+    release(&proc->lock);
     // proc->set_cpu = nullptr;
 }
 
@@ -203,13 +210,15 @@ Proc *alloc_proc() {
     list_init(&proc->thread_group);
     proc->mm_index = 0;
     list_init(&proc->run_link);
-    proc->time_slice = 0;
+    proc->alloc_time_slice = proc->time_slice = 0;
     proc->need_resched = false;
     proc->sem_queue = nullptr;
     event_init(&proc->event);
     proc->sig_blocked = 0;
     list_init(&proc->siginfo_list);
     signal_init(&proc->signal);
+    proc->priority = 0;  // default: weight is 1024;
+    proc->vruntime = 0;
     return proc;
 }
 
@@ -297,6 +306,7 @@ Proc *myproc(void) {
 
 void sched(void) {
     Proc *p = myproc();
+
     // cprintf("cccccccccccccccccccccc   ra is %p current pid is %d current cpu is %d\n", mycpu()->context.ra,
     //         myproc()->pid, mycpu() - cpus);
     swtch(&p->context, &mycpu()->context);
@@ -306,10 +316,13 @@ void sched(void) {
 
 void do_yield(void) {
     Proc *p = myproc();
-    p->need_resched = false;
+    assert(p->state == RUNNING);
     acquire(&p->lock);
+    if (p->cpu->sc == &CFS_sched_class) { sched_class_insert_rbtree(p); }
     p->state = RUNNABLE;
+    p->need_resched = false;
     sched();
+    // if (p->cpu->sc == &CFS_sched_class) { sched_class_remove_rbtree(p); }
     release(&p->lock);
 }
 
@@ -336,12 +349,16 @@ void proc_dump(void) {
         if (p->parent != nullptr)
             cprintf(
                 "pid : %d state: %s name : %s kstack index : %d kstack is :%p cpuid is %d mm_index : %d "
+                "alloc time slice :%lu time slice :%lu vruntime :%lu priority :%d "
                 "parent pid : %d",
                 p->pid, state, p->name, KSTACK2INDEX(p->kstack), p->kstack, p->cpu - cpus, p->mm_index,
-                p->parent->pid);
+                p->alloc_time_slice, p->time_slice, p->vruntime, p->priority, p->parent->pid);
         else
-            cprintf("pid : %d state: %s name : %s kstack index : %d kstack is :%p cpuid is %d mm_index : %d",
-                    p->pid, state, p->name, KSTACK2INDEX(p->kstack), p->kstack, p->cpu - cpus, p->mm_index);
+            cprintf(
+                "pid : %d state: %s name : %s kstack index : %d kstack is :%p cpuid is %d mm_index : %d "
+                "alloc time slice :%lu time slice :%lu vruntime :%lu priority :%d",
+                p->pid, state, p->name, KSTACK2INDEX(p->kstack), p->kstack, p->cpu - cpus, p->mm_index,
+                p->alloc_time_slice, p->time_slice, p->vruntime, p->priority);
         cprintf("\n");
     }
     cprintf("\nend of proc dump.............................\n");
@@ -403,11 +420,16 @@ void scheduler(void) {
         // release(&print_struct_lock);
 
         if (c->next != nullptr) {
+            // if(c->next->pid == 200){
+            //     proc_dump();
+            //     while(1);
+            // }
             // next = c->next;
             assert(c->next->state == RUNNABLE && c->next->cpu == c);
             acquire(&c->next->lock);
             c->next->state = RUNNING;
-            c->next->runs++;
+            // c->next->runs++;
+            if (c->next->cpu->sc == &CFS_sched_class) { sched_class_remove_rbtree(c->next); }
             c->proc = c->prev = c->next;
             // c->proc->cpu = c;
             // release(&procs_lock);
@@ -470,7 +492,10 @@ void do_wakeup(void *chan) {
     while ((le = list_next(le)) != &proc_list) {
         p = le2proc(le, list_link);
         acquire(&p->lock);
-        if (p->state == SLEEPING && p->chan == chan) { p->state = RUNNABLE; }
+        if (p->state == SLEEPING && p->chan == chan) {
+            if (p->cpu->sc == &CFS_sched_class) { sched_class_insert_rbtree(p); }
+            p->state = RUNNABLE;
+        }
         release(&p->lock);
     }
     release(&procs_lock);
@@ -506,7 +531,8 @@ void wakeup_proc(Proc *proc) {
     //     cprintf("uuuuuuuuuu22222222  current pid is %d current cpu is %d wakeup is %d state is %d\n",
     //     myproc()->pid,
     //             mycpu() - cpus, proc->pid, proc->state);
-    if (proc->chan == proc && proc->state != RUNNABLE) {
+    if (proc->chan == proc && proc->state == SLEEPING) {
+        if (proc->cpu->sc == &CFS_sched_class) { sched_class_insert_rbtree(proc); }
         proc->state = RUNNABLE;
         proc->wait_state = 0;
         // if (myproc() != 0)
@@ -593,11 +619,8 @@ static void put_siginfo(Proc *proc) {
 }
 
 void may_killed(void) {
-    acquire(&procs_lock);
     if (myproc() != nullptr && myproc()->flags & PF_EXITING) {
         __do_exit();
-    } else {
-        release(&procs_lock);
     }
 }
 
@@ -616,9 +639,7 @@ int do_fork(uint32_t clone_flags, uintptr_t stack) {
     *(proc->trapframe) = *(current->trapframe);
     if (stack != 0) { proc->trapframe->sp = stack; }
     copy_sem(clone_flags, proc);
-    if (clone_flags & CLONE_SIGACTION) {
-        sigaction_copy(&proc->signal, &current->signal);
-    }
+    if (clone_flags & CLONE_SIGACTION) { sigaction_copy(&proc->signal, &current->signal); }
     proc->trapframe->a0 = 0;
     assert(current->wait_state == 0);
     snprintf(proc->name, sizeof(proc->name), "u_process_%d", proc->pid);
@@ -629,8 +650,8 @@ int do_fork(uint32_t clone_flags, uintptr_t stack) {
                     PTE_R | PTE_W);
     }
     proc->parent = current;
-    proc->time_slice = current->time_slice / 2;
-    current->time_slice -= proc->time_slice;
+    // proc->time_slice = current->time_slice / 2;
+    // current->time_slice -= proc->time_slice;
     hash_proc(proc);
     set_links(proc);
     release(&procs_lock);
@@ -640,6 +661,7 @@ int do_fork(uint32_t clone_flags, uintptr_t stack) {
 static void __do_exit() {
     Proc *current = myproc();
     if (current == initproc) panic("init exiting");
+    acquire(&procs_lock);
     Mm_struct *mm = current->mm;
     if (mm != nullptr) {
         unmap_range(mm->pagetable, TRAPFRAME(current->mm_index), TRAPFRAME(current->mm_index) + PGSIZE);
@@ -681,7 +703,7 @@ static void __do_exit() {
 }
 
 void do_exit_thread(int error_code) {
-    acquire(&procs_lock);
+    // acquire(&procs_lock);
     myproc()->exit_code = error_code;
     return __do_exit();
 }
@@ -1036,9 +1058,7 @@ void run_timer_list(void) {
             le = list_next(le);
             Proc *proc = timer->proc;
             // assert((proc->wait_state & WT_TIMER) == WT_TIMER);
-            if(proc->wait_state != 0){
-                assert(proc->wait_state & WT_INTERAUPTED);
-            }
+            if (proc->wait_state != 0) { assert(proc->wait_state & WT_INTERAUPTED); }
             wakeup_proc(proc);
             // cprintf("rrrrrrrrrrrrrrr proc pid is %d current cpu is %d\n", proc->pid, mycpu() - cpus);
             list_del_init(&timer->timer_link);
@@ -1091,19 +1111,17 @@ void ipc_del_timer(Timer *timer) {
 }
 
 Timer *ipc_timer_init(ulong timeout, ulong *saved_ticks, Timer *timer) {
-    if (timeout != 0) { 
-        *saved_ticks = ticks; 
+    if (timeout != 0) {
+        *saved_ticks = ticks;
         return timer_init(timer, myproc(), timeout);
     }
     return nullptr;
 }
 
-int ipc_check_timeout(ulong timeout, ulong saved_ticks){
-    if(timeout != 0){
+int ipc_check_timeout(ulong timeout, ulong saved_ticks) {
+    if (timeout != 0) {
         ulong delt = (ulong)(ticks - saved_ticks);
-        if(delt >= timeout){
-            return -E_TIMEOUT;
-        }
+        if (delt >= timeout) { return -E_TIMEOUT; }
     }
     return -1;
 }

@@ -48,6 +48,10 @@
 #define SYS_set_sigaction 45
 #define SYS_send_signal 46
 #define SYS_sigreturn 47
+#define SYS_setpriority 48
+#define SYS_getpriority 49
+#define SYS_get_proc_runticks 50
+#define SYS_set_proc_cpu 51
 
 #define CLONE_VM 0x00000100
 #define CLONE_THREAD 0x00000200

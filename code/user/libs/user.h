@@ -44,4 +44,8 @@ int mbox_free(int id);
 int mbox_info(int id, Mboxinfo *info);
 int set_sigaction(int sig, Sigaction *sa);
 int send_signal(int pid, int sig);
+int setpriority(int pid, int priority);
+int getpriority(int pid);
+uint64_t get_proc_runticks(int pid);
+int set_proc_cpu(int pid, int cpuid);
 #endif
