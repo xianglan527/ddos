@@ -5,6 +5,7 @@
 #include "list.h"
 #include "atomic.h"
 #include "rbtree.h"
+#include "config.h"
 
 typedef struct cpu Cpu;
 typedef struct proc Proc;
@@ -16,6 +17,7 @@ struct run_queue {
     ulong max_time_slice;
     ulong min_time_slice;
     Rb_tree *proc_vruntime_rbtree;
+    ulong cpu_load[CPU_LOAD_IDX_MAX];
 };
 
 typedef struct rq_run_info Rq_run_info;
@@ -37,6 +39,7 @@ struct sched_class {
     Rq_run_info (*get_rq_run_info)(Cpu *cpu);
     void (*insert_rbtree)(Proc *proc);
     void (*remove_rbtree)(Proc *proc);
+    Proc *(*get_proc)(Cpu *cpu);
 };
 
 void sched_init(void);
@@ -46,4 +49,8 @@ Proc *sched_class_pick_next(void);
 void sched_class_proc_tick(Proc *proc);
 void sched_class_insert_rbtree(Proc *proc);
 void sched_class_remove_rbtree(Proc *proc);
+Rq_run_info sched_class_get_rq_run_info(Cpu *cpu);
+void updata_cpu_rq_load();
+Proc *sched_class_get_proc(Cpu *cpu);
+void load_balance(int cpu_load_index);
 #endif

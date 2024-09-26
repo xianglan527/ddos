@@ -18,8 +18,10 @@
 #include "swap.h"
 #include "sched.h"
 #include "syn.h"
+#include "atomic.h"
 
-volatile static int started = 0;
+// volatile static int started = 0;
+Atomic cpus_num;
 
 void basic_test(void) {
     int version = 20240516;
@@ -46,7 +48,8 @@ void basic_test(void) {
 
 void main(){
     if(cpuid() == 0){
-        // timer_start_init(); 
+        // timer_start_init();
+        atomic_set(&cpus_num, 0);
         initlock_info();
         console_init();
         cprintf("xv6 kernel is booting\n");
@@ -67,15 +70,18 @@ void main(){
         swap_init();
         sched_init();
         os_main();
-        started = 1;
+        atomic_set(&cpus_num, 1);
+        // started = 1;
     }else{
-        while (started == 0);
+        while (atomic_read(&cpus_num) == 0);
         cprintf("hart %d starting\n", cpuid());
         kvm_init_hart();
         plic_init_hart();
         trap_init_hart();
         sched_init();
+        atomic_inc(&cpus_num);
     }
+    while(atomic_read(&cpus_num) != CPUS);
     scheduler();
     // while(1);
 }

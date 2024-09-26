@@ -2,9 +2,13 @@
 
 #include "list.h"
 #include "proc.h"
+#include "stdio.h"
 
 #define NICE_OFFSET 20
 #define PRIO_0_WEIGHT 1024
+extern Cpu cpus[NCPU];
+static void CFS_remove_rbtree(Proc *proc);
+
 const int sched_nice_to_weight[40] = {
     /* -20 */ 88761, 71755, 56483, 46273, 36291,
     /* -15 */ 29154, 23254, 18705, 14949, 11916,
@@ -46,12 +50,21 @@ static Rq_run_info CFS_get_rq_run_info(Cpu *cpu) {
 static void CFS_enqueue(Cpu *cpu, Proc *proc) {
     assert(proc->priority >= -20 && proc->priority <= 19);
     assert(list_empty(&proc->run_link));
-    list_add_before(&cpu->rq.run_list, &proc->run_link);
+    List_entry *le = list_next(&cpu->rq.run_list);
+    while (le != &cpu->rq.run_list) {
+        Proc *next = le2proc(le, run_link);
+        if (proc->priority > next->priority) {
+            break;
+        }
+        le = list_next(le);
+    }
+    list_add_before(le, &proc->run_link);
+    // cprintf("111111 proc->pid %d cpu id %d\n", proc->pid, cpu - cpus);
     Rq_run_info info = CFS_get_rq_run_info(cpu);
     uint64_t total_time_lantency = ((cpu->rq.min_time_slice + cpu->rq.max_time_slice) * info.proc_count / 2);
     proc->alloc_time_slice = proc->time_slice =
         (total_time_lantency * sched_nice_to_weight[proc->priority + NICE_OFFSET] /
-                   (info.rq_total_value + 1));
+         (info.rq_total_value + 1));
     // assert(proc->time_slice >= cpu->rq.min_time_slice && proc->time_slice <= cpu->rq.max_time_slice);
     if (proc->time_slice < proc->cpu->rq.min_time_slice) {
         proc->alloc_time_slice = proc->time_slice = proc->cpu->rq.min_time_slice;
@@ -60,18 +73,17 @@ static void CFS_enqueue(Cpu *cpu, Proc *proc) {
         proc->alloc_time_slice = proc->time_slice = proc->cpu->rq.max_time_slice;
     }
     proc->vruntime = (info.rq_total_vruntime / (info.proc_count + 1));
-    if (proc->state == RUNNABLE) {
-        rb_insert(cpu->rq.proc_vruntime_rbtree, &(proc->rb_link));
-    }
+    if (proc->state == RUNNABLE) { rb_insert(cpu->rq.proc_vruntime_rbtree, &(proc->rb_link)); }
     atomic_inc(&cpu->rq.proc_num);
 }
 
 static void CFS_dequeue(Cpu *cpu, Proc *proc) {
     assert(!list_empty(&proc->run_link));
     list_del_init(&proc->run_link);
-    if(proc->state == RUNNABLE){
-        rb_delete(cpu->rq.proc_vruntime_rbtree, &proc->rb_link);
-    } 
+    if (proc->state == RUNNABLE) {
+        // cprintf("7777777 proc pid is %d cpu id is %d\n", proc->pid, cpu - cpus);
+        rb_delete(cpu->rq.proc_vruntime_rbtree, &proc->rb_link); 
+    }
     atomic_dec(&cpu->rq.proc_num);
 }
 
@@ -87,14 +99,33 @@ static Proc *CFS_pick_next(Cpu *cpu) {
     next = rbn2proc(prev_node);
     assert(next->state == RUNNABLE);
     // rb_delete(cpu->rq.proc_vruntime_rbtree, &next->rb_link);
+    // cprintf("888888 proc->pid %d cpu id %d\n", next->pid, next->cpu - cpus);
+    CFS_remove_rbtree(next);
+    next->state = RUNNING;
+    // cprintf("999999 proc->pid %d cpu id %d proc->state %d\n", next->pid, next->cpu - cpus, next->state);
     return next;
+}
+
+static Proc *CFS_get_proc(Cpu *cpu) {
+    Proc *next;
+    List_entry *le = list_next(&cpu->rq.run_list);
+    while (le != &cpu->rq.run_list) {
+        next = le2proc(le, run_link);
+        if (next->state == RUNNABLE) {
+            CFS_dequeue(cpu, next);
+            return next;
+        }
+        le = list_next(le);
+    }
+    return nullptr;
 }
 
 static void CFS_insert_rbtree(Proc *proc) {
     assert(proc->state == RUNNING || proc->state == SLEEPING);
+    // cprintf("222222 proc->pid %d cpu id %d\n", proc->pid, proc->cpu - cpus);
     if (proc->state == RUNNING) {
         proc->vruntime += ((proc->alloc_time_slice - proc->time_slice) * PRIO_0_WEIGHT /
-                                    sched_nice_to_weight[proc->priority + NICE_OFFSET]);
+                           sched_nice_to_weight[proc->priority + NICE_OFFSET]);
         rb_insert(proc->cpu->rq.proc_vruntime_rbtree, &(proc->rb_link));
     } else if (proc->state == SLEEPING) {
         Rq_run_info info = CFS_get_rq_run_info(proc->cpu);
@@ -106,14 +137,18 @@ static void CFS_insert_rbtree(Proc *proc) {
 }
 
 static void CFS_remove_rbtree(Proc *proc) {
-    assert(proc->state == RUNNING);
+    // assert(proc->state == RUNNING);
     rb_delete(proc->cpu->rq.proc_vruntime_rbtree, &proc->rb_link);
+    // cprintf("333333 proc->pid %d cpu id %d\n", proc->pid, proc->cpu - cpus);
     Rq_run_info info = CFS_get_rq_run_info(proc->cpu);
-    uint64_t total_time_lantency = ((proc->cpu->rq.min_time_slice + proc->cpu->rq.max_time_slice) * (info.proc_count + 1) / 2);
+    uint64_t total_time_lantency =
+        ((proc->cpu->rq.min_time_slice + proc->cpu->rq.max_time_slice) * (info.proc_count + 1) / 2);
     proc->alloc_time_slice = proc->time_slice =
-        (total_time_lantency * sched_nice_to_weight[proc->priority + NICE_OFFSET] / (info.rq_total_value + 1));
-    // assert(proc->time_slice >= proc->cpu->rq.min_time_slice && proc->time_slice <= proc->cpu->rq.max_time_slice);
-    if(proc->time_slice < proc->cpu->rq.min_time_slice){
+        (total_time_lantency * sched_nice_to_weight[proc->priority + NICE_OFFSET] /
+         (info.rq_total_value + 1));
+    // assert(proc->time_slice >= proc->cpu->rq.min_time_slice && proc->time_slice <=
+    // proc->cpu->rq.max_time_slice);
+    if (proc->time_slice < proc->cpu->rq.min_time_slice) {
         proc->alloc_time_slice = proc->time_slice = proc->cpu->rq.min_time_slice;
     }
     if (proc->time_slice > proc->cpu->rq.max_time_slice) {
@@ -141,4 +176,5 @@ Sched_class CFS_sched_class = {
     .get_rq_run_info = CFS_get_rq_run_info,
     .insert_rbtree = CFS_insert_rbtree,
     .remove_rbtree = CFS_remove_rbtree,
+    .get_proc = CFS_get_proc,
 };

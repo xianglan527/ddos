@@ -197,11 +197,11 @@ bool try_free_pages(size_t n) {
     // release(&kswapd_done_lock);
     // acquire(&current->lock);
     current->wait_state = WT_KSWAPD;
-    set_proc_cpu(current, mycpu());
+    // set_proc_cpu(current, mycpu());
     sleeping(current, &kswapd_done_lock);
     release(&kswapd_done_lock);
     assert(current->set_cpu == mycpu());
-    clear_proc_cpu(current, mycpu());
+    // clear_proc_cpu(current, mycpu());
     // release(&current->lock);
     assert(!wait_in_queue(wait) && wait->wakeup_flags == WT_KSWAPD);
     return true;

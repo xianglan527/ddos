@@ -1,0 +1,48 @@
+Date : 2024-09-22 20:56:23
+Directory : c:\Users\45228\Desktop\share\ddos\code
+Total : 15 files,  342 codes, -3 comments, 29 blanks, all 368 lines
+
+Languages
++----------+------------+------------+------------+------------+------------+
+| language | files      | code       | comment    | blank      | total      |
++----------+------------+------------+------------+------------+------------+
+| C        |         11 |        329 |         -3 |         28 |        354 |
+| C++      |          3 |         12 |          0 |          1 |         13 |
+| Python   |          1 |          1 |          0 |          0 |          1 |
++----------+------------+------------+------------+------------+------------+
+
+Directories
++--------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                               | files      | code       | comment    | blank      | total      |
++--------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                  |         15 |        342 |         -3 |         29 |        368 |
+| kernel                                                             |         11 |        270 |         20 |         25 |        315 |
+| kernel\config                                                      |          2 |          5 |          0 |          0 |          5 |
+| kernel\kernel                                                      |          4 |         87 |         10 |          8 |        105 |
+| kernel\schedule                                                    |          5 |        178 |         10 |         17 |        205 |
+| user                                                               |          4 |         72 |        -23 |          4 |         53 |
+| user\libs                                                          |          3 |         21 |          0 |          3 |         24 |
+| user\test                                                          |          1 |         51 |        -23 |          1 |         29 |
++--------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++--------------------------------------------------------------------+----------+------------+------------+------------+------------+
+| filename                                                           | language | code       | comment    | blank      | total      |
++--------------------------------------------------------------------+----------+------------+------------+------------+------------+
+| c:\Users\45228\Desktop\share\ddos\code\kernel\config\config.h      | C++      |          1 |          0 |          0 |          1 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\config\sysdef.h      | C++      |          4 |          0 |          0 |          4 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\proc.c        | C        |          7 |          9 |          2 |         18 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\proc.h        | C        |         24 |         -1 |          3 |         26 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\syscall.c     | C        |          8 |          0 |          0 |          8 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\sysfile.c     | C        |         48 |          2 |          3 |         53 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\schedule\sched.c     | C        |         13 |          0 |          3 |         16 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\schedule\sched.h     | C        |         14 |          1 |          1 |         16 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\schedule\sched_CFS.c | C        |        124 |          9 |         11 |        144 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\schedule\sched_CFS.h | C++      |          7 |          0 |          1 |          8 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\schedule\sched_RR.c  | C        |         20 |          0 |          1 |         21 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\user.c            | C        |         16 |          0 |          3 |         19 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\user.h            | C        |          4 |          0 |          0 |          4 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\usys.py           | Python   |          1 |          0 |          0 |          1 |
+| c:\Users\45228\Desktop\share\ddos\code\user\test\usertests.c       | C        |         51 |        -23 |          1 |         29 |
+| Total                                                              |          |        342 |         -3 |         29 |        368 |
++--------------------------------------------------------------------+----------+------------+------------+------------+------------+

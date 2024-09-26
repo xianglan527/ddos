@@ -6,6 +6,7 @@
 #include "shmem.h"
 #include "stdarg.h"
 #include "types.h"
+#include "sem.h"
 
 typedef struct mm_struct Mm_struct;
 
@@ -43,12 +44,14 @@ struct mm_struct {
     int map_count;
     uintptr_t swap_address;
     Atomic mm_count;
-    Spinlock mm_lock;
+    // Spinlock mm_lock;
     uintptr_t brk_start, brk;
     List_entry proc_mm_link;
     Proc *proc;
     bool share;
     Atomic mm_share_count;
+    int locked_by;
+    Sem mm_sem;
 };
 
 
@@ -91,4 +94,7 @@ int mm_map_shmem(Mm_struct *mm, uintptr_t addr, uint32_t vm_flags, Shmem_struct 
                  Vma_struct **vma_store);
 Vma_struct *find_vma_intersection(Mm_struct *mm, uintptr_t start, uintptr_t end);
 int mm_brk(Mm_struct *mm, uintptr_t addr, size_t len);
+void lock_mm(Mm_struct *mm);
+void unlock_mm(Mm_struct *mm);
+bool try_lock_mm(Mm_struct *mm);
 #endif

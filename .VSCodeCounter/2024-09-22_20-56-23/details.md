@@ -1,10 +1,10 @@
 # Details
 
-Date : 2024-09-10 17:19:02
+Date : 2024-09-22 20:56:23
 
 Directory c:\\Users\\45228\\Desktop\\share\\ddos\\code
 
-Total : 121 files,  10769 codes, 805 comments, 1709 blanks, all 13283 lines
+Total : 131 files,  12174 codes, 804 comments, 1833 blanks, all 14811 lines
 
 [Summary](results.md) / Details / [Diff Summary](diff.md) / [Diff Details](diff-details.md)
 
@@ -13,9 +13,11 @@ Total : 121 files,  10769 codes, 805 comments, 1709 blanks, all 13283 lines
 | :--- | :--- | ---: | ---: | ---: | ---: |
 | [code/kernel/Makefile](/code/kernel/Makefile) | Makefile | 25 | 0 | 4 | 29 |
 | [code/kernel/boot/start.c](/code/kernel/boot/start.c) | C | 40 | 13 | 18 | 71 |
-| [code/kernel/config/config.h](/code/kernel/config/config.h) | C++ | 42 | 1 | 12 | 55 |
-| [code/kernel/config/error.h](/code/kernel/config/error.h) | C++ | 15 | 2 | 3 | 20 |
-| [code/kernel/config/sysdef.h](/code/kernel/config/sysdef.h) | C++ | 47 | 0 | 3 | 50 |
+| [code/kernel/config/config.h](/code/kernel/config/config.h) | C++ | 45 | 1 | 13 | 59 |
+| [code/kernel/config/error.h](/code/kernel/config/error.h) | C | 16 | 2 | 3 | 21 |
+| [code/kernel/config/mboxbuf.h](/code/kernel/config/mboxbuf.h) | C | 19 | 0 | 4 | 23 |
+| [code/kernel/config/sigaction.h](/code/kernel/config/sigaction.h) | C | 39 | 0 | 8 | 47 |
+| [code/kernel/config/sysdef.h](/code/kernel/config/sysdef.h) | C++ | 60 | 0 | 3 | 63 |
 | [code/kernel/driver/Makefile](/code/kernel/driver/Makefile) | Makefile | 4 | 0 | 4 | 8 |
 | [code/kernel/driver/uart.c](/code/kernel/driver/uart.c) | C | 54 | 12 | 15 | 81 |
 | [code/kernel/driver/uart.h](/code/kernel/driver/uart.h) | C++ | 7 | 0 | 1 | 8 |
@@ -38,15 +40,15 @@ Total : 121 files,  10769 codes, 805 comments, 1709 blanks, all 13283 lines
 | [code/kernel/kernel/main.c](/code/kernel/kernel/main.c) | C | 68 | 6 | 7 | 81 |
 | [code/kernel/kernel/plic.c](/code/kernel/kernel/plic.c) | C | 26 | 7 | 7 | 40 |
 | [code/kernel/kernel/plic.h](/code/kernel/kernel/plic.h) | C++ | 9 | 0 | 1 | 10 |
-| [code/kernel/kernel/proc.c](/code/kernel/kernel/proc.c) | C | 951 | 121 | 85 | 1,157 |
-| [code/kernel/kernel/proc.h](/code/kernel/kernel/proc.h) | C | 190 | 4 | 16 | 210 |
-| [code/kernel/kernel/riscv.h](/code/kernel/kernel/riscv.h) | C++ | 161 | 48 | 56 | 265 |
+| [code/kernel/kernel/proc.c](/code/kernel/kernel/proc.c) | C | 972 | 133 | 89 | 1,194 |
+| [code/kernel/kernel/proc.h](/code/kernel/kernel/proc.h) | C | 182 | 3 | 18 | 203 |
+| [code/kernel/kernel/riscv.h](/code/kernel/kernel/riscv.h) | C | 200 | 48 | 57 | 305 |
 | [code/kernel/kernel/spinlock.c](/code/kernel/kernel/spinlock.c) | C | 97 | 4 | 13 | 114 |
 | [code/kernel/kernel/spinlock.h](/code/kernel/kernel/spinlock.h) | C++ | 24 | 3 | 2 | 29 |
-| [code/kernel/kernel/syscall.c](/code/kernel/kernel/syscall.c) | C | 126 | 5 | 11 | 142 |
+| [code/kernel/kernel/syscall.c](/code/kernel/kernel/syscall.c) | C | 150 | 5 | 11 | 166 |
 | [code/kernel/kernel/syscall.h](/code/kernel/kernel/syscall.h) | C++ | 13 | 1 | 4 | 18 |
-| [code/kernel/kernel/sysfile.c](/code/kernel/kernel/sysfile.c) | C | 178 | 0 | 29 | 207 |
-| [code/kernel/kernel/trap.c](/code/kernel/kernel/trap.c) | C | 206 | 22 | 20 | 248 |
+| [code/kernel/kernel/sysfile.c](/code/kernel/kernel/sysfile.c) | C | 280 | 2 | 40 | 322 |
+| [code/kernel/kernel/trap.c](/code/kernel/kernel/trap.c) | C | 213 | 22 | 20 | 255 |
 | [code/kernel/kernel/trap.h](/code/kernel/kernel/trap.h) | C++ | 17 | 0 | 3 | 20 |
 | [code/kernel/libs/atomic.h](/code/kernel/libs/atomic.h) | C++ | 79 | 1 | 42 | 122 |
 | [code/kernel/libs/stdio.c](/code/kernel/libs/stdio.c) | C | 49 | 0 | 8 | 57 |
@@ -56,29 +58,37 @@ Total : 121 files,  10769 codes, 805 comments, 1709 blanks, all 13283 lines
 | [code/kernel/mm/defaultPmm.c](/code/kernel/mm/defaultPmm.c) | C | 91 | 0 | 20 | 111 |
 | [code/kernel/mm/defaultPmm.h](/code/kernel/mm/defaultPmm.h) | C++ | 8 | 0 | 3 | 11 |
 | [code/kernel/mm/memlayout.h](/code/kernel/mm/memlayout.h) | C | 29 | 35 | 13 | 77 |
-| [code/kernel/mm/pmm.c](/code/kernel/mm/pmm.c) | C | 658 | 9 | 78 | 745 |
-| [code/kernel/mm/pmm.h](/code/kernel/mm/pmm.h) | C++ | 154 | 5 | 41 | 200 |
+| [code/kernel/mm/pmm.c](/code/kernel/mm/pmm.c) | C | 664 | 9 | 78 | 751 |
+| [code/kernel/mm/pmm.h](/code/kernel/mm/pmm.h) | C++ | 155 | 5 | 41 | 201 |
 | [code/kernel/mm/shmem.c](/code/kernel/mm/shmem.c) | C | 71 | 0 | 8 | 79 |
 | [code/kernel/mm/shmem.h](/code/kernel/mm/shmem.h) | C++ | 30 | 0 | 9 | 39 |
 | [code/kernel/mm/slab.c](/code/kernel/mm/slab.c) | C | 385 | 0 | 69 | 454 |
-| [code/kernel/mm/slab.h](/code/kernel/mm/slab.h) | C++ | 12 | 0 | 4 | 16 |
-| [code/kernel/mm/swap.c](/code/kernel/mm/swap.c) | C | 897 | 18 | 185 | 1,100 |
+| [code/kernel/mm/slab.h](/code/kernel/mm/slab.h) | C | 12 | 0 | 4 | 16 |
+| [code/kernel/mm/swap.c](/code/kernel/mm/swap.c) | C | 896 | 18 | 185 | 1,099 |
 | [code/kernel/mm/swap.h](/code/kernel/mm/swap.h) | C++ | 27 | 7 | 5 | 39 |
-| [code/kernel/mm/vmm.c](/code/kernel/mm/vmm.c) | C | 569 | 7 | 56 | 632 |
+| [code/kernel/mm/vmm.c](/code/kernel/mm/vmm.c) | C | 569 | 9 | 56 | 634 |
 | [code/kernel/mm/vmm.h](/code/kernel/mm/vmm.h) | C++ | 69 | 6 | 19 | 94 |
-| [code/kernel/schedule/sched.c](/code/kernel/schedule/sched.c) | C | 50 | 1 | 7 | 58 |
-| [code/kernel/schedule/sched.h](/code/kernel/schedule/sched.h) | C++ | 29 | 0 | 4 | 33 |
+| [code/kernel/schedule/sched.c](/code/kernel/schedule/sched.c) | C | 63 | 1 | 10 | 74 |
+| [code/kernel/schedule/sched.h](/code/kernel/schedule/sched.h) | C | 43 | 1 | 5 | 49 |
+| [code/kernel/schedule/sched_CFS.c](/code/kernel/schedule/sched_CFS.c) | C | 124 | 9 | 11 | 144 |
+| [code/kernel/schedule/sched_CFS.h](/code/kernel/schedule/sched_CFS.h) | C++ | 7 | 0 | 1 | 8 |
 | [code/kernel/schedule/sched_FCFS.c](/code/kernel/schedule/sched_FCFS.c) | C | 41 | 5 | 7 | 53 |
 | [code/kernel/schedule/sched_FCFS.h](/code/kernel/schedule/sched_FCFS.h) | C++ | 7 | 0 | 1 | 8 |
-| [code/kernel/schedule/sched_RR.c](/code/kernel/schedule/sched_RR.c) | C | 51 | 3 | 6 | 60 |
+| [code/kernel/schedule/sched_RR.c](/code/kernel/schedule/sched_RR.c) | C | 71 | 3 | 7 | 81 |
 | [code/kernel/schedule/sched_RR.h](/code/kernel/schedule/sched_RR.h) | C++ | 7 | 0 | 1 | 8 |
-| [code/kernel/syn/event.c](/code/kernel/syn/event.c) | C | 103 | 0 | 12 | 115 |
+| [code/kernel/syn/event.c](/code/kernel/syn/event.c) | C | 106 | 17 | 13 | 136 |
 | [code/kernel/syn/event.h](/code/kernel/syn/event.h) | C++ | 16 | 0 | 2 | 18 |
+| [code/kernel/syn/mbox.c](/code/kernel/syn/mbox.c) | C | 361 | 3 | 24 | 388 |
+| [code/kernel/syn/mbox.h](/code/kernel/syn/mbox.h) | C | 50 | 0 | 9 | 59 |
 | [code/kernel/syn/sem.c](/code/kernel/syn/sem.c) | C | 252 | 0 | 28 | 280 |
 | [code/kernel/syn/sem.h](/code/kernel/syn/sem.h) | C++ | 43 | 0 | 6 | 49 |
-| [code/kernel/syn/wait.c](/code/kernel/syn/wait.c) | C | 93 | 0 | 15 | 108 |
+| [code/kernel/syn/signal.c](/code/kernel/syn/signal.c) | C | 111 | 12 | 7 | 130 |
+| [code/kernel/syn/signal.h](/code/kernel/syn/signal.h) | C++ | 35 | 1 | 6 | 42 |
+| [code/kernel/syn/syn.c](/code/kernel/syn/syn.c) | C | 5 | 0 | 2 | 7 |
+| [code/kernel/syn/syn.h](/code/kernel/syn/syn.h) | C++ | 6 | 0 | 3 | 9 |
+| [code/kernel/syn/wait.c](/code/kernel/syn/wait.c) | C | 92 | 1 | 15 | 108 |
 | [code/kernel/syn/wait.h](/code/kernel/syn/wait.h) | C | 32 | 0 | 6 | 38 |
-| [code/kernel/test/kerneltest.c](/code/kernel/test/kerneltest.c) | C | 81 | 7 | 9 | 97 |
+| [code/kernel/test/kerneltest.c](/code/kernel/test/kerneltest.c) | C | 84 | 7 | 9 | 100 |
 | [code/kernel/test/kerneltest.h](/code/kernel/test/kerneltest.h) | C++ | 5 | 0 | 0 | 5 |
 | [code/kernel/test/uprintf.c](/code/kernel/test/uprintf.c) | C | 159 | 10 | 17 | 186 |
 | [code/kernel/test/uprintf.h](/code/kernel/test/uprintf.h) | C++ | 13 | 0 | 3 | 16 |
@@ -96,7 +106,7 @@ Total : 121 files,  10769 codes, 805 comments, 1709 blanks, all 13283 lines
 | [code/kernel/util/list.h](/code/kernel/util/list.h) | C++ | 58 | 0 | 17 | 75 |
 | [code/kernel/util/panic.c](/code/kernel/util/panic.c) | C | 50 | 3 | 6 | 59 |
 | [code/kernel/util/panic.h](/code/kernel/util/panic.h) | C++ | 10 | 0 | 3 | 13 |
-| [code/kernel/util/printf.c](/code/kernel/util/printf.c) | C | 168 | 3 | 16 | 187 |
+| [code/kernel/util/printf.c](/code/kernel/util/printf.c) | C | 170 | 3 | 16 | 189 |
 | [code/kernel/util/printf.h](/code/kernel/util/printf.h) | C++ | 15 | 0 | 6 | 21 |
 | [code/kernel/util/rand.c](/code/kernel/util/rand.c) | C | 18 | 6 | 7 | 31 |
 | [code/kernel/util/rand.h](/code/kernel/util/rand.h) | C++ | 9 | 0 | 2 | 11 |
@@ -127,10 +137,10 @@ Total : 121 files,  10769 codes, 805 comments, 1709 blanks, all 13283 lines
 | [code/user/libs/thread.c](/code/user/libs/thread.c) | C | 36 | 0 | 3 | 39 |
 | [code/user/libs/thread.h](/code/user/libs/thread.h) | C++ | 15 | 0 | 6 | 21 |
 | [code/user/libs/types.h](/code/user/libs/types.h) | C++ | 29 | 0 | 11 | 40 |
-| [code/user/libs/user.c](/code/user/libs/user.c) | C | 138 | 0 | 37 | 175 |
-| [code/user/libs/user.h](/code/user/libs/user.h) | C | 36 | 0 | 1 | 37 |
-| [code/user/libs/usys.py](/code/user/libs/usys.py) | Python | 21 | 2 | 6 | 29 |
-| [code/user/test/usertests.c](/code/user/test/usertests.c) | C | 910 | 126 | 101 | 1,137 |
+| [code/user/libs/user.c](/code/user/libs/user.c) | C | 194 | 1 | 49 | 244 |
+| [code/user/libs/user.h](/code/user/libs/user.h) | C | 51 | 0 | 0 | 51 |
+| [code/user/libs/usys.py](/code/user/libs/usys.py) | Python | 23 | 2 | 6 | 31 |
+| [code/user/test/usertests.c](/code/user/test/usertests.c) | C | 1,223 | 65 | 114 | 1,402 |
 | [code/user/test/usertests.h](/code/user/test/usertests.h) | C++ | 4 | 0 | 1 | 5 |
 
 [Summary](results.md) / Details / [Diff Summary](diff.md) / [Diff Details](diff-details.md)

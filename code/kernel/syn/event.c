@@ -124,12 +124,12 @@ int ipc_event_recv(int *pid_store, int *event_num_store, ulong timeout) {
     Timer __timer, *timer = ipc_timer_init(timeout, &saved_ticks, &__timer);
     int pid, event_num, ret;
     if ((ret = recv_event(&pid, &event_num, timer)) == 0) {
-        acquire(&mm->mm_lock);
+        lock_mm(mm);
         if (pid_store != nullptr) {
             copy_kernel2user(mm->pagetable, (uintptr_t)pid_store, (char *)&pid, sizeof(pid));
         }
         copy_kernel2user(mm->pagetable, (uintptr_t)event_num_store, (char *)&event_num, sizeof(event_num));
-        release(&mm->mm_lock);
+        unlock_mm(mm);
         return 0;
     }
     return ipc_check_timeout(timeout, saved_ticks);

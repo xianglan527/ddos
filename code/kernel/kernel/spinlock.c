@@ -47,18 +47,15 @@ void push_off(void) {
 
 void pop_off(void) {
     Cpu *c = mycpu();
-    if (intr_get()) 
-        panic("pop_off - interruptible");
+    if (intr_get()) panic("pop_off - interruptible");
     if (c->noff < 1) panic("pop_off");
     c->noff -= 1;
-    if (c->noff == 0 && c->intena) {
-        intr_on();
-    }
+    if (c->noff == 0 && c->intena) { intr_on(); }
 }
 
 static void push_spinlock_info(int index, int nest, const char *file, int line, const char *func) {
     // assert(nest < lock_info_nest - 1);
-    if(!(nest < lock_info_nest - 1)){
+    if (!(nest < lock_info_nest - 1)) {
         pr.locking = 0;
         int i = 0;
         for (i = 0; i < nest; i++) {

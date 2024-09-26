@@ -9,6 +9,7 @@
 #include "swap.h"
 #include "trap.h"
 #include "proc.h"
+#include "sem.h"
 
 extern Spinlock print_struct_lock;
 
@@ -16,6 +17,33 @@ static void check_vmm(void);
 static void check_vma_struct(void);
 static void check_pgfault(void);
 
+void lock_mm(Mm_struct *mm){
+    if(mm != nullptr){
+        down(&mm->mm_sem);
+        if(myproc() != nullptr){
+            mm->locked_by = myproc()->pid;
+        }
+    }
+}
+
+void unlock_mm(Mm_struct *mm){
+    if(mm != nullptr){
+        up(&mm->mm_sem);
+        mm->locked_by = 0;
+    }
+}
+
+bool try_lock_mm(Mm_struct *mm){
+    if(mm != nullptr){
+        if(!try_down(&mm->mm_sem)){
+            return false;
+        }
+        if(myproc() != nullptr){
+            mm->locked_by = myproc()->pid;
+        }
+    }
+    return true;
+}
 
 Mm_struct *mm_create(void) {
     Mm_struct *mm = kmalloc(sizeof(Mm_struct));
@@ -29,10 +57,12 @@ Mm_struct *mm_create(void) {
         mm->brk_start = mm->brk = 0;
         set_mm_count(mm, 0);
         atomic_set(&mm->mm_share_count, 0);
-        initlock(&mm->mm_lock, "mm_lock");
+        // initlock(&mm->mm_lock, "mm_lock");
         list_init(&mm->proc_mm_link);
         mm->proc = nullptr;
         mm->share = false;
+        mm->locked_by = 0;
+        sem_init(&mm->mm_sem, 1);
     }
     return mm;
 }
@@ -143,7 +173,6 @@ void insert_vma_struct(Mm_struct *mm, Vma_struct *vma) {
         }
     }
     le_next = list_next(le_prev);
-
     if (le_prev != list) check_vma_overlap(le2vma(le_prev, list_link), vma);
     if (le_next != list) check_vma_overlap(vma, le2vma(le_next, list_link));
     vma->vm_mm = mm;
@@ -341,7 +370,7 @@ void exit_mmap(Mm_struct *mm){
         Vma_struct *vma = le2vma(le, list_link);
         exit_range(pagatable, vma->vm_start, vma->vm_end);
     }
-    while ((le = list_next(le)) != list) {
+    while ((le = list_next(list)) != list) {
         Vma_struct *vma = le2vma(le, list_link);
         remove_and_destroy_vma_struct(mm, vma);
     }
@@ -538,7 +567,15 @@ int do_pagatable_fault(Mm_struct *mm, uintptr_t addr, bool write) {
     int ret = -E_INVAL;
     // vm_print(mm->pagetable);
     // print_vma_list(mm);
-    acquire(&mm->mm_lock);
+    bool need_unlock = true;
+    if(!try_lock_mm(mm)){
+        if(myproc() != nullptr && mm->locked_by == myproc()->pid){
+            need_unlock = false;
+        }
+        else{
+            lock_mm(mm);
+        }
+    }
     Vma_struct *vma = find_vma(mm, addr);
     if (vma == nullptr || vma->vm_start > addr) 
         goto failed;
@@ -629,6 +666,8 @@ int do_pagatable_fault(Mm_struct *mm, uintptr_t addr, bool write) {
     ret = 0;
 exit:
 failed:
-    release(&mm->mm_lock);
+    if(need_unlock){
+        unlock_mm(mm);
+    }
     return ret;
 }

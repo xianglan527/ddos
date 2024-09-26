@@ -54,25 +54,25 @@ extern uint64_t sys_set_proc_cpu(void);
 
 int fetch_addr(uint64_t addr, uint64_t *ip){
     Proc *current = myproc();
-    acquire(&current->mm->mm_lock);
+    lock_mm(current->mm);
     if(user_mem_check(current->mm, addr, sizeof(*ip), true) == 0){
-        release(&current->mm->mm_lock);
+        unlock_mm(current->mm);
         return -1;
     }
     copy_user2kernel(current->mm->pagetable, (char *)ip, addr, sizeof(*ip));
-    release(&current->mm->mm_lock);
+    unlock_mm(current->mm);
     return 0;
 }
 
 int fetch_str(uint64_t addr, char *buf, int max){
     Proc *current = myproc();
-    acquire(&current->mm->mm_lock);
+    lock_mm(current->mm);
     int err = copystr_user2kernel(current->mm->pagetable, buf, addr, max);
     if(err < 0){
-        release(&current->mm->mm_lock);
+        unlock_mm(current->mm);
         return err;
     }
-    release(&current->mm->mm_lock);
+    unlock_mm(current->mm);
     return strlen(buf);
 }
 

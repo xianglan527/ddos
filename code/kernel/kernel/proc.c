@@ -63,6 +63,7 @@ static int __do_kill(Proc *proc, int error_code);
 void swtch(struct context *, struct context *);
 
 int alloc_pid() {
+    acquire(&procs_lock);
     int pid;
     Proc *proc;
     List_entry *le = &proc_list;
@@ -73,6 +74,7 @@ repeat:
         proc = le2proc(le, list_link);
         if (proc->pid == next_pid) goto repeat;
     }
+    release(&procs_lock);
     return pid;
 }
 
@@ -155,7 +157,9 @@ void set_proc_cpu(Proc *proc, Cpu *cpu) {
         release(&proc->lock);
         return;
     }
-    if (!list_empty(&proc->run_link)) { sched_class_dequeue(proc); }
+    if (!list_empty(&proc->run_link)) { 
+        sched_class_dequeue(proc); 
+    }
     sched_class_enqueue(proc);
     release(&proc->lock);
     // proc->set_cpu = nullptr;
@@ -196,7 +200,9 @@ Proc *alloc_proc() {
     long kernel_stack_bit_index = bitmap_scan_set(kernel_stack_bitmap, 1);
     assert(kernel_stack_bit_index != -1);
     uint64_t va = KSTACK(kernel_stack_bit_index);
+    acquire(&procs_lock);
     int ret = pages_insert(kernel_pagetable, pages, va, PTE_W | PTE_R, KSTACKPAGE - 1);
+    release(&procs_lock);
     assert(ret == 0);
     proc->kstack = va;
     // memset(&proc->context, 0, sizeof(proc->context));
@@ -243,7 +249,7 @@ static void uvm_init(Mm_struct *mm) {
 
 void user_init(void (*start_routin)(void)) {
     Proc *p;
-    acquire(&procs_lock);
+    // acquire(&procs_lock);
     p = alloc_proc();
     assert(p != nullptr);
     initproc = p;
@@ -255,7 +261,7 @@ void user_init(void (*start_routin)(void)) {
     p->context.ra = (uint64_t)fork_ret;
     p->trapframe->epc = (uint64_t)start_routin;  // user program counter
     p->trapframe->sp = USTACKADDR + USTACKSIZE;
-    // acquire(&procs_lock);
+    acquire(&procs_lock);
     snprintf(p->name, sizeof(p->name), "initcode u_process_%d", p->pid);
     hash_proc(p);
     set_links(p);
@@ -269,7 +275,7 @@ static void kernel_thread_ret(void (*start_roution)(void *), void *arg) {
 }
 
 void kernel_thread_init(void (*start_roution)(void *), void *arg) {
-    acquire(&procs_lock);
+    // acquire(&procs_lock);
     Proc *proc = alloc_proc();
     assert(proc != nullptr);
     daemonproc = proc;
@@ -280,7 +286,7 @@ void kernel_thread_init(void (*start_roution)(void *), void *arg) {
     if (arg != nullptr) proc->context.a1 = (uint64_t)arg;
     proc->state = RUNNABLE;
     proc->kernel_proc = true;
-    // acquire(&procs_lock);
+    acquire(&procs_lock);
     snprintf(proc->name, sizeof(proc->name), "%s%d", (char *)arg, proc->pid);
     hash_proc(proc);
     set_links(proc);
@@ -319,7 +325,9 @@ void do_yield(void) {
     assert(p->state == RUNNING);
     acquire(&p->lock);
     if (p->cpu->sc == &CFS_sched_class) { sched_class_insert_rbtree(p); }
-    p->state = RUNNABLE;
+    else{
+        p->state = RUNNABLE;
+    }
     p->need_resched = false;
     sched();
     // if (p->cpu->sc == &CFS_sched_class) { sched_class_remove_rbtree(p); }
@@ -425,11 +433,16 @@ void scheduler(void) {
             //     while(1);
             // }
             // next = c->next;
-            assert(c->next->state == RUNNABLE && c->next->cpu == c);
+            // cprintf("666666 : c->next->pid is %d c->next->cpu is %d  current cpu is %d\n",
+            //         c->next->pid ,c->next->cpu - cpus, c - cpus);
+            // if(!(c->next->state == RUNNING && c->next->cpu == c)){
+            //     int pp = 3;
+            // }
+            assert(c->next->state == RUNNING && c->next->cpu == c);
             acquire(&c->next->lock);
-            c->next->state = RUNNING;
+            // c->next->state = RUNNING;
             // c->next->runs++;
-            if (c->next->cpu->sc == &CFS_sched_class) { sched_class_remove_rbtree(c->next); }
+            // if (c->next->cpu->sc == &CFS_sched_class) { sched_class_remove_rbtree(c->next); }
             c->proc = c->prev = c->next;
             // c->proc->cpu = c;
             // release(&procs_lock);
@@ -493,8 +506,10 @@ void do_wakeup(void *chan) {
         p = le2proc(le, list_link);
         acquire(&p->lock);
         if (p->state == SLEEPING && p->chan == chan) {
-            if (p->cpu->sc == &CFS_sched_class) { sched_class_insert_rbtree(p); }
-            p->state = RUNNABLE;
+            if (p->cpu->sc == &CFS_sched_class) { sched_class_insert_rbtree(p);
+            } else {
+                p->state = RUNNABLE;
+            }
         }
         release(&p->lock);
     }
@@ -532,8 +547,10 @@ void wakeup_proc(Proc *proc) {
     //     myproc()->pid,
     //             mycpu() - cpus, proc->pid, proc->state);
     if (proc->chan == proc && proc->state == SLEEPING) {
-        if (proc->cpu->sc == &CFS_sched_class) { sched_class_insert_rbtree(proc); }
-        proc->state = RUNNABLE;
+        if (proc->cpu->sc == &CFS_sched_class) { sched_class_insert_rbtree(proc);
+        } else {
+            proc->state = RUNNABLE;
+        }
         proc->wait_state = 0;
         // if (myproc() != 0)
         //     cprintf("uuuuuuuuu33333333  current pid is %d current cpu is %d wakeup is %d\n", myproc()->pid,
@@ -549,7 +566,7 @@ static void de_thread(Proc *proc) {
 static Proc *next_thread(Proc *proc) { return le2proc(list_next(&proc->thread_group), thread_group); }
 
 static void copy_mm(uint32_t clone_flags, Proc *proc) {
-    int ret = -1;
+    int ret = -1;  
     Proc *current = myproc();
     Mm_struct *mm, *oldmm = current->mm;
     if (oldmm == nullptr) { return; }
@@ -568,10 +585,10 @@ static void copy_mm(uint32_t clone_flags, Proc *proc) {
     }
     mm = proc->mm;
     assert(mm != nullptr);
-    acquire(&oldmm->mm_lock);
+    lock_mm(oldmm);
     ret = dup_mmap(mm, oldmm);
     assert(ret == 0);
-    release(&oldmm->mm_lock);
+    unlock_mm(oldmm);
     if (mm != oldmm) {
         mm->brk_start = oldmm->brk_start;
         mm->brk = oldmm->brk;
@@ -626,7 +643,7 @@ void may_killed(void) {
 
 int do_fork(uint32_t clone_flags, uintptr_t stack) {
     Proc *proc, *current;
-    acquire(&procs_lock);
+    // acquire(&procs_lock);
     current = myproc();
     proc = alloc_proc();
     proc->mm->pagetable = proc_pagetable(proc);
@@ -643,6 +660,7 @@ int do_fork(uint32_t clone_flags, uintptr_t stack) {
     proc->trapframe->a0 = 0;
     assert(current->wait_state == 0);
     snprintf(proc->name, sizeof(proc->name), "u_process_%d", proc->pid);
+    // acquire(&procs_lock);
     if (clone_flags & CLONE_THREAD) {
         list_add_before(&current->thread_group, &proc->thread_group);
         assert(proc->mm_index >= 1);
@@ -652,6 +670,7 @@ int do_fork(uint32_t clone_flags, uintptr_t stack) {
     proc->parent = current;
     // proc->time_slice = current->time_slice / 2;
     // current->time_slice -= proc->time_slice;
+    acquire(&procs_lock);
     hash_proc(proc);
     set_links(proc);
     release(&procs_lock);
@@ -663,6 +682,7 @@ static void __do_exit() {
     if (current == initproc) panic("init exiting");
     acquire(&procs_lock);
     Mm_struct *mm = current->mm;
+    // lock_mm(mm);
     if (mm != nullptr) {
         unmap_range(mm->pagetable, TRAPFRAME(current->mm_index), TRAPFRAME(current->mm_index) + PGSIZE);
         if (mm_count_dec(mm) == 0) {
@@ -673,7 +693,9 @@ static void __do_exit() {
             release(&proc_mm_list_lock);
             mm_destroy(mm);
         }
+        // current->mm = nullptr;
     }
+    // unlock_mm(mm);
     put_sem_queue(current);
     put_siginfo(current);
     Proc *proc, *parent;
@@ -780,10 +802,10 @@ found:
     free_proc(proc);
     release(&procs_lock);
     if (code_store != nullptr) {
-        acquire(&current->mm->mm_lock);
+        lock_mm(current->mm);
         copy_kernel2user(current->mm->pagetable, (uintptr_t)code_store, (char *)&proc->exit_code,
                          sizeof(proc->exit_code));
-        release(&current->mm->mm_lock);
+        unlock_mm(current->mm);
     }
     // cprintf("do exit...current pid is %d proc pid is %d mm_count is %d cpuid is %d\n", myproc()->pid,
     // proc->pid,
@@ -912,7 +934,7 @@ int do_execve(char *path, char **argv) {
     Proc *current = myproc();
     safestrcpy(current->name, last, sizeof(current->name));
     Mm_struct *mm = current->mm;
-    acquire(&mm->mm_lock);
+    lock_mm(mm);
     if (mm != nullptr) {
         if (mm_count_dec(mm) == 0) {
             exit_mmap(mm);
@@ -924,7 +946,7 @@ int do_execve(char *path, char **argv) {
         }
         current->mm = nullptr;
     }
-    release(&mm->mm_lock);
+    unlock_mm(mm);
     put_sem_queue(current);
     assert((current->sem_queue = sem_queue_create()) != nullptr);
     atomic_inc(&current->sem_queue->count);
@@ -940,18 +962,18 @@ int do_execve(char *path, char **argv) {
         sp -= strlen(argv[argc]) + 1;
         sp -= sp % 16;
         assert(sp >= stackbase);
-        acquire(&current->mm->mm_lock);
+        lock_mm(current->mm);
         copy_kernel2user(current->mm->pagetable, sp, argv[argc], strlen(argv[argc]) + 1);
-        release(&current->mm->mm_lock);
+        unlock_mm(current->mm);
         ustack[argc] = sp;
     }
     ustack[argc] = 0;
     sp -= (argc + 1) * sizeof(uint64_t);
     sp -= sp % 16;
     assert(sp >= stackbase);
-    acquire(&current->mm->mm_lock);
+    lock_mm(current->mm);
     copy_kernel2user(current->mm->pagetable, sp, (char *)ustack, (argc + 1) * sizeof(uint64_t));
-    release(&current->mm->mm_lock);
+    unlock_mm(current->mm);
     current->trapframe->a1 = sp;
     current->trapframe->epc = ((struct elfhdr *)binary)->entry;
     current->trapframe->sp = sp;
@@ -965,7 +987,7 @@ int do_brk(uintptr_t *brk_store) {
     if (myproc()->kernel_proc == true) panic("kernel thread call sys_brk!!!\n");
     if (brk_store == nullptr) return -E_INVAL;
     uintptr_t brk;
-    acquire(&mm->mm_lock);
+    lock_mm(mm);
     either_copy_user2kernel(&brk, 1, (uint64_t)brk_store, sizeof(uintptr_t));
     if (brk < mm->brk_start) goto out_unlock;
     uintptr_t newbrk = PGROUNDUP(brk), oldbrk = mm->brk;
@@ -980,7 +1002,7 @@ int do_brk(uintptr_t *brk_store) {
     mm->brk = newbrk;
 out_unlock:
     copy_kernel2user(myproc()->mm->pagetable, (uintptr_t)brk_store, (char *)&mm->brk, sizeof(mm->brk));
-    release(&mm->mm_lock);
+    unlock_mm(mm);
     return 0;
 }
 
@@ -1132,7 +1154,7 @@ int do_mmap(uintptr_t *addr_store, size_t len, uint32_t mmap_flags) {
     if (addr_store == nullptr || len == 0) return -E_INVAL;
     int ret = -E_INVAL;
     uintptr_t addr;
-    acquire(&mm->mm_lock);
+    lock_mm(mm);
     either_copy_user2kernel(&addr, 1, (uint64_t)addr_store, sizeof(uintptr_t));
     uintptr_t start = PGROUNDDOWN(addr), end = PGROUNDUP(addr + len);
     addr = start, len = end - start;
@@ -1147,7 +1169,7 @@ int do_mmap(uintptr_t *addr_store, size_t len, uint32_t mmap_flags) {
         copy_kernel2user(mm->pagetable, (uintptr_t)addr_store, (char *)&addr, sizeof(addr));
     }
 out_unlock:
-    release(&mm->mm_lock);
+    unlock_mm(mm);
     return ret;
 }
 
@@ -1156,9 +1178,9 @@ int do_munmap(uintptr_t addr, size_t len) {
     if (mm == nullptr) panic("kernel thread call mmap!!.\n");
     if (len == 0) return -E_INVAL;
     int ret;
-    acquire(&mm->mm_lock);
+    lock_mm(mm);
     ret = mm_unmap(mm, addr, len);
-    release(&mm->mm_lock);
+    unlock_mm(mm);
     return ret;
 }
 
@@ -1168,7 +1190,7 @@ int do_shmem(uintptr_t *addr_store, size_t len, uint32_t mmap_flags) {
     if (addr_store == nullptr || len == 0) return -E_INVAL;
     int ret = -E_INVAL;
     uintptr_t addr;
-    acquire(&mm->mm_lock);
+    lock_mm(mm);
     either_copy_user2kernel(&addr, 1, (uint64_t)addr_store, sizeof(uintptr_t));
     uintptr_t start = PGROUNDDOWN(addr), end = PGROUNDUP(addr + len);
     addr = start, len = end - start;
@@ -1188,6 +1210,6 @@ int do_shmem(uintptr_t *addr_store, size_t len, uint32_t mmap_flags) {
     }
     copy_kernel2user(mm->pagetable, (uintptr_t)addr_store, (char *)&addr, sizeof(addr));
 out_unlock:
-    release(&mm->mm_lock);
+    unlock_mm(mm);
     return ret;
 }

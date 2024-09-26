@@ -214,7 +214,7 @@ int ipc_mbox_send(int id, Mboxbuf *buf, ulong timeout) {
     Mboxbuf __local_buf, *local_buf = &__local_buf;
     void *local_data = nullptr;
     int ret = -E_INVAL;
-    acquire(&mm->mm_lock);
+    lock_mm(mm);
     {
         either_copy_user2kernel(local_buf, 1, (uint64_t)buf, sizeof(*buf));
         size_t len = local_buf->len;
@@ -225,7 +225,7 @@ int ipc_mbox_send(int id, Mboxbuf *buf, ulong timeout) {
             ret = ((msg = load_msg(local_data, len)) != nullptr) ? 0 : -E_NO_MEM;
         }
     }
-    release(&mm->mm_lock);
+    unlock_mm(mm);
     kfree(local_data);
     mbox = get_mbox(id);
     if (ret == 0) {
@@ -273,7 +273,7 @@ static int recv_msg(Msg_mbox *mbox, size_t max_bytes, Msg_msg **msg_store, Timer
         release(&timer_lock);
         wait_current_del(&mbox->receivers, wait);
         if (mbox->state != OPENED || wait->wakeup_flags != WT_MBOX_RECV) {
-            assert(wait->wakeup_flags == WT_INTERAUPTED);
+            // assert(wait->wakeup_flags == WT_INTERAUPTED);
             ret = WT_INTERAUPTED;
             goto out;
         }
@@ -303,12 +303,12 @@ int ipc_mbox_recv(int id, Mboxbuf *buf, ulong timeout) {
     void *local_data = nullptr;
     int ret = -E_INVAL;
     size_t size;
-    acquire(&mm->mm_lock);
+    lock_mm(mm);
     {
         either_copy_user2kernel(local_buf, 1, (uint64_t)buf, sizeof(*buf));
         size = local_buf->size;
     }
-    release(&mm->mm_lock);
+    unlock_mm(mm);
     mbox = get_mbox(id);
     ulong saved_ticks;
     Timer __timer, *timer = ipc_timer_init(timeout, &saved_ticks, &__timer);
@@ -316,7 +316,7 @@ int ipc_mbox_recv(int id, Mboxbuf *buf, ulong timeout) {
         if (ret == WT_INTERAUPTED) { return ipc_check_timeout(timeout, saved_ticks); }
         return ret;
     }
-    acquire(&mm->mm_lock);
+    lock_mm(mm);
     {
         size_t len = msg->bytes;
         copy_kernel2user(mm->pagetable, (uintptr_t)&buf->len, (char *)&msg->bytes, sizeof(msg->bytes));
@@ -327,7 +327,7 @@ int ipc_mbox_recv(int id, Mboxbuf *buf, ulong timeout) {
         // print_vma_list(mm);
         copy_kernel2user(mm->pagetable, (uintptr_t)local_buf->data, (char *)local_data, len);
     }
-    release(&mm->mm_lock);
+    unlock_mm(mm);
     kfree(local_data);
     free_msg(msg);
     return ret;
@@ -362,9 +362,9 @@ int ipc_mbox_info(int id, Mboxinfo *info) {
     local_info->has_sender = !wait_queue_empty(&mbox->senders);
     local_info->has_receiver = !wait_queue_empty(&(mbox->receivers));
     release(&mbox->msg_mbox_lock);
-    acquire(&mm->mm_lock);
+    lock_mm(mm);
     copy_kernel2user(mm->pagetable, (uintptr_t)info, (char *)local_info, sizeof(*local_info));
-    release(&mm->mm_lock);
+    unlock_mm(mm);
     return 0;
 }
 

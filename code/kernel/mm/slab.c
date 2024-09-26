@@ -305,6 +305,7 @@ static void kmem_cache_free(Kmem_cache *cachep, void *objp) {
 
 void kfree(void *objp) { 
     kmem_cache_free(GET_PAGE_CACHE(kva2page((uintptr_t)objp)), objp); 
+    // objp = nullptr;
 }
 
 void aligned_kfree(void *aligned) { kfree(((void **)aligned)[-1]); }

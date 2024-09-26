@@ -271,10 +271,10 @@ int ipc_sem_get_value(sem_t sem_id, int *value_store){
     release(&sem_queue->sem_queue_lock);
     if(semu != nullptr){
         int value = semu->sem->value;
-        acquire(&mm->mm_lock);
+        lock_mm(mm);
         copy_kernel2user(mm->pagetable, (uintptr_t)value_store, (char *)&value, sizeof(value));
         ret = 0;
-        release(&mm->mm_lock);
+        unlock_mm(mm);
     }
     return ret;
 }

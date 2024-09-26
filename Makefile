@@ -59,6 +59,8 @@ ifndef CPUS
 CPUS := 8
 endif
 
+DEFS += -DCPUS=$(CPUS)
+
 swap.img:
 	${DD} if=/dev/zero of=$@ bs=1024M count=1
 	# ${DD} if=/dev/urandom of=$@ bs=1024M count=1

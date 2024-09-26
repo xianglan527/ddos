@@ -31,9 +31,9 @@ int ipc_set_sigaction(int sig, Sigaction *sa) {
     assert(current != nullptr);
     Mm_struct *mm = current->mm;
     Sigaction local_sigaction;
-    acquire(&mm->mm_lock);
+    lock_mm(mm);
     { either_copy_user2kernel(&local_sigaction, 1, (uint64_t)sa, sizeof(*sa)); }
-    release(&mm->mm_lock);
+    unlock_mm(mm);
     acquire(&current->signal.signal_lock);
     current->signal.action[sig - 1].sa_handler = local_sigaction.sa_handler;
     current->signal.action[sig - 1].sa_flags = local_sigaction.sa_flags;
@@ -98,7 +98,7 @@ void do_signal() {
         // [6:0]: Opcode opcode (for addi, it's 0010011, i.e., 0x13)
         // machine_code = (imm & 0xFFF) << 20 | (x0 << 15) | (funct3 << 12) | (x17 << 7) | opcode
         addi_instruction = (imm << 20) | (0 << 15) | (0 << 12) | (17 << 7) | 0x13;
-        acquire(&mm->mm_lock);
+        lock_mm(mm);
         copy_kernel2user(mm->pagetable, (uintptr_t)&sig_frame->saved_trapframe, (char *)current->trapframe,
                          sizeof(Trapframe));
         copy_kernel2user(mm->pagetable, (uintptr_t)sig_frame->ret_code, (char *)&addi_instruction,
@@ -106,7 +106,7 @@ void do_signal() {
         copy_kernel2user(mm->pagetable, (uintptr_t)(sig_frame->ret_code + 4), (char *)&ecall_instruction,
                          sizeof(uint32_t));
         copy_kernel2user(mm->pagetable, (uintptr_t)&sig_frame->sig, (char *)&sig, sizeof(sig));
-        release(&mm->mm_lock);
+        unlock_mm(mm);
         current->trapframe->ra = (uint64_t)sig_frame->ret_code;
         current->trapframe->epc = (uint64_t)action->sa_handler;
         current->trapframe->sp = (uint64_t)sig_frame;
@@ -119,10 +119,10 @@ int ipc_sigreturn(void) {
     assert(current != nullptr);
     Mm_struct *mm = current->mm;
     Sigframe *sig_frame = (Sigframe *)current->trapframe->sp;
-    acquire(&mm->mm_lock);
+    lock_mm(mm);
     either_copy_user2kernel(current->trapframe, 1, (uint64_t)&sig_frame->saved_trapframe, sizeof(Trapframe));
     either_copy_user2kernel(&sig, 1, (uint64_t)&sig_frame->sig, sizeof(sig));
-    release(&mm->mm_lock);
+    unlock_mm(mm);
     if (sig < 0 && sig >= NSIG) { return -E_INVAL; }
     current->sig_blocked &= ~(sig - 1);
     current->sig_blocked &= ~(current->signal.action[sig - 1].sa_mask);

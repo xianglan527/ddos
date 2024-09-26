@@ -55,4 +55,10 @@
 #define MAX_MSG_SLOTS 0x1000
 #define MAX_MSG_BYTES 0x10000
 
+#define CPU_LOAD_IDX_MAX 5
+
+#define load_balance_proc_num_threshold 10
+
+#define load_balance_diff_threshold 4
+
 #endif  // __CONFIG_CONFIG_H__
