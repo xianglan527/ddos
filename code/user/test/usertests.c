@@ -10,6 +10,8 @@
 #include "user.h"
 #include "rand.h"
 #include "spipe.h"
+
+#define UNIQUE_VAR(name) name##__LINE__
 ///////////////////////////////////////////////////////////////////
 static void forktest(char *s) {
     printf("pid %d running forktest\n", getpid());
@@ -1318,6 +1320,65 @@ static void sched_CFS_test(char *s) {
     for (i = 0; i < sched_CFS_NUM_PROCS; i++) { waitpid(pids[i], nullptr); }
 }
 //////////////////////////////////////////////////////////////////////////
+#define LOAD_BALANCE_NUM_TASKS 100  
+
+void cpu_intensive_work() {
+    unsigned long sum = 0;
+    for (unsigned long i = 0; i < 40000000; i++) { sum += i % 100; }
+}
+
+int task_fn_bind_cpu0(void *arg) {
+    set_proc_cpu(getpid(), 0); 
+    cpu_intensive_work();
+    exit(0);  
+}
+
+int task_fn_clear_bind(void *arg) {
+    clear_proc_setcpu(getpid()); 
+    cpu_intensive_work();
+    exit(0); 
+}
+
+static void cpu_load_balance_test(char *s) {
+    int pids[LOAD_BALANCE_NUM_TASKS];
+    uint64_t start_ticks, end_ticks;
+    printf("Starting phase 1: All tasks bound to CPU 0...\n");
+    for (int i = 0; i < LOAD_BALANCE_NUM_TASKS; i++) {
+        if ((pids[i] = fork()) == 0) { task_fn_bind_cpu0((void *)(uintptr_t)i); }
+        assert(pids[i] > 0);
+    }
+    start_ticks = gettime();
+    for (int i = 0; i < LOAD_BALANCE_NUM_TASKS; i++) {
+        int exit_code;
+        assert(waitpid(pids[i], &exit_code) == 0);
+    }
+    end_ticks = gettime();
+    uint64_t total_time_bind_cpu0 = end_ticks - start_ticks;
+    printf("Starting phase 2: Tasks using kernel load balancing...\n");
+    for (int i = 0; i < LOAD_BALANCE_NUM_TASKS; i++) {
+        if ((pids[i] = fork()) == 0) { task_fn_clear_bind((void *)(uintptr_t)i); }
+        assert(pids[i] > 0);
+    }
+    start_ticks = gettime();
+    for (int i = 0; i < LOAD_BALANCE_NUM_TASKS; i++) {
+        int exit_code;
+        assert(waitpid(pids[i], &exit_code) == 0);
+    }
+    end_ticks = gettime();
+    uint64_t total_time_load_balanced = end_ticks - start_ticks;
+    printf("Phase 2 Results: Tasks using kernel load balancing\n");
+    printf("\nComparison of two phases:\n");
+    printf("Total time (Phase 1, bound to CPU 0): %lu ticks.\n", total_time_bind_cpu0);
+    printf("Total time (Phase 2, load balanced): %lu ticks.\n", total_time_load_balanced);
+
+    if (total_time_load_balanced < total_time_bind_cpu0 >> 1) {
+        printf("Load balancing improved performance by distributing tasks across CPUs.\n");
+    } else {
+        printf("No significant improvement in load balancing.\n");
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////
 static int run(void f(char *), char *s) {
     int pid;
     int xstatus = 1;
@@ -1384,6 +1445,7 @@ struct test {
     {mboxmaptest, "mboxmaptest"},
     {sigtest, "sigtest"},
     {sched_CFS_test, "sched_CFS_test"},
+    {cpu_load_balance_test, "cpu_load_balance_test"},
     {swaptest, "swaptest"},
     {nullptr, nullptr},
 };

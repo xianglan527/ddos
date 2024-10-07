@@ -314,9 +314,18 @@ uint64_t sys_set_proc_cpu(void) {
     arg_int(1, &cpuid);
     Proc *proc = find_proc(pid);
     if (proc == nullptr) { return -E_INVAL; }
-    if (cpuid < 0 || cpuid >= NCPU) { return -E_INVAL; }
+    if (cpuid < 0 || cpuid >= CPUS) { return -E_INVAL; }
     // acquire(&proc->lock);
     set_proc_cpu(proc, &cpus[cpuid]);
     // release(&proc->lock);
+    return 0;
+}
+
+uint64_t sys_clear_proc_setcpu(void) {
+    int pid;
+    arg_int(0, &pid);
+    Proc *proc = find_proc(pid);
+    if (proc == nullptr) { return -E_INVAL; }
+    clear_proc_setcpu(proc);
     return 0;
 }

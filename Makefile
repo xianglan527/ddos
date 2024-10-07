@@ -123,6 +123,7 @@ include code/user/Makefile
 
 U_INCLUDE += -I./code/kernel/config
 
+USER_DEFS += -DCPUS=$(CPUS)
 
 ${USER_PATH}:
 	@${MKDIR} $@
@@ -142,7 +143,7 @@ U_OBJS_C   := $(addprefix ${USER_PATH}/, $(patsubst %.c, %.o, $(notdir ${U_SRCS_
 U_OBJS = ${U_OBJS_ASM} ${U_OBJS_C}
 
 define U_compile_c_file
-$(CC) ${U_INCLUDE} ${CFLAGS} -c -o ${USER_PATH}/$(notdir $(1:.c=.o)) $(1)
+$(CC) ${USER_DEFS} ${U_INCLUDE} ${CFLAGS} -c -o ${USER_PATH}/$(notdir $(1:.c=.o)) $(1)
 endef
 
 # 添加汇编文件的编译规则

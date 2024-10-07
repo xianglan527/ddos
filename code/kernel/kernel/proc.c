@@ -165,16 +165,20 @@ void set_proc_cpu(Proc *proc, Cpu *cpu) {
     // proc->set_cpu = nullptr;
 }
 
-void clear_proc_cpu(Proc *proc, Cpu *cpu) { proc->set_cpu = nullptr; }
-
-static void proc_initlock(Proc *proc, char *name) {
-    proc->lock.name = name;
-    proc->lock.locked = 0;
-    proc->lock.cpu = 0;
-    proc->lock.info_index = KSTACK2INDEX(proc->kstack) + 200;
-    atomic_set(&proc->lock.info_nest, 0);
-    assert(proc->lock.info_index < lock_info_nums);
+void clear_proc_setcpu(Proc *proc) {
+    acquire(&proc->lock);
+    proc->set_cpu = nullptr;
+    release(&proc->lock);
 }
+
+// static void proc_initlock(Proc *proc, char *name) {
+//     proc->lock.name = name;
+//     proc->lock.locked = 0;
+//     proc->lock.cpu = 0;
+//     proc->lock.info_index = KSTACK2INDEX(proc->kstack) + 200;
+//     atomic_set(&proc->lock.info_nest, 0);
+//     assert(proc->lock.info_index < lock_info_nums);
+// }
 
 Proc *alloc_proc() {
     Proc *proc = kmalloc(sizeof(Proc));
@@ -208,7 +212,8 @@ Proc *alloc_proc() {
     // memset(&proc->context, 0, sizeof(proc->context));
     proc->context.sp = (uint64_t)(proc->kstack + KSTACKSIZE - PGSIZE);
     proc->wait_state = 0;
-    proc_initlock(proc, "process lock");
+    // proc_initlock(proc, "process lock");
+    initlock(&proc->lock, "process lock");
     proc->cptr = proc->optr = proc->yptr = nullptr;
     // acquire(&procs_lock);
     proc->pid = alloc_pid();

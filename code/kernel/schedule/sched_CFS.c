@@ -111,7 +111,7 @@ static Proc *CFS_get_proc(Cpu *cpu) {
     List_entry *le = list_next(&cpu->rq.run_list);
     while (le != &cpu->rq.run_list) {
         next = le2proc(le, run_link);
-        if (next->state == RUNNABLE) {
+        if (next->state == RUNNABLE && next->set_cpu != nullptr) {
             CFS_dequeue(cpu, next);
             return next;
         }

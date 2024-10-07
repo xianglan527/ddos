@@ -143,6 +143,7 @@ void load_balance(int cpu_load_index) {
         }
         // cprintf("444444  proc id is %d\n", proc->pid);
         set_proc_cpu(proc, &cpus[min_index]);
+        clear_proc_setcpu(proc);
         max -= load_value;
         min += load_value;
         if(min > max) return;

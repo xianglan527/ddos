@@ -51,6 +51,7 @@ extern uint64_t sys_setpriority(void);
 extern uint64_t sys_getpriority(void);
 extern uint64_t sys_get_proc_runticks(void);
 extern uint64_t sys_set_proc_cpu(void);
+extern uint64_t sys_clear_proc_setcpu(void);
 
 int fetch_addr(uint64_t addr, uint64_t *ip){
     Proc *current = myproc();
@@ -152,6 +153,7 @@ static uint64_t (*syscalls[])(void) = {
     [SYS_getpriority] = sys_getpriority,
     [SYS_get_proc_runticks] = sys_get_proc_runticks,
     [SYS_set_proc_cpu] = sys_set_proc_cpu,
+    [SYS_clear_proc_setcpu] = sys_clear_proc_setcpu,
 };
 
 void syscall(void) {

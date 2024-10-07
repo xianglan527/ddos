@@ -3,15 +3,16 @@
 #include "stdarg.h"
 #include "types.h"
 #include "atomic.h"
+#include "config.h"
 typedef struct cpu Cpu;
 typedef struct spinlock Spinlock;
 struct spinlock{
     volatile bool locked;
     char *name;
-    Cpu *cpu; 
-    long info_index;
-    // long info_nest;
-    Atomic info_nest;
+    Cpu *cpu;
+    char file[lock_info_lens];
+    long line;
+    char func[lock_info_lens];
 };
 void acquire_with_info(Spinlock *lk,const char *file, int line, const char *func);
 void release_with_info(Spinlock *lk, const char *file, int line, const char *func);

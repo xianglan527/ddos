@@ -52,6 +52,7 @@
 #define SYS_getpriority 49
 #define SYS_get_proc_runticks 50
 #define SYS_set_proc_cpu 51
+#define SYS_clear_proc_setcpu 52
 
 #define CLONE_VM 0x00000100
 #define CLONE_THREAD 0x00000200

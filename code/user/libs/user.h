@@ -48,4 +48,5 @@ int setpriority(int pid, int priority);
 int getpriority(int pid);
 uint64_t get_proc_runticks(int pid);
 int set_proc_cpu(int pid, int cpuid);
+int clear_proc_setcpu(int pid);
 #endif

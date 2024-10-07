@@ -46,8 +46,8 @@
 #define CLEAN_PROC_EXIT_NUM 32
 
 #define lock_info_lens 100
-#define lock_info_nums 16000
-#define lock_info_nest 25
+// #define lock_info_nums 16000
+// #define lock_info_nest 25
 
 #define MAX_TIME_SLICE 200;
 #define MIN_TIME_SLICE 5
@@ -58,7 +58,8 @@
 #define CPU_LOAD_IDX_MAX 5
 
 #define load_balance_proc_num_threshold 10
-
 #define load_balance_diff_threshold 4
+
+#define MAX_LOCK_NODE 1000000 
 
 #endif  // __CONFIG_CONFIG_H__

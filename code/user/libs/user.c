@@ -50,6 +50,7 @@ int __setpriority__(int pid, int priority);
 int __getpriority__(int pid);
 uint64_t __get_proc_runticks__(int pid);
 int __set_proc_cpu__(int pid, int cpuid);
+int __clear_proc_setcpu__(int pid);
 
 int write(int fd, const void *c, int len){
     return __write__(fd, c ,len);
@@ -241,4 +242,8 @@ uint64_t get_proc_runticks(int pid){
 
 int set_proc_cpu(int pid, int cpuid){
     return __set_proc_cpu__(pid, cpuid);
+}
+
+int clear_proc_setcpu(int pid){
+    return __clear_proc_setcpu__(pid);
 }

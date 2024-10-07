@@ -8,6 +8,7 @@ struct list_entry{
     List_entry *next;
 };
 
+#define list_for_each(le, head) for ((le) = (head)->next; (le) != (head); (le) = (le)->next)
 
 static inline void list_init(List_entry *elem) __attribute__((always_inline));
 static inline void list_add(List_entry *listelem, List_entry *elem) __attribute__((always_inline));
@@ -69,6 +70,14 @@ static inline List_entry *list_next(List_entry *listelem){
 
 static inline List_entry *list_prev(List_entry *listelem){
     return listelem->prev;
+}
+
+static inline bool list_contains(List_entry *head, List_entry *elem){
+    List_entry *le;
+    list_for_each(le, head){
+        if(le == elem) return true;
+    }
+    return false;
 }
 
 #endif

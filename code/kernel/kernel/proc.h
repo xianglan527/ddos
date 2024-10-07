@@ -195,7 +195,7 @@ int do_mmap(uintptr_t *addr_store, size_t len, uint32_t mmap_flags);
 int do_munmap(uintptr_t addr, size_t len);
 int do_shmem(uintptr_t *addr_store, size_t len, uint32_t mmap_flags);
 void set_proc_cpu(Proc *proc, Cpu *cpu);
-void clear_proc_cpu(Proc *proc, Cpu *cpu);
+void clear_proc_setcpu(Proc *proc);
 void ipc_add_timer(Timer *timer);
 void ipc_del_timer(Timer *timer);
 Timer *ipc_timer_init(ulong timeout, ulong *saved_ticks, Timer *timer);

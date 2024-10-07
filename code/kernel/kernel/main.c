@@ -50,9 +50,9 @@ void main(){
     if(cpuid() == 0){
         // timer_start_init();
         atomic_set(&cpus_num, 0);
-        initlock_info();
+        // initlock_info();
         console_init();
-        cprintf("xv6 kernel is booting\n");
+        cprintf("ddos kernel is booting\n");
         pmm_init();
         slab_init();
         kvm_init_hart();
