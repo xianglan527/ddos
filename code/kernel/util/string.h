@@ -17,4 +17,6 @@ size_t strnlen(const char *s, size_t len);
 char *strchr(const char *s, char c);
 char *strfind(const char *s, char c);
 long strtol(const char *s, char **endptr, int base);
+char *strdup(const char *src);
+char *strcat(char *dst, const char *src);
 #endif

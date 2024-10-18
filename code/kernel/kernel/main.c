@@ -19,6 +19,7 @@
 #include "sched.h"
 #include "syn.h"
 #include "atomic.h"
+#include "fs.h"
 
 // volatile static int started = 0;
 Atomic cpus_num;
@@ -69,6 +70,7 @@ void main(){
         sync_init();
         swap_init();
         sched_init();
+        fs_init();
         os_main();
         atomic_set(&cpus_num, 1);
         // started = 1;

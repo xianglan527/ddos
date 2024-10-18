@@ -2,6 +2,7 @@
 #include "spinlock.h"
 #include "error.h"
 #include "string.h"
+#include "sysdef.h"
 
 static const char *const error_string[MAXERROR + 1] = {
     [0] = nullptr,
@@ -17,19 +18,31 @@ static const char *const error_string[MAXERROR + 1] = {
     [E_PANIC] = "panic failure",
     [E_TIMEOUT] "timeout",
     [E_TOO_BIG] "argument is too big",
+    [E_NO_DEV] "no such device",
+    [E_NA_DEV] "device not available",
+    [E_BUSY] "device/file is busy",
+    [E_NOENT] "no such file or directory",
+    [E_ISDIR] "is a directory",
+    [E_NOTDIR] "not a directory",
+    [E_XDEV] "cross device link",
+    [E_UNIMP] "unimplemented feature",
+    [E_SEEK] "illegal seek",
+    [E_MAX_OPEN] "too many files are open",
+    [E_EXISTS] "file or directory already exists",
+    [E_NOTEMPTY] "directory is not empty",
 };
 
-static void printnum(void (*putch)(int, void *), void *putdat, uint64_t num, unsigned base, int width,
+static void printnum(void (*putch)(int, void *, int), int fd, void *putdat, uint64_t num, unsigned base, int width,
                      int padc) {
     uint64_t result = num / base;
     unsigned mod = num % base;
     if (num >= base)
-        printnum(putch, putdat, result, base, width - 1, padc);
+        printnum(putch, fd, putdat, result, base, width - 1, padc);
     else {
         while (--width > 0) 
-            putch(padc, putdat);
+            putch(padc, putdat, fd);
     }
-    putch("0123456789abcdef"[mod], putdat);
+    putch("0123456789abcdef"[mod], putdat, fd);
 }
 
 static uint64_t getuint(va_list *ap, int lflag) {
@@ -50,14 +63,14 @@ static int64_t getint(va_list *ap, int lflag) {
         return va_arg(*ap, int);
 }
 
-void printfmt(void (*putch)(int, void *), void *putdat, const char *fmt, ...) {
+void printfmt(void (*putch)(int, void *, int), int fd, void *putdat, const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
-    vprintfmt(putch, putdat, fmt, ap);
+    vprintfmt(putch, fd, putdat, fmt, ap);
     va_end(ap);
 }
 
-void vprintfmt(void (*putch)(int, void *), void *putdat, const char *fmt, va_list ap) {
+void vprintfmt(void (*putch)(int, void *, int), int fd, void *putdat, const char *fmt, va_list ap) {
     const char *p;
     int ch, err;
     uint64_t num;
@@ -65,7 +78,7 @@ void vprintfmt(void (*putch)(int, void *), void *putdat, const char *fmt, va_lis
     while (1) {
         while ((ch = *(uint8_t *)fmt++) != '%') {
             if (ch == '\0') return;
-            putch(ch, putdat);
+            putch(ch, putdat, fd);
         }
         char padc = ' ';
         width = precision = -1;
@@ -94,16 +107,16 @@ void vprintfmt(void (*putch)(int, void *), void *putdat, const char *fmt, va_lis
                 }
                 goto reswitch;
             case 'l': lflag++; goto reswitch;
-            case 'c': putch(va_arg(ap, int), putdat); break;
+            case 'c': putch(va_arg(ap, int), putdat, fd); break;
 
             // error message
             case 'e':
                 err = va_arg(ap, int);
                 if (err < 0) { err = -err; }
                 if (err > MAXERROR || (p = error_string[err]) == NULL) {
-                    printfmt(putch, putdat, "error %d", err);
+                    printfmt(putch, fd, putdat, "error %d", err);
                 } else {
-                    printfmt(putch, putdat, "%s", p);
+                    printfmt(putch, fd, putdat, "%s", p);
                 }
                 break;
             case 's':
@@ -111,21 +124,21 @@ void vprintfmt(void (*putch)(int, void *), void *putdat, const char *fmt, va_lis
                     p = "(nullptr)";
                 if(width > 0 && padc != '-'){
                     for(width -= strnlen(p, precision); width > 0; width--)
-                        putch(padc, putdat);
+                        putch(padc, putdat ,fd);
                 }
                 for(; (ch = *p++) != '\0' && (precision < 0 || --precision >= 0); width--){
                     if(altflag && (ch < ' ' || ch > '~'))
-                        putch('?', putdat);
+                        putch('?', putdat ,fd);
                     else
-                        putch(ch, putdat);
+                        putch(ch, putdat, fd);
                 }
                 for(; width > 0; width--)
-                    putch(' ', putdat);
+                    putch(' ', putdat, fd);
                 break;
             case 'd':
                 num = getint(&ap, lflag);
                 if((int64_t)num < 0){
-                    putch('-', putdat);
+                    putch('-', putdat, fd);
                     num = -(int64_t)num;
                 }
                 base = 10;
@@ -141,8 +154,8 @@ void vprintfmt(void (*putch)(int, void *), void *putdat, const char *fmt, va_lis
                 base = 8;
                 goto number;
             case 'p':
-                putch('0', putdat);
-                putch('x', putdat);
+                putch('0', putdat, fd);
+                putch('x', putdat, fd);
                 num = (unsigned long long)(uintptr_t)va_arg(ap, void *);
                 base = 16;
                 goto number;
@@ -150,11 +163,11 @@ void vprintfmt(void (*putch)(int, void *), void *putdat, const char *fmt, va_lis
             // (unsigned) hexadecimal
             case 'x': num = getuint(&ap, lflag); base = 16;
             number:
-                printnum(putch, putdat, num, base, width, padc);
+                printnum(putch, fd, putdat, num, base, width, padc);
                 break;
-            case '%': putch(ch, putdat); break;
+            case '%': putch(ch, putdat, fd); break;
             default:
-                putch('%', putdat);
+                putch('%', putdat, fd);
                 for (fmt--; fmt[-1] != '%'; fmt--) /* do nothing */;
                 break;
         }
@@ -180,7 +193,7 @@ int vsnprintf(char *str, size_t size, const char *fmt, va_list ap){
     Sprintbuf b = {str, str + size - 1, 0};
     if(str == nullptr || b.buf > b.ebuf)
         return -E_INVAL;
-    vprintfmt((void (*)(int, void *))sprintputch, &b, fmt, ap);
+    vprintfmt((void (*)(int, void *, int))sprintputch, NO_FD, &b, fmt, ap);
     *b.buf = '\0';
     return b.cnt;
 }

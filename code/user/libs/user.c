@@ -1,6 +1,7 @@
 #include "user.h"
 #include "string.h"
 #include "lock.h"
+#include "sysdef.h"
 
 static lock_t fork_lock = INIT_LOCK;
 
@@ -12,7 +13,6 @@ void unlock_fork(void){
     unlock(&fork_lock);
 }
 
-int __write__(int, const void *, int);
 int __sti__();
 int __cli__();
 int __getpid__(void);
@@ -51,9 +51,39 @@ int __getpriority__(int pid);
 uint64_t __get_proc_runticks__(int pid);
 int __set_proc_cpu__(int pid, int cpuid);
 int __clear_proc_setcpu__(int pid);
+int __open__(char *path, uint32_t open_flags);
+long __write__(int fd, const void * base, size_t len);
+long __read__(int fd, const void *base, size_t len);
+int __fstat__(int fd, Stat *stat);
+int __dup__(int fd1, int fd2);
+int __close__(int fd);
 
-int write(int fd, const void *c, int len){
+long write(int fd, const void *c, size_t len){
     return __write__(fd, c ,len);
+}
+
+int open(char *path, uint32_t open_flags){
+    return __open__(path, open_flags);
+}
+
+long read(int fd, const void *c, size_t len){
+    return __read__(fd, c ,len);
+}
+
+int fstat(int fd, Stat *stat){
+    return __fstat__(fd, stat);
+}
+
+int dup(int fd){
+    return __dup__(fd, NO_FD);
+}
+
+int dup2(int fd1, int fd2){
+    return __dup__(fd1, fd2);
+}
+
+int close(int fd){
+    return __close__(fd);
 }
 
 int sti(void){
@@ -247,3 +277,4 @@ int set_proc_cpu(int pid, int cpuid){
 int clear_proc_setcpu(int pid){
     return __clear_proc_setcpu__(pid);
 }
+

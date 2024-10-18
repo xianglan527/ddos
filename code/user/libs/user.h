@@ -1,9 +1,10 @@
 #ifndef __LIBS_USER_H__
 #define __LIBS_USER_H__
 #include "mboxbuf.h"
-#include "types.h"
 #include "sigaction.h"
-int write(int, const void *, int);
+#include "stat.h"
+#include "types.h"
+
 int sti();
 int cli();
 int getpid(void);
@@ -49,4 +50,11 @@ int getpriority(int pid);
 uint64_t get_proc_runticks(int pid);
 int set_proc_cpu(int pid, int cpuid);
 int clear_proc_setcpu(int pid);
+int open(char *path, uint32_t open_flags);
+long write(int fd, const void *base, size_t len);
+long read(int fd, const void *c, size_t len);
+int fstat(int fd, Stat *stat);
+int dup(int fd);
+int dup2(int fd1, int fd2);
+int close(int fd);
 #endif

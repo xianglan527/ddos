@@ -85,12 +85,14 @@ Trap_eum trap_work() {
                 virtio_device_intr_handler(irq);
             } break;
             case UART0_IRQ: {
-#ifdef PRINT_UART_CHAR
                 char c;
                 c = uart_getc();
+#ifdef PRINT_UART_CHAR
                 cprintf(" \n serial num is:%03x : serial char is %c\n", c, c);
 #endif
-                uart_intr();
+                uart_intr(c);
+                extern void dev_stdin_write(char c);
+                dev_stdin_write(c);
             } break;
 
             default: cprintf("unexpected interrupt irq=%d\n", irq); break;

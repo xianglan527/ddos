@@ -13,4 +13,5 @@ struct sprintbuf {
 int vcprintf(const char *fmt, va_list ap);
 int printf(const char *fmt, ...);
 int snprintf(char *str, size_t size, const char *fmt, ...);
+int fprintf(int fd, const char *fmt, ...);
 #endif

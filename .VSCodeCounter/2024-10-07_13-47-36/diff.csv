@@ -1,0 +1,21 @@
+"filename", "language", "C", "Assembler file", "C++", "comment", "blank", "total"
+"c:\Users\45228\Desktop\share\ddos\code\kernel\boot\entry.S", "Assembler file", 0, 13, 0, 0, 3, 16
+"c:\Users\45228\Desktop\share\ddos\code\kernel\config\config.h", "C++", 0, 0, -1, 2, 0, 1
+"c:\Users\45228\Desktop\share\ddos\code\kernel\config\sysdef.h", "C++", 0, 0, 1, 0, 0, 1
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\kernelvec.S", "Assembler file", 0, 107, 0, 0, 11, 118
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\main.c", "C", -1, 0, 0, 1, 0, 0
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\proc.c", "C", -4, 0, 0, 9, 0, 5
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\spinlock.c", "C", -30, 0, 0, -4, -6, -40
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\spinlock.h", "C++", 0, 0, 2, -1, 0, 1
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\swtch.S", "Assembler file", 0, 54, 0, 0, 12, 66
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\syscall.c", "C", 2, 0, 0, 0, 0, 2
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\sysfile.c", "C", 8, 0, 0, 0, 1, 9
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\trampoline.S", "Assembler file", 0, 127, 0, 0, 16, 143
+"c:\Users\45228\Desktop\share\ddos\code\kernel\schedule\sched.c", "C", 1, 0, 0, 0, 0, 1
+"c:\Users\45228\Desktop\share\ddos\code\kernel\util\list.h", "C", 8, 0, 0, 0, 1, 9
+"c:\Users\45228\Desktop\share\ddos\code\user\libs\clone.S", "Assembler file", 0, 30, 0, 0, 10, 40
+"c:\Users\45228\Desktop\share\ddos\code\user\libs\initcode.S", "Assembler file", 0, 6, 0, 0, 1, 7
+"c:\Users\45228\Desktop\share\ddos\code\user\libs\user.c", "C", 4, 0, 0, 0, 1, 5
+"c:\Users\45228\Desktop\share\ddos\code\user\libs\user.h", "C", 1, 0, 0, 0, 0, 1
+"c:\Users\45228\Desktop\share\ddos\code\user\test\usertests.c", "C", 54, 0, 0, 1, 7, 62
+"Total", "-", 43, 337, 2, 8, 57, 447

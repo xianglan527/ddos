@@ -12,7 +12,6 @@
 // }
 #define NELEM(x) (sizeof(x) / sizeof((x)[0]))
 
-extern uint64_t sys_write(void);
 extern uint64_t sys_sti(void);
 extern uint64_t sys_cli(void);
 extern uint64_t sys_getpid(void);
@@ -52,6 +51,12 @@ extern uint64_t sys_getpriority(void);
 extern uint64_t sys_get_proc_runticks(void);
 extern uint64_t sys_set_proc_cpu(void);
 extern uint64_t sys_clear_proc_setcpu(void);
+extern uint64_t sys_open(void);
+extern uint64_t sys_close(void);
+extern uint64_t sys_read(void);
+extern uint64_t sys_write(void);
+extern uint64_t sys_fstat(void);
+extern uint64_t sys_dup(void);
 
 int fetch_addr(uint64_t addr, uint64_t *ip){
     Proc *current = myproc();
@@ -115,7 +120,6 @@ int arg_str(int n, char *buf, int max){
 
 static uint64_t (*syscalls[])(void) = {
     [SYS_getpid] = sys_getpid,
-    [SYS_write] = sys_write,
     [SYS_sti] = sys_sti,
     [SYS_cli] = sys_cli,
     [SYS_fork] = sys_fork,
@@ -154,6 +158,12 @@ static uint64_t (*syscalls[])(void) = {
     [SYS_get_proc_runticks] = sys_get_proc_runticks,
     [SYS_set_proc_cpu] = sys_set_proc_cpu,
     [SYS_clear_proc_setcpu] = sys_clear_proc_setcpu,
+    [SYS_open] = sys_open,
+    [SYS_close] = sys_close,
+    [SYS_write] = sys_write,
+    [SYS_read] = sys_read,
+    [SYS_fstat] = sys_fstat,
+    [SYS_dup] = sys_dup,
 };
 
 void syscall(void) {

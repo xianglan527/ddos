@@ -77,7 +77,7 @@ static inline uint64_t get_cpuid() {
 
 
 void user_task() {
-    printf("cpu: %d pid: %d running user_task1\n", get_cpuid(), getpid());
+    // printf("cpu: %d pid: %d running user_task1\n", get_cpuid(), getpid());
     char *args[] = {"usermain", 0};
     exec("usermain", args);
 }

@@ -1,5 +1,6 @@
 
 include code/kernel/driver/Makefile
+include code/kernel/fs/Makefile
 K_SRCS_PATH += \
 		code/kernel/boot \
 		code/kernel/config \

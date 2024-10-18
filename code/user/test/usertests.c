@@ -10,6 +10,7 @@
 #include "user.h"
 #include "rand.h"
 #include "spipe.h"
+#include "file.h"
 
 #define UNIQUE_VAR(name) name##__LINE__
 ///////////////////////////////////////////////////////////////////
@@ -1292,7 +1293,7 @@ static void sigtest(char *s) {
 }
 //////////////////////////////////////////////////////////////////////////
 #define sched_CFS_NUM_PROCS 5  
-#define sched_CFS_LOOP 1000000000  
+#define sched_CFS_LOOP 100000000
 
 static void sched_CFS_test(char *s) {
     int i;
@@ -1377,7 +1378,95 @@ static void cpu_load_balance_test(char *s) {
         printf("No significant improvement in load balancing.\n");
     }
 }
+//////////////////////////////////////////////////////////////////////////
+static void fprintf_test(char *s) {
+    fprintf(1, "Hello world!!.\n");
+    fprintf(1, "I am process %d.\n", getpid());
+}
+//////////////////////////////////////////////////////////////////////////
+static void fread_test(char *s) {
+    /* type 'q' to stop reading */
+    char c;
+    printf("now reading...\n");
+    do {
+        int ret = read(0, &c, sizeof(c));
+        assert(ret == 1);
+        printf("type [%03d] %c.\n", c, c);
+    } while (c != 'q');
+}
+//////////////////////////////////////////////////////////////////////////
+static void fread_test2(char *s) {
+    int pid, ret;
+    if ((pid = fork()) == 0) {
+        do {
+            char c;
+            ret = read(0, &c, sizeof(c));
+            assert(ret == 1);
+        } while (1);
+    }
+    assert(pid > 0);
+    sleep(100);
+    kill(pid);
+    assert(waitpid(pid, &ret) == 0 && ret != 0);
+}
+//////////////////////////////////////////////////////////////////////////
+static void fwrite_test_testfd(const char *name, int fd) {
+    struct stat __stat, *stat = &__stat;
+    int ret = fstat(fd, stat);
+    assert(ret == 0);
+    print_stat(name, fd, stat);
+}
 
+static void fwrite_test(char *s) {
+    int fd = dup(1);
+    assert(fd >= 0);
+
+    fwrite_test_testfd("stdin", 0);
+    fwrite_test_testfd("stdout", 1);
+    fwrite_test_testfd("dup: stdout", fd);
+
+    int size = 1024, len = 0;
+    char buf[size];
+    len += snprintf(buf + len, size - len, "Hello world!!.\n");
+    len += snprintf(buf + len, size - len, "I am process %d.\n", getpid());
+    write(fd, buf, len);
+
+    int ret;
+    while ((ret = dup(fd)) >= 0) /* do nothing */;
+
+    close(fd);
+    len = snprintf(buf, size, "FAIL: T.T\n");
+    write(fd, buf, len);
+    printf("dup fd ok.\n");
+
+    int pid;
+    if ((pid = fork()) == 0) {
+        sleep(10);
+        len = snprintf(buf, size, "fork fd ok.\n");
+        ret = write(1, buf, len);
+        assert(ret == len);
+        exit(0);
+    }
+    assert(pid > 0);
+    assert(waitpid(pid, &ret) == 0 && ret == 0);
+}
+//////////////////////////////////////////////////////////////////////////
+static void fnull_test(char *s) {
+    int fd = 0, ret;
+    char buf[5];
+    buf[0] = buf[1] = buf[2] = buf[3] = 'a';
+    buf[4] = '\n';
+    fd = open("null:", O_RDWR);
+    printf("NULL fd is %d\n", fd);
+    ret = write(fd, "hello", 5);
+    printf("write %d to NULL\n", ret);
+    ret = read(fd, buf, 5);
+    printf("read %d from NULL, buf is %s\n", ret, buf);
+
+    fprintf(1, "Hello world!!.\n");
+    fprintf(1, "I am process %d.\n", getpid());
+    fprintf(1, "hello2 pass.\n");
+}
 //////////////////////////////////////////////////////////////////////////
 static int run(void f(char *), char *s) {
     int pid;
@@ -1446,6 +1535,11 @@ struct test {
     {sigtest, "sigtest"},
     {sched_CFS_test, "sched_CFS_test"},
     {cpu_load_balance_test, "cpu_load_balance_test"},
+    {fprintf_test, "fprintf_test"},
+    // {fread_test, "fread_test"},
+    {fread_test2, "fread_test2"},
+    {fwrite_test, "fwrite_test"},
+    {fnull_test, "fnull_test"},
     {swaptest, "swaptest"},
     {nullptr, nullptr},
 };

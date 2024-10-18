@@ -42,7 +42,7 @@
 #define RB_MIN_MAP_COUNT 32  // If the count of vma >32 then redblack tree link is used
 #define DELAY 1000
 #define MAXARG  32
-#define MAXPATH 128
+// #define MAXPATH 128
 #define CLEAN_PROC_EXIT_NUM 32
 
 #define lock_info_lens 100
@@ -60,6 +60,17 @@
 #define load_balance_proc_num_threshold 10
 #define load_balance_diff_threshold 4
 
-#define MAX_LOCK_NODE 1000000 
+#define MAX_LOCK_NODE 1000000
+
+#define MAX_INODE_COUNT 0x10000
+
+#define FS_MAX_DNAME_LEN 31
+#define FS_MAX_FNAME_LEN 255
+// #define FS_MAX_FPATH_LEN 4095
+#define MAXPATH 1024
+
+#define STDIN_BUFSIZE 4096
+
+#define FS_STRUCT_TOTAL_SIZE (4 * 4096)
 
 #endif  // __CONFIG_CONFIG_H__

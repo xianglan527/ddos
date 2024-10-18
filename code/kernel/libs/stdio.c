@@ -5,19 +5,21 @@
 #include "spinlock.h"
 #include "uart.h"
 #include "proc.h"
+#include "sysdef.h"
 struct {
     Spinlock lock;
     int locking;
 } pr;
 
-static void cputch(int c, int *cnt) {
+static void cputch(int c, int *cnt, int fd) {
+    // assert(fd == NO_FD);
     uart_putc(c);
     (*cnt)++;
 }
 
 int vcprintf(const char *fmt, va_list ap) {
     int cnt = 0;
-    vprintfmt((void (*)(int, void *))cputch, &cnt, fmt, ap);
+    vprintfmt((void (*)(int, void *, int))cputch, NO_FD, &cnt, fmt, ap);
     return cnt;
 }
 
@@ -40,8 +42,8 @@ void cputchar(int c) { uart_putc(c); }
 int cputs(const char *str) {
     int cnt = 0;
     char c;
-    while ((c = *str++) != '\0') cputch(c, &cnt);
-    cputch('\n', &cnt);
+    while ((c = *str++) != '\0') cputch(c, &cnt, NO_FD);
+    cputch('\n', &cnt, NO_FD);
     return cnt;
 }
 

@@ -192,3 +192,14 @@ int printf(const char *fmt, ...) {
         puts(1, str);
     return cnt;
 }
+
+int fprintf(int fd, const char *fmt, ...) {
+    char str[MAXPATH];
+    va_list ap;
+    int cnt;
+    va_start(ap, fmt);
+    cnt = vsnprintf(str, MAXPATH, fmt, ap);
+    va_end(ap);
+    if (cnt != -1) puts(fd, str);
+    return cnt;
+}

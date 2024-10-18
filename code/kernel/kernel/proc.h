@@ -12,6 +12,7 @@
 #include "signal.h"
 #include "riscv.h"
 #include "rbtree.h"
+#include "fs.h"
 
 typedef enum proc_state Proc_state;
 enum proc_state { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE};
@@ -93,6 +94,7 @@ struct proc {
     int priority;    //-20 ~ 19
     uint64_t vruntime; 
     Rb_node rb_link;
+    Fs_struct *fs_struct;
 };
 
 #define rbn2proc(node)  (to_struct(node, Proc, rb_link))
@@ -123,6 +125,7 @@ static inline int proc_vruntime_compare_value(Rb_node *node1, void *value) {
 #define WT_CHILD (0x00000001 | WT_INTERAUPTED)
 #define WT_TIMER (0x00000002 | WT_INTERAUPTED)
 #define WT_KSWAPD 0x00000003
+#define WT_KBD (0x00000004 | WT_INTERAUPTED)
 #define WT_KSEM 0x00000100
 #define WT_USEM (0x00000101 | WT_INTERAUPTED)
 #define WT_EVENT_SEND (0x00000110 | WT_INTERAUPTED)

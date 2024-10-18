@@ -1,14 +1,20 @@
 #include "console.h"
+#include "error.h"
+#include "file.h"
+#include "iobuf.h"
+#include "mbox.h"
 #include "proc.h"
 #include "riscv.h"
+#include "signal.h"
 #include "slab.h"
 #include "spinlock.h"
+#include "stat.h"
+#include "stdio.h"
 #include "string.h"
 #include "syscall.h"
-#include "stdio.h"
-#include "mbox.h"
-#include "signal.h"
-#include "error.h"
+#include "vfs.h"
+
+#define IOBUF_SIZE 4096
 
 extern uint64_t ticks;
 extern struct {
@@ -16,15 +22,15 @@ extern struct {
     int locking;
 } pr;
 
-uint64_t sys_write(void) {
-    int n;
-    uint64_t p;
-    char str[MAXPATH];
-    if (arg_int(2, &n) < 0 || arg_str(1, str, MAXPATH) < 0) return -1;
-    assert(n <= MAXPATH);
-    cprintf(str);
-    return n;
-}
+// uint64_t sys_write(void) {
+//     int n;
+//     uint64_t p;
+//     char str[MAXPATH];
+//     if (arg_int(2, &n) < 0 || arg_str(1, str, MAXPATH) < 0) return -1;
+//     assert(n <= MAXPATH);
+//     cprintf(str);
+//     return n;
+// }
 
 uint64_t sys_sti(void) { return 0; }
 
@@ -79,10 +85,9 @@ bad:
     return -1;
 }
 
-uint64_t sys_kill(void){
+uint64_t sys_kill(void) {
     int pid;
-    if(arg_int(0, &pid) < 0 )
-        return -1;
+    if (arg_int(0, &pid) < 0) return -1;
     return do_kill(pid);
 }
 
@@ -92,26 +97,19 @@ uint64_t sys_sbrk(void) {
     return do_brk((uintptr_t *)store);
 }
 
-uint64_t sys_sleep(void){
+uint64_t sys_sleep(void) {
     long time;
-    if(arg_long(0, &time) < 0)
-        return -1;
+    if (arg_long(0, &time) < 0) return -1;
     return do_sleep((ulong)time);
 }
 
-uint64_t sys_gettime(void) {
-    return ticks;
-}
+uint64_t sys_gettime(void) { return ticks; }
 
-uint64_t sys_get_free_page_size(void){
-    return nr_free_pages();
-}
+uint64_t sys_get_free_page_size(void) { return nr_free_pages(); }
 
-uint64_t sys_get_slab_allocated_size(void){
-    return slab_allocated();
-}
+uint64_t sys_get_slab_allocated_size(void) { return slab_allocated(); }
 
-uint64_t sys_clone(void){
+uint64_t sys_clone(void) {
     int32_t clone_flags;
     uintptr_t stack;
     arg_int(0, &clone_flags);
@@ -119,14 +117,14 @@ uint64_t sys_clone(void){
     return do_fork((uint32_t)clone_flags, stack);
 }
 
-uint64_t sys_exit_thread(void){
+uint64_t sys_exit_thread(void) {
     int error_code;
     arg_int(0, &error_code);
     do_exit_thread(error_code);
     return 0;
 }
 
-uint64_t sys_mmap(void){
+uint64_t sys_mmap(void) {
     uintptr_t addr_store;
     long len;
     int mmap_flags;
@@ -154,13 +152,13 @@ uint64_t sys_shmem(void) {
     return do_shmem((uintptr_t *)addr_store, (size_t)len, (uint32_t)mmap_flags);
 }
 
-uint64_t sys_sem_init(void){
+uint64_t sys_sem_init(void) {
     int value;
     arg_int(0, &value);
     return ipc_sem_init(value);
 }
 
-uint64_t sys_sem_post(void){
+uint64_t sys_sem_post(void) {
     long sem_id;
     arg_long(0, &sem_id);
     return ipc_sem_post((sem_t)sem_id);
@@ -180,7 +178,7 @@ uint64_t sys_sem_free(void) {
     return ipc_sem_free((sem_t)sem_id);
 }
 
-uint64_t sys_sem_get_value(void){
+uint64_t sys_sem_get_value(void) {
     long sem_id;
     arg_long(0, &sem_id);
     uintptr_t value_store;
@@ -264,19 +262,15 @@ uint64_t sys_send_signal(void) {
     return ipc_send_signal(pid, sig);
 }
 
-uint64_t sys_sigreturn(void){
-    return ipc_sigreturn();
-}
+uint64_t sys_sigreturn(void) { return ipc_sigreturn(); }
 
-uint64_t sys_setpriority(void){
+uint64_t sys_setpriority(void) {
     int pid;
     arg_int(0, &pid);
     int priority;
     arg_int(1, &priority);
     Proc *proc = find_proc(pid);
-    if(proc == nullptr){
-        return -E_INVAL;
-    }
+    if (proc == nullptr) { return -E_INVAL; }
     acquire(&proc->lock);
     proc->priority = priority;
     release(&proc->lock);
@@ -328,4 +322,121 @@ uint64_t sys_clear_proc_setcpu(void) {
     if (proc == nullptr) { return -E_INVAL; }
     clear_proc_setcpu(proc);
     return 0;
+}
+
+uint64_t sys_open(void) {
+    int ret;
+    char path[MAXPATH];
+    if (arg_str(0, path, MAXPATH) < 0) return -E_INVAL;
+    long open_flags;
+    arg_long(1, &open_flags);
+    ret = file_open(path, (uint32_t)open_flags);
+    return ret;
+}
+
+uint64_t sys_close(void) {
+    int ret;
+    File *file;
+    int fd;
+    arg_int(0, &fd);
+    if ((ret = fd2file(fd, &file)) != 0) { return ret; }
+    filemap_close(file);
+    return 0;
+}
+
+uint64_t sys_read(void) {
+    int ret;
+    struct file *file;
+    int fd;
+    arg_int(0, &fd);
+    long __base;
+    arg_long(1, &__base);
+    void *base = (void *)__base;
+    long __len;
+    arg_long(2, &__len);
+    size_t len = (size_t)__len;
+    Mm_struct *mm = myproc()->mm;
+    if (len == 0) { return 0; }
+    if (!file_testfd(fd, 1, 0)) { return -E_INVAL; }
+    void *buffer;
+    if ((buffer = kmalloc(IOBUF_SIZE)) == nullptr) { return -E_NO_MEM; }
+    ret = 0;
+    size_t copied = 0, alen;
+    while (len != 0) {
+        if ((alen = IOBUF_SIZE) > len) { alen = len; }
+        ret = file_read(fd, buffer, alen, &alen);
+        if (alen != 0) {
+            lock_mm(mm);
+            {
+                copy_kernel2user(mm->pagetable, (uintptr_t)base, (char *)buffer, alen);
+                assert(len >= alen);
+                base += alen, len -= alen, copied += alen;
+            }
+            unlock_mm(mm);
+        }
+        if (ret != 0 || alen == 0) { break; }
+    }
+    kfree(buffer);
+    if (copied != 0) { return copied; }
+    return ret;
+}
+
+uint64_t sys_write(void) {
+    int ret;
+    struct file *file;
+    int fd;
+    arg_int(0, &fd);
+    long __base;
+    arg_long(1, &__base);
+    void *base = (void *)__base;
+    long __len;
+    arg_long(2, &__len);
+    size_t len = (size_t)__len;
+    Mm_struct *mm = myproc()->mm;
+    if (len == 0) { return 0; }
+    if (!file_testfd(fd, 0, 1)) { return -E_INVAL; }
+    void *buffer;
+    if ((buffer = kmalloc(IOBUF_SIZE)) == nullptr) { return -E_NO_MEM; }
+    ret = 0;
+    size_t copied = 0, alen;
+    while (len != 0) {
+        if ((alen = IOBUF_SIZE) > len) { alen = len; }
+        lock_mm(mm);
+        { copy_user2kernel(mm->pagetable, (char *)buffer, (uintptr_t)base, alen); }
+        unlock_mm(mm);
+        ret = file_write(fd, buffer, alen, &alen);
+        if (alen != 0) {
+            assert(len >= alen);
+            base += alen, len -= alen, copied += alen;
+        }
+        if (ret != 0 || alen == 0) { break; }
+    }
+    kfree(buffer);
+    if (copied != 0) { return copied; }
+    return ret;
+}
+
+uint64_t sys_fstat(void) {
+    int ret;
+    int fd;
+    arg_int(0, &fd);
+    long __stat;
+    arg_long(1, &__stat);
+    Stat *stat = (Stat *)__stat;
+    Mm_struct *mm = myproc()->mm;
+    Stat __local_stat, *local_stat = &__local_stat;
+    if ((ret = file_fstat(fd, local_stat)) != 0) { return ret; }
+    lock_mm(mm);
+    { 
+         copy_kernel2user(mm->pagetable, (uintptr_t)stat, (char *)local_stat, sizeof(Stat)); 
+    }
+    unlock_mm(mm);
+    return 0;
+}
+
+uint64_t sys_dup(void){
+    int fd1, fd2;
+    arg_int(0, &fd1);
+    arg_int(1, &fd2);
+    return file_dup(fd1, fd2);
 }

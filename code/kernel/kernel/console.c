@@ -1,11 +1,12 @@
 #include "console.h"
-#include "uart.h"
+
+#include "assert.h"
 #include "config.h"
+#include "proc.h"
+#include "spinlock.h"
 #include "stdio.h"
 #include "string.h"
-#include "assert.h"
-#include "spinlock.h"
-#include "proc.h"
+#include "uart.h"
 
 #define BACKSPACE 0x100
 #define C(x) ((x) - '@')  // Control-x
@@ -20,89 +21,77 @@ static struct {
 
 static char read_buf[CONSOLE_BUF_SIZE];
 
-static void cons_putc(int c){
+static void cons_putc(int c) {
     push_off();
-    if (c == BACKSPACE){
+    if (c == BACKSPACE) {
         uart_putc('\b');
         uart_putc(' ');
         uart_putc('\b');
-    }
-    else
+    } else
         uart_putc(c);
     pop_off();
 }
 
-static void cons_intr(int (*proc)(void)) {
-    int c;
-    while ((c = (*proc)()) != -1) { 
-        if (c != 0){
-            switch(c){
-                case C('P'):
-                //TODO :procdump
+static void cons_intr(char c) {
+    if (c != 0) {
+        switch (c) {
+            case C('P'):
+                // TODO :procdump
                 break;
-                case C('U'):
-                    while(cons.epos != cons.wpos &&
-                        cons.buf[(cons.epos - 1) % CONSOLE_BUF_SIZE] != '\n'){
-                        cons.epos--;
-                        cons_putc(BACKSPACE);
-                    }
-                    break;
-                case C('H'):
-                case '\x7f':
-                    if(cons.epos != cons.wpos){
-                        cons.epos--;
-                        cons_putc(BACKSPACE);
-                    }
-                    break;
-                default:
-                    if(c != 0 && cons.epos - cons.rpos < CONSOLE_BUF_SIZE){
-                        c = (c == '\r' || c == C('D')) ? '\n' : c;
-                        cons_putc(c);
-                        cons.buf[cons.epos++ % CONSOLE_BUF_SIZE] = c;
-                        if(c == '\n' || cons.epos == cons.rpos + CONSOLE_BUF_SIZE){
-                            cons.wpos = cons.epos;
-                        }
-                    }
+            case C('U'):
+                while (cons.epos != cons.wpos && cons.buf[(cons.epos - 1) % CONSOLE_BUF_SIZE] != '\n') {
+                    cons.epos--;
+                    cons_putc(BACKSPACE);
+                }
                 break;
-            }
+            case C('H'):
+            case '\x7f':
+                if (cons.epos != cons.wpos) {
+                    cons.epos--;
+                    cons_putc(BACKSPACE);
+                }
+                break;
+            default:
+                if (c != 0 && cons.epos - cons.rpos < CONSOLE_BUF_SIZE) {
+                    c = (c == '\r' || c == C('D')) ? '\n' : c;
+                    cons_putc(c);
+                    cons.buf[cons.epos++ % CONSOLE_BUF_SIZE] = c;
+                    if (c == '\n' || cons.epos == cons.rpos + CONSOLE_BUF_SIZE) { cons.wpos = cons.epos; }
+                }
+                break;
         }
     }
 }
 
-void uart_intr(void) { 
-    cons_intr(uart_getc);
-}
+void uart_intr(char c) { cons_intr(c); }
 
-int cons_getc(void) { 
+int cons_getc(void) {
     int c;
     // uart_intr();
-    if(cons.rpos != cons.wpos){
+    if (cons.rpos != cons.wpos) {
         c = cons.buf[cons.rpos++ % CONSOLE_BUF_SIZE];
         return c;
     }
-    return 0; 
+    return 0;
 }
 
-char *readline(const char *prompt){
-    if(prompt != nullptr)
-        cprintf("%s", prompt);
+char *readline(const char *prompt) {
+    if (prompt != nullptr) cprintf("%s", prompt);
     memset(read_buf, 0, CONSOLE_BUF_SIZE);
     int i = 0, c;
-    while(1){
+    while (1) {
         c = getchar();
-        if( c == '\n'){
+        if (c == '\n') {
             read_buf[i] = '\0';
             return read_buf;
-        }
-        else if(i < CONSOLE_BUF_SIZE - 1)
+        } else if (i < CONSOLE_BUF_SIZE - 1)
             read_buf[i++] = c;
-        else{
-             warn("out of console buffer size");
-             return nullptr;
+        else {
+            warn("out of console buffer size");
+            return nullptr;
         }
     }
 }
-
 
 int console_write(bool user_src, intptr_t src, int n) {
     acquire(&cons.lock);
@@ -116,7 +105,7 @@ int console_write(bool user_src, intptr_t src, int n) {
     return n;
 }
 
-void console_init(void){
+void console_init(void) {
     initlock(&cons.lock, "cons");
     uart_init();
 }

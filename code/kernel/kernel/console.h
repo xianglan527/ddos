@@ -3,7 +3,7 @@
 #include "stdarg.h"
 #include "types.h"
 
-void uart_intr(void);
+void uart_intr(char c);
 int cons_getc(void);
 char *readline(const char *prompt);
 void console_init(void);

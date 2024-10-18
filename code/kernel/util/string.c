@@ -1,4 +1,5 @@
 #include "string.h"
+#include "slab.h"
 
 void *memset(void *dst, int c, size_t n) {
     char *cdst = (char *)dst;
@@ -140,3 +141,15 @@ long strtol(const char *s, char **endptr, int base) {
     if (endptr) *endptr = (char *)s;
     return (neg ? -val : val);
 }
+
+char *strdup(const char *src){
+    char *dst;
+    size_t len = strlen(src);
+    if((dst = kmalloc(len + 1)) != nullptr){
+        memcpy(dst, src, len);
+        dst[len] = '\0';
+    }
+    return dst;
+}
+
+char *strcat(char *dst, const char *src) { return strcpy(dst + strlen(dst), src); }

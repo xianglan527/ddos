@@ -230,6 +230,7 @@ Proc *alloc_proc() {
     signal_init(&proc->signal);
     proc->priority = 0;  // default: weight is 1024;
     proc->vruntime = 0;
+    proc->fs_struct = nullptr;
     return proc;
 }
 
@@ -291,6 +292,8 @@ void kernel_thread_init(void (*start_roution)(void *), void *arg) {
     if (arg != nullptr) proc->context.a1 = (uint64_t)arg;
     proc->state = RUNNABLE;
     proc->kernel_proc = true;
+    assert((proc->fs_struct = fs_create()) != nullptr);
+    fs_count_inc(proc->fs_struct);
     acquire(&procs_lock);
     snprintf(proc->name, sizeof(proc->name), "%s%d", (char *)arg, proc->pid);
     hash_proc(proc);
@@ -640,6 +643,39 @@ static void put_siginfo(Proc *proc) {
     }
 }
 
+static int copy_fs(uint32_t clone_flags, Proc *proc){
+    Fs_struct *fs_struct, *old_fs_struct = myproc()->fs_struct;
+    assert(old_fs_struct != nullptr);
+    if(clone_flags & CLONE_FS){
+        fs_struct = old_fs_struct;
+        goto good_fs_struct;
+    }
+    int ret = -E_NO_MEM;
+    if((fs_struct = fs_create()) == nullptr){
+        goto bad_fs_struct;
+    }
+    if((ret = dup_fs(fs_struct, old_fs_struct)) != 0){
+        goto bad_dup_cleanup_fs;
+    }
+good_fs_struct:
+    fs_count_inc(fs_struct);
+    proc->fs_struct = fs_struct;
+    return 0;
+bad_dup_cleanup_fs:
+    fs_destroy(fs_struct);
+bad_fs_struct:
+    return ret;
+}
+
+static void put_fs(Proc *proc){
+    Fs_struct *fs_struct = proc->fs_struct;
+    if(fs_struct != nullptr){
+        if(fs_count_dec(fs_struct) == 0){
+            fs_destroy(fs_struct);
+        }
+    }
+}
+
 void may_killed(void) {
     if (myproc() != nullptr && myproc()->flags & PF_EXITING) {
         __do_exit();
@@ -656,6 +692,7 @@ int do_fork(uint32_t clone_flags, uintptr_t stack) {
     proc->state = RUNNABLE;
     proc->kernel_proc = 0;
     proc->context.ra = (uint64_t)fork_ret;
+    assert(copy_fs(clone_flags, proc) == 0);
     copy_mm(clone_flags, proc);
     proc->mm_index = atomic_read(&proc->mm->mm_share_count) - 1;
     *(proc->trapframe) = *(current->trapframe);
@@ -701,6 +738,7 @@ static void __do_exit() {
         // current->mm = nullptr;
     }
     // unlock_mm(mm);
+    put_fs(current);
     put_sem_queue(current);
     put_siginfo(current);
     Proc *proc, *parent;
@@ -952,6 +990,9 @@ int do_execve(char *path, char **argv) {
         current->mm = nullptr;
     }
     unlock_mm(mm);
+    put_fs(current);
+    assert((current->fs_struct = fs_create()) != nullptr);
+    fs_count_inc(current->fs_struct);
     put_sem_queue(current);
     assert((current->sem_queue = sem_queue_create()) != nullptr);
     atomic_inc(&current->sem_queue->count);
