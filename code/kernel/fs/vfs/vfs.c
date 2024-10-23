@@ -7,11 +7,20 @@
 #include "sem.h"
 #include "stdio.h"
 #include "string.h"
+#include "slab.h"
 
 static Sem bootfs_sem;
 static Inode *bootfs_node = nullptr;
 
 extern void vfs_devlist_init(void);
+
+Fs *__alloc_fs(int type){
+    Fs *fs;
+    if((fs = kmalloc(sizeof(Fs))) != nullptr){
+        fs->fs_type = type;
+    }
+    return fs;
+}
 
 void vfs_init(void){
     sem_init(&bootfs_sem, 1);

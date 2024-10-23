@@ -57,6 +57,8 @@ long __read__(int fd, const void *base, size_t len);
 int __fstat__(int fd, Stat *stat);
 int __dup__(int fd1, int fd2);
 int __close__(int fd);
+int __mkpipe__(int *fd_store);
+int __mkfifo__(char *name, uint32_t open_flags);
 
 long write(int fd, const void *c, size_t len){
     return __write__(fd, c ,len);
@@ -276,5 +278,13 @@ int set_proc_cpu(int pid, int cpuid){
 
 int clear_proc_setcpu(int pid){
     return __clear_proc_setcpu__(pid);
+}
+
+int mkpipe(int *fd_store){
+    return __mkpipe__(fd_store);
+}
+
+int mkfifo(char *name, uint32_t open_flags){
+    return __mkfifo__(name, open_flags);
 }
 

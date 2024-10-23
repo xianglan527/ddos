@@ -73,4 +73,6 @@
 
 #define FS_STRUCT_TOTAL_SIZE (4 * 4096)
 
+#define PIPE_STATE_TOTAL_SIZE (4 * 4096)
+
 #endif  // __CONFIG_CONFIG_H__

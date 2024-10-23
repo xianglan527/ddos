@@ -14,7 +14,7 @@ def main():
         print(" ret")
 
     syscalls = [
-        "fork", "exit", "waitpid", "pipe", "read", "write", "close", "kill", "exec",
+        "fork", "exit", "waitpid", "mkpipe", "read", "write", "close", "kill", "exec",
         "open", "mknod", "unlink", "fstat", "link", "mkdir", "chdir", "dup",
         "getpid", "sbrk", "sleep", "uptime", "sti", "cli", "yield", "gettime",
     ]

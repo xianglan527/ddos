@@ -1468,6 +1468,191 @@ static void fnull_test(char *s) {
     fprintf(1, "hello2 pass.\n");
 }
 //////////////////////////////////////////////////////////////////////////
+static char __pipe_test_buf[4096];
+
+static void __pipe_test1(void) {
+    int __fd[2];
+    assert(mkpipe(NULL) != 0 && mkpipe(__fd) == 0);
+
+    int i, pid, fd, len;
+    if ((pid = fork()) == 0) {
+        fd = __fd[1];
+        for (i = 0; i < 10; i++) { yield(); }
+        if (write(fd, "A", 1) == 1) { 
+            printf("pid : %d child write ok\n", getpid()); 
+        }
+        exit(0);
+    }
+    assert(pid > 0);
+    fd = __fd[0], close(__fd[1]);
+    assert((len = read(fd, __pipe_test_buf, sizeof(__pipe_test_buf))) == 1 && __pipe_test_buf[0] == 'A');
+    assert(wait() == 0 && close(fd) == 0);
+
+    printf("parent read ok\n");
+    printf("pipetest step1 pass.\n");
+}
+
+static void __pipe_test2(void) {
+    int __fd[2], fd, ret;
+    assert(mkpipe(NULL) != 0 && mkpipe(__fd) == 0);
+
+    struct stat __stat, *stat = &__stat;
+
+    fd = __fd[0], ret = fstat(fd, stat);
+    assert(ret == 0);
+    print_stat("pipe0", fd, stat);
+    assert(S_ISCHR(stat->st_mode));
+
+    fd = __fd[1], ret = fstat(fd, stat);
+    assert(ret == 0);
+    print_stat("pipe1", fd, stat);
+    assert(S_ISCHR(stat->st_mode));
+
+    close(__fd[0]), close(__fd[1]);
+    printf("pipetest step2 pass.\n");
+}
+
+static void __pipe_test3(void) {
+    int __fd[2];
+    assert(mkpipe(NULL) != 0 && mkpipe(__fd) == 0);
+
+    char *msg = "Hello world!!.";
+    size_t len = strlen(msg);
+
+    int pid, fd, ret;
+    if ((pid = fork()) == 0) {
+        fd = __fd[1];
+        assert(read(fd, __pipe_test_buf, sizeof(__pipe_test_buf)) < 0);
+        ret = write(fd, msg, len);
+        assert(ret == len);
+        exit(0);
+    }
+    assert(pid > 0);
+
+    fd = __fd[0], close(__fd[1]);
+    assert(write(fd, msg, len) < 0);
+
+    int total = 0;
+    while ((ret = read(fd, __pipe_test_buf + total, sizeof(__pipe_test_buf) - total)) > 0) { total += ret; }
+    __pipe_test_buf[total] = '\0';
+    assert(total == len && strcmp(__pipe_test_buf, msg) == 0);
+    assert(wait() == 0 && close(fd) == 0);
+    printf("pipetest step3 pass.\n");
+}
+
+static void __pipe_test4(void) {
+    char *name = "test";
+    int fd, __fd;
+    fd = __fd = mkfifo(name, O_CREAT | O_RDONLY);
+    assert(fd >= 0);
+
+    fd = mkfifo(name, O_CREAT | O_RDONLY);
+    assert(fd >= 0 && close(fd) == 0);
+
+    assert(mkfifo(name, O_CREAT | O_EXCL | O_RDONLY) < 0);
+    assert(mkfifo(name, O_WRONLY) < 0);
+
+    fd = mkfifo(name, O_CREAT | O_WRONLY | O_EXCL);
+    assert(fd >= 0 && close(fd) == 0);
+    assert(read(__fd, __pipe_test_buf, sizeof(__pipe_test_buf)) == 0 && close(__fd) == 0);
+
+    fd = mkfifo(name, O_CREAT | O_RDONLY | O_EXCL);
+    assert(fd >= 0);
+
+    int pid, ret;
+    if ((pid = fork()) == 0) {
+        fd = mkfifo(name, O_CREAT | O_WRONLY | O_EXCL);
+        assert(fd >= 0);
+        memset(__pipe_test_buf, 'A', sizeof(__pipe_test_buf));
+        int ret = write(fd, __pipe_test_buf, sizeof(__pipe_test_buf));
+        assert(ret == sizeof(__pipe_test_buf));
+        exit(0);
+    }
+    assert(pid > 0);
+
+    size_t total = 0;
+    while ((ret = read(fd, __pipe_test_buf + total, sizeof(__pipe_test_buf) - total)) > 0) { total += ret; }
+    assert(total == sizeof(__pipe_test_buf));
+
+    int i;
+    for (i = 0; i < total; i++) { assert(__pipe_test_buf[i] == 'A'); }
+    assert(wait() == 0);
+    printf("pipetest step4 pass.\n");
+}
+
+static void pipe_test(char *s) {
+    __pipe_test1();
+    __pipe_test2();
+    __pipe_test3();
+    __pipe_test4();
+}
+//////////////////////////////////////////////////////////////////////////
+int __pipe_test2_fd[2], pipe_test2_fd;
+
+Thread pipe_test2_tids[10];
+int pipe_test2_total = sizeof(pipe_test2_tids) / sizeof(pipe_test2_tids[0]);
+
+int pipe_test2_thread_main(void *arg) {
+    int id = (long)arg;
+    printf("this is %d\n", id);
+
+    size_t n = 1000;
+    char *buf = malloc(sizeof(char) * n);
+    if (buf == NULL) { return -1; }
+
+    memset(buf, (char)id, n);
+
+    int i, rounds = 20, ret;
+    for (i = 0; i < rounds; i++) {
+        if ((ret = write(pipe_test2_fd, buf, n)) < 0 || ret != n) {
+            printf("pipe is closed, too early.\n");
+            return -1;
+        }
+        if (id == 0) { printf("send %d/%d\n", i, rounds); }
+    }
+    return 0;
+}
+
+void pipe_test2_process_main(void) {
+    int counts[pipe_test2_total], i, ret;
+    for (i = 0; i < pipe_test2_total; i++) { counts[i] = 0; }
+
+    char buf[128];
+    size_t n = sizeof(buf);
+
+    while (1) {
+        if ((ret = read(pipe_test2_fd, buf, n)) <= 0) { break; }
+        for (i = 0; i < ret; i++) { counts[((unsigned int)buf[i]) % pipe_test2_total]++; }
+    }
+    for (i = 0; i < pipe_test2_total; i++) { printf("%d reads %d\n", i, counts[i]); }
+    exit(0);
+}
+
+static void pipe_test2(char *s) {
+    int pid, i;
+    assert(mkpipe(__pipe_test2_fd) == 0);
+
+    if ((pid = fork()) == 0) {
+        pipe_test2_fd = __pipe_test2_fd[0], close(__pipe_test2_fd[1]);
+        pipe_test2_process_main();
+    }
+    assert(pid > 0);
+
+    pipe_test2_fd = __pipe_test2_fd[1], close(__pipe_test2_fd[0]);
+    memset(pipe_test2_tids, 0, sizeof(Thread) * pipe_test2_total);
+    for (i = 0; i < pipe_test2_total; i++) {
+        assert(thread(pipe_test2_thread_main, (void *)(long)i, pipe_test2_tids + i) == 0);
+    }
+
+    int exit_code;
+    for (i = 0; i < pipe_test2_total; i++) {
+        assert(thread_wait(pipe_test2_tids + i, &exit_code) == 0 && exit_code == 0);
+    }
+    for (i = 0; i < pipe_test2_total; i++) { yield(); }
+    close(__pipe_test2_fd[0]), close(__pipe_test2_fd[1]);
+    assert(waitpid(pid, &exit_code) == 0 && exit_code == 0);
+}
+//////////////////////////////////////////////////////////////////////////
 static int run(void f(char *), char *s) {
     int pid;
     int xstatus = 1;
@@ -1540,6 +1725,8 @@ struct test {
     {fread_test2, "fread_test2"},
     {fwrite_test, "fwrite_test"},
     {fnull_test, "fnull_test"},
+    {pipe_test, "pipe_test"},
+    {pipe_test2, "pipe_test2"},
     {swaptest, "swaptest"},
     {nullptr, nullptr},
 };

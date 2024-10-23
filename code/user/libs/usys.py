@@ -14,13 +14,13 @@ def main():
         print(" ret")
 
     syscalls = [
-        "fork", "exit", "waitpid", "pipe", "read", "write", "close", "kill", "exec",
+        "fork", "exit", "waitpid", "mkpipe", "read", "write", "close", "kill", "exec",
         "open", "mknod", "unlink", "fstat", "link", "mkdir", "chdir", "dup",
         "getpid", "sbrk", "sleep", "uptime", "sti", "cli", "yield", "gettime", 
         "get_free_page_size", "get_slab_allocated_size", "clone", "exit_thread", "mmap", "munmap", "shmem",
         "sem_init", "sem_post", "sem_wait", "sem_free", "sem_get_value", "event_send", "event_recv",
         "mbox_init", "mbox_send", "mbox_recv", "mbox_free", "mbox_info", "set_sigaction", "send_signal", "sigreturn",
-        "setpriority", "getpriority", "get_proc_runticks", "set_proc_cpu", "clear_proc_setcpu"
+        "setpriority", "getpriority", "get_proc_runticks", "set_proc_cpu", "clear_proc_setcpu", "mkfifo"
     ]
 
     for syscall in syscalls:

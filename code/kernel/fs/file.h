@@ -35,6 +35,8 @@ int file_dup(int fd1, int fd2);
 int fd2file(int fd, File **file_store);
 void filemap_acquire(File *file);
 void filemap_release(File *file);
+int file_pipe(int fd[]);
+int file_mkfifo(const char *__name, uint32_t open_flags);
 
 static inline long fopen_count(File *file){
     return atomic_read(&file->open_count);

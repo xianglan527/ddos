@@ -9,10 +9,12 @@
 #include "string.h"
 #include "vfs.h"
 #include "slab.h"
+#include "pipe.h"
 
 void fs_init(void){
     vfs_init();
     dev_init();
+    pipe_init();
 }
 
 void fs_cleanup(void){

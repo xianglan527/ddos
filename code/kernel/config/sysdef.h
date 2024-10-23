@@ -4,7 +4,7 @@
 #define SYS_fork 1
 #define SYS_exit 2
 #define SYS_waitpid 3
-#define SYS_pipe 4
+#define SYS_mkpipe 4
 #define SYS_read 5
 #define SYS_kill 6
 #define SYS_exec 7
@@ -53,6 +53,7 @@
 #define SYS_get_proc_runticks 50
 #define SYS_set_proc_cpu 51
 #define SYS_clear_proc_setcpu 52
+#define SYS_mkfifo 53
 
 #define CLONE_VM 0x00000100
 #define CLONE_THREAD 0x00000200

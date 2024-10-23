@@ -2,6 +2,7 @@
 #define __FS_VFS_VFS_H__
 
 #include "iobuf.h"
+#include "pipe.h"
 #include "types.h"
 
 typedef struct inode Inode;
@@ -10,14 +11,37 @@ typedef struct device Device;
 typedef struct fs Fs;
 struct fs {
     union {
+        Pipe_fs __pipe_info;
     } fs_info;
+    enum {
+        fs_type_pipe_info = 0x5678,
+    } fs_type;
     int (*fs_sync)(Fs *fs);
     Inode *(*fs_get_root)(Fs *fs);
     int (*fs_unmount)(Fs *fs);
     void (*fs_cleanup)(Fs *fs);
 };
 
-#define fsop_sync(fs)   ((fs)->fs_sync(fs))
+#define __fs_type(type) fs_type_##type##_info
+
+#define check_fs_type(fs, type) ((fs)->fs_type == __fs_type(type))
+
+#define __fsop_info(_fs, type)                                \
+    ({                                                        \
+        Fs *__fs = (_fs);                                     \
+        assert(__fs != nullptr && check_fs_type(__fs, type)); \
+        &(__fs->fs_info.__##type##_info);                     \
+    })
+
+#define fsop_info(fs, type) __fsop_info(fs, type)
+
+#define info2fs(info, type) to_struct((info), Fs, fs_info.__##type##_info)
+
+Fs *__alloc_fs(int type);
+
+#define alloc_fs(type)      __alloc_fs(__fs_type(type))
+
+#define fsop_sync(fs) ((fs)->fs_sync(fs))
 #define fsop_get_root(fs) ((fs)->fs_get_root(fs))
 #define fsop_unmount(fs) ((fs)->fs_unmount(fs))
 #define fsop_cleanup(fs) ((fs)->fs_cleanup(fs))

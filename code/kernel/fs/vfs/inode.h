@@ -8,6 +8,7 @@
 #include "stat.h"
 #include "types.h"
 #include "vfs.h"
+#include "pipe.h"
 
 // typedef struct fs FS;
 typedef struct inode_ops Inode_ops;
@@ -16,13 +17,16 @@ typedef struct inode Inode;
 struct inode {
     union {
         Device __device_info;
+        Pipe_root __pipe_root_info;
+        Pipe_inode __pipe_inode_info;
     } in_info;
     enum {
         inode_type_device_info = 0x1234,
+        inode_type_pipe_root_info,
+        inode_type_pipe_inode_info,
     } in_type;
     Atomic ref_count;
     Atomic open_count;
-    // struct fs *in_fs;
     Fs *in_fs;
     const Inode_ops *in_ops;
 };

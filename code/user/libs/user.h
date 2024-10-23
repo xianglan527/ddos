@@ -57,4 +57,6 @@ int fstat(int fd, Stat *stat);
 int dup(int fd);
 int dup2(int fd1, int fd2);
 int close(int fd);
+int mkpipe(int *fd_store);
+int mkfifo(char *name, uint32_t open_flags);
 #endif

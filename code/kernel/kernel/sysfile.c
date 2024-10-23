@@ -427,16 +427,41 @@ uint64_t sys_fstat(void) {
     Stat __local_stat, *local_stat = &__local_stat;
     if ((ret = file_fstat(fd, local_stat)) != 0) { return ret; }
     lock_mm(mm);
-    { 
-         copy_kernel2user(mm->pagetable, (uintptr_t)stat, (char *)local_stat, sizeof(Stat)); 
-    }
+    { copy_kernel2user(mm->pagetable, (uintptr_t)stat, (char *)local_stat, sizeof(Stat)); }
     unlock_mm(mm);
     return 0;
 }
 
-uint64_t sys_dup(void){
+uint64_t sys_dup(void) {
     int fd1, fd2;
     arg_int(0, &fd1);
     arg_int(1, &fd2);
     return file_dup(fd1, fd2);
+}
+
+uint64_t sys_mkpipe(void) {
+    long __fd_store;
+    arg_long(0, &__fd_store);
+    int *fd_store = (int *)__fd_store;
+    if(fd_store == nullptr) return -E_INVAL;
+    int ret, fd[2];
+    Mm_struct *mm = myproc()->mm;
+    if ((ret = file_pipe(fd)) == 0) {
+        lock_mm(mm);
+        copy_kernel2user(mm->pagetable, (uintptr_t)fd_store, (char *)fd, sizeof(fd));
+        unlock_mm(mm);
+    } else {
+        file_close(fd[0]), file_close(fd[1]);
+    }
+    return ret;
+}
+
+uint64_t sys_mkfifo(void) {
+    int ret;
+    char name[MAXPATH];
+    if (arg_str(0, name, MAXPATH) < 0) return -E_INVAL;
+    long open_flags;
+    arg_long(1, &open_flags);
+    ret = file_mkfifo(name, (uint32_t)open_flags);
+    return ret;
 }

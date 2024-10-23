@@ -57,6 +57,8 @@ extern uint64_t sys_read(void);
 extern uint64_t sys_write(void);
 extern uint64_t sys_fstat(void);
 extern uint64_t sys_dup(void);
+extern uint64_t sys_mkpipe(void);
+extern uint64_t sys_mkfifo(void);
 
 int fetch_addr(uint64_t addr, uint64_t *ip){
     Proc *current = myproc();
@@ -164,6 +166,8 @@ static uint64_t (*syscalls[])(void) = {
     [SYS_read] = sys_read,
     [SYS_fstat] = sys_fstat,
     [SYS_dup] = sys_dup,
+    [SYS_mkpipe] = sys_mkpipe,
+    [SYS_mkfifo] = sys_mkfifo,
 };
 
 void syscall(void) {
