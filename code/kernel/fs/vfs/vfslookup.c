@@ -4,9 +4,11 @@
 #include "string.h"
 #include "stdio.h"
 #include "vfs.h"
+#include "proc.h"
 
-static int get_device(char *path, char **subpath, Inode **node_store){
+int get_device(char *path, char **subpath, Inode **node_store, bool *relative) {
     int i, slash = -1, colon = -1;
+    if (relative != nullptr) { *relative = false; }
     for(i = 0; path[i] != '\0'; i++){
         if(path[i] == ':'){colon = i; break;}
         if(path[i] == '/'){slash = i; break;}
@@ -18,6 +20,7 @@ static int get_device(char *path, char **subpath, Inode **node_store){
          * the current directory, and use the whole thing as the subpath.
          * */
         *subpath = path;
+        if (relative != nullptr) { *relative = true; }
         return vfs_get_curdir(node_store);
     }
     if(colon > 0){
@@ -54,7 +57,7 @@ static int get_device(char *path, char **subpath, Inode **node_store){
 int vfs_lookup(char *path, Inode **node_store){
     int ret;
     Inode *node;
-    if((ret = get_device(path, &path, &node)) != 0){
+    if((ret = get_device(path, &path, &node, nullptr)) != 0){
         return ret;
     }
     if(*path != '\0'){
@@ -69,7 +72,7 @@ int vfs_lookup(char *path, Inode **node_store){
 int vfs_lookup_parent(char *path, Inode **node_store, char **endp){
     int ret;
     Inode *node;
-    if((ret = get_device(path, &path, &node)) != 0){
+    if((ret = get_device(path, &path, &node, nullptr)) != 0){
         return ret;
     }
     ret = (*path != '\0')? vop_lookup_parent(node, path, node_store, endp) : -E_INVAL;

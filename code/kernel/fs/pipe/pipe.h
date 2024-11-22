@@ -31,7 +31,6 @@ struct pipe_inode {
         PIN_RDONLY, PIN_WRONLY,
     }pin_type;
     char *name;
-    int reclaim_count;
     Pipe_state *state;
     List_entry pipe_link;
 };

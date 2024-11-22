@@ -1,20 +1,23 @@
 #include "fs.h"
 
+#include <sfs.h>
+
 #include "assert.h"
 #include "dev.h"
 #include "error.h"
 #include "inode.h"
+#include "pipe.h"
 #include "sem.h"
+#include "slab.h"
 #include "stdio.h"
 #include "string.h"
 #include "vfs.h"
-#include "slab.h"
-#include "pipe.h"
 
 void fs_init(void){
     vfs_init();
     dev_init();
     pipe_init();
+    sfs_init();
 }
 
 void fs_cleanup(void){

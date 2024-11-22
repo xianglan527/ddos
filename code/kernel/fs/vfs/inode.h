@@ -9,6 +9,7 @@
 #include "types.h"
 #include "vfs.h"
 #include "pipe.h"
+#include "sfs.h"
 
 // typedef struct fs FS;
 typedef struct inode_ops Inode_ops;
@@ -19,14 +20,17 @@ struct inode {
         Device __device_info;
         Pipe_root __pipe_root_info;
         Pipe_inode __pipe_inode_info;
+        Sfs_inode __sfs_inode_info;
     } in_info;
     enum {
         inode_type_device_info = 0x1234,
         inode_type_pipe_root_info,
         inode_type_pipe_inode_info,
+        inode_type_sfs_inode_info,
     } in_type;
     Atomic ref_count;
     Atomic open_count;
+    Sem sem;
     Fs *in_fs;
     const Inode_ops *in_ops;
 };
@@ -265,8 +269,19 @@ void inode_check(Inode *node);
 #define NULL_VOP_ISDIR ((void *)null_vop_isdir)
 #define NULL_VOP_NOTDIR ((void *)null_vop_notdir)
 
-static inline long inode_ref_count(Inode *node) { return atomic_read(&node->ref_count); }
+void nodes_lock(Inode *node);
+void nodes_unlock(Inode *node);
 
-static inline long inode_open_count(Inode *node) { return atomic_read(&node->open_count); }
+static inline long inode_ref_count(Inode *node) {
+    long count;
+    count = atomic_read(&node->ref_count);
+    return count;
+}
+
+static inline long inode_open_count(Inode *node) {
+    long count;
+    count = atomic_read(&node->open_count);
+    return count;
+}
 
 #endif

@@ -26,6 +26,7 @@
 #define E_MAX_OPEN 22     // Too Many Files are Open
 #define E_EXISTS 23       // File/Directory Already Exists
 #define E_NOTEMPTY 24     // Directory is Not Empty
+#define E_LOOP 24         // file is a symlink
 /* the maximum allowed */
-#define MAXERROR 24
+#define MAXERROR 25
 #endif 

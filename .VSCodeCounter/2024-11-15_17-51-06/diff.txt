@@ -1,0 +1,57 @@
+Date : 2024-11-15 17:51:06
+Directory : c:\Users\45228\Desktop\share\ddos\code
+Total : 18 files,  -16825 codes, 27 comments, -588 blanks, all -17386 lines
+
+Languages
++----------------+------------+------------+------------+------------+------------+
+| language       | files      | code       | comment    | blank      | total      |
++----------------+------------+------------+------------+------------+------------+
+| C              |         15 |        406 |         27 |         25 |        458 |
+| Assembler file |          3 |    -17,231 |          0 |       -613 |    -17,844 |
++----------------+------------+------------+------------+------------+------------+
+
+Directories
++--------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                     | files      | code       | comment    | blank      | total      |
++--------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                        |         18 |    -16,825 |         27 |       -588 |    -17,386 |
+| kernel                                                                   |         12 |        -56 |         17 |          0 |        -39 |
+| kernel\driver                                                            |          1 |          0 |          2 |         -1 |          1 |
+| kernel\driver\virtio                                                     |          1 |          0 |          2 |         -1 |          1 |
+| kernel\fs                                                                |          6 |         59 |          6 |          1 |         66 |
+| kernel\fs (Files)                                                        |          1 |          1 |          2 |          0 |          3 |
+| kernel\fs\sfs                                                            |          1 |          9 |          4 |          0 |         13 |
+| kernel\fs\vfs                                                            |          4 |         49 |          0 |          1 |         50 |
+| kernel\kernel                                                            |          3 |         13 |          6 |          1 |         20 |
+| kernel\mm                                                                |          1 |          0 |          3 |          0 |          3 |
+| kernel\test                                                              |          1 |       -128 |          0 |         -1 |       -129 |
+| user                                                                     |          6 |    -16,769 |         10 |       -588 |    -17,347 |
+| user\libs                                                                |          4 |       -280 |          0 |         -1 |       -281 |
+| user\output                                                              |          1 |    -16,815 |          0 |       -611 |    -17,426 |
+| user\test                                                                |          1 |        326 |         10 |         24 |        360 |
++--------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++--------------------------------------------------------------------------+----------------+------------+------------+------------+------------+
+| filename                                                                 | language       | code       | comment    | blank      | total      |
++--------------------------------------------------------------------------+----------------+------------+------------+------------+------------+
+| c:\Users\45228\Desktop\share\ddos\code\kernel\driver\virtio\virtio-blk.c | C              |          0 |          2 |         -1 |          1 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\file.c                  | C              |          1 |          2 |          0 |          3 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\sfs\sfs_inode.c         | C              |          9 |          4 |          0 |         13 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\inode.c             | C              |         -4 |          0 |          0 |         -4 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\vfsdev.c            | C              |          7 |          0 |          0 |          7 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\vfsfile.c           | C              |         -1 |          0 |          0 |         -1 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\vfspath.c           | C              |         47 |          0 |          1 |         48 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\proc.c              | C              |          2 |          2 |          0 |          4 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\syscall.c           | C              |          2 |          2 |          0 |          4 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\sysfile.c           | C              |          9 |          2 |          1 |         12 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\mm\pmm.c                   | C              |          0 |          3 |          0 |          3 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\test\usys.S                | Assembler file |       -128 |          0 |         -1 |       -129 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\main.c                  | C              |          3 |          0 |          0 |          3 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\user.c                  | C              |          4 |          0 |          0 |          4 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\user.h                  | C              |          1 |          0 |          0 |          1 |
+| c:\Users\45228\Desktop\share\ddos\code\user\libs\usys.S                  | Assembler file |       -288 |          0 |         -1 |       -289 |
+| c:\Users\45228\Desktop\share\ddos\code\user\output\user.asm              | Assembler file |    -16,815 |          0 |       -611 |    -17,426 |
+| c:\Users\45228\Desktop\share\ddos\code\user\test\usertests.c             | C              |        326 |         10 |         24 |        360 |
+| Total                                                                    |                |    -16,825 |         27 |       -588 |    -17,386 |
++--------------------------------------------------------------------------+----------------+------------+------------+------------+------------+

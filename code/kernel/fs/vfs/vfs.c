@@ -10,7 +10,7 @@
 #include "slab.h"
 
 static Sem bootfs_sem;
-static Inode *bootfs_node = nullptr;
+Inode *bootfs_node = nullptr;
 
 extern void vfs_devlist_init(void);
 

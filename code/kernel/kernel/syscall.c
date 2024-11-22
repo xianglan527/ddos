@@ -59,6 +59,15 @@ extern uint64_t sys_fstat(void);
 extern uint64_t sys_dup(void);
 extern uint64_t sys_mkpipe(void);
 extern uint64_t sys_mkfifo(void);
+extern uint64_t sys_seek(void);
+extern uint64_t sys_fsync(void);
+extern uint64_t sys_chdir(void);
+extern uint64_t sys_getcwd(void);
+extern uint64_t sys_getdirentry(void);
+extern uint64_t sys_link(void);
+extern uint64_t sys_unlink(void);
+extern uint64_t sys_mkdir(void);
+extern uint64_t sys_symlink(void);
 
 int fetch_addr(uint64_t addr, uint64_t *ip){
     Proc *current = myproc();
@@ -168,6 +177,15 @@ static uint64_t (*syscalls[])(void) = {
     [SYS_dup] = sys_dup,
     [SYS_mkpipe] = sys_mkpipe,
     [SYS_mkfifo] = sys_mkfifo,
+    [SYS_seek] = sys_seek,
+    [SYS_fsync] = sys_fsync,
+    [SYS_chdir] = sys_chdir,
+    [SYS_getcwd] = sys_getcwd,
+    [SYS_getdirentry] = sys_getdirentry,
+    [SYS_link] = sys_link,
+    [SYS_unlink] = sys_unlink,
+    [SYS_mkdir] = sys_mkdir,
+    [SYS_symlink] = sys_symlink,
 };
 
 void syscall(void) {
@@ -179,4 +197,6 @@ void syscall(void) {
         cprintf("%d %s: unknown sys call %d\n", p->pid, p->name, num);
         p->trapframe->a0 = -1;
     }
+    // cprintf("syscall num is %d.\n", num);
+    // sinode_dump_struct_lock();
 }

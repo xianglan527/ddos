@@ -4,6 +4,8 @@
 #include "sigaction.h"
 #include "stat.h"
 #include "types.h"
+#include "fs_img.h"
+#include "sysdef.h"
 
 int sti();
 int cli();
@@ -59,4 +61,13 @@ int dup2(int fd1, int fd2);
 int close(int fd);
 int mkpipe(int *fd_store);
 int mkfifo(char *name, uint32_t open_flags);
+int seek(int fd, off_t pos, int whence);
+int fsync(int fd);
+int chdir(char *path);
+int getcwd(char *buf, size_t len);
+int getdirentry(int fd, Dirent *dirent);
+int link(char *oldpath, char *newpath);
+int unlink(char *path);
+int mkdir(char *path);
+int symlink(char *oldpath, char *newpath);
 #endif

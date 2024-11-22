@@ -403,6 +403,9 @@ pte_t *get_pte(pagetable_t *pagetable, uint64_t va, int alloc) {
 uintptr_t va2pa(pagetable_t *pagetable, uint64_t va){
     assert(va < MAXVA);
     pte_t *pte = get_pte(pagetable, va, 0);
+    // if(!(pte != nullptr && (*pte & PTE_V))){
+    //     int pp = 3;
+    // }
     assert(pte != nullptr && (*pte & PTE_V));
     return (uintptr_t)PTE2PA(*pte) + (uintptr_t)PGOFF(va);
 }

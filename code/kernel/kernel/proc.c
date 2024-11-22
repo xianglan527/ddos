@@ -18,6 +18,7 @@
 #include "syscall.h"
 #include "trap.h"
 #include "virtio-blk.h"
+#include "vfs.h"
 
 Cpu cpus[NCPU];
 Proc *initproc;
@@ -514,7 +515,8 @@ void do_wakeup(void *chan) {
         p = le2proc(le, list_link);
         acquire(&p->lock);
         if (p->state == SLEEPING && p->chan == chan) {
-            if (p->cpu->sc == &CFS_sched_class) { sched_class_insert_rbtree(p);
+            if (p->cpu->sc == &CFS_sched_class) {
+                sched_class_insert_rbtree(p);
             } else {
                 p->state = RUNNABLE;
             }
@@ -716,13 +718,14 @@ int do_fork(uint32_t clone_flags, uintptr_t stack) {
     hash_proc(proc);
     set_links(proc);
     release(&procs_lock);
+    // sinode_dump_struct_lock();
     return proc->pid;
 }
 
 static void __do_exit() {
     Proc *current = myproc();
     if (current == initproc) panic("init exiting");
-    acquire(&procs_lock);
+    // acquire(&procs_lock);
     Mm_struct *mm = current->mm;
     // lock_mm(mm);
     if (mm != nullptr) {
@@ -742,6 +745,7 @@ static void __do_exit() {
     put_sem_queue(current);
     put_siginfo(current);
     Proc *proc, *parent;
+    acquire(&procs_lock);
     proc = parent = current->parent;
     do {
         if (proc->wait_state == WT_CHILD) { wakeup_proc(proc); }
@@ -957,7 +961,7 @@ int do_execve(char *path, char **argv) {
     req.data = rdata;
     req.data_len = SECTOR_SZIE;
     req.is_write = 0;
-    virtio_blk_rw(&req, "fs.img");
+    virtio_blk_rw(&req, "user.img");
     size_t pages_num = PGROUNDUP(rdata[0]) / PGSIZE;
     Page *pages = alloc_pages(pages_num);
     char *binary = (char *)page2kva(pages);
@@ -967,7 +971,7 @@ int do_execve(char *path, char **argv) {
         req.data = rdata;
         req.data_len = SECTOR_SZIE;
         req.is_write = 0;
-        virtio_blk_rw(&req, "fs.img");
+        virtio_blk_rw(&req, "user.img");
         memcpy((void *)(binary + (i * SECTOR_SZIE)), (void *)(rdata), SECTOR_SZIE);
     }
     char *s, *last;
@@ -993,6 +997,7 @@ int do_execve(char *path, char **argv) {
     put_fs(current);
     assert((current->fs_struct = fs_create()) != nullptr);
     fs_count_inc(current->fs_struct);
+    vfs_set_bootfs("disk0:");
     put_sem_queue(current);
     assert((current->sem_queue = sem_queue_create()) != nullptr);
     atomic_inc(&current->sem_queue->count);
@@ -1023,6 +1028,7 @@ int do_execve(char *path, char **argv) {
     current->trapframe->a1 = sp;
     current->trapframe->epc = ((struct elfhdr *)binary)->entry;
     current->trapframe->sp = sp;
+    current->trapframe->a0 = argc;
     free_pages(pages, pages_num);
     return argc;
 }

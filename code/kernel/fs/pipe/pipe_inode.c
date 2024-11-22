@@ -87,14 +87,11 @@ static int pipe_inode_reclaim(Inode *node){
     Pipe_inode *pin = vop_info(node, pipe_inode);
     if(pin->name != nullptr){
         Pipe_fs *pipe = fsop_info(vop_fs(node), pipe);
-        lock_pipe(pipe);
-        assert(pin->reclaim_count > 0);
-        if((--pin->reclaim_count) != 0 || inode_ref_count(node) != 0){
-            unlock_pipe(pipe);
-            return -E_BUSY;
-        }
+        // lock_pipe(pipe);
+        // assert(node->ref_cnt == 0 && node->open_cnt == 0);
+        assert(atomic_read(&node->ref_count) == 0 && atomic_read(&node->open_count) == 0);
         list_del(&pin->pipe_link);
-        unlock_pipe(pipe);
+        // unlock_pipe(pipe);
         kfree(pin->name);
     }
     pipe_state_release(pin->state);
@@ -136,7 +133,7 @@ static const struct inode_ops pipe_node_ops = {
 static void pipe_inode_init(Pipe_inode *pin, char *name, Pipe_state *state, bool readonly){
     assert(state != nullptr);
     pin->pin_type = readonly ? PIN_RDONLY : PIN_WRONLY;
-    pin->name = name, pin->state = state, pin->reclaim_count = 1;
+    pin->name = name, pin->state = state;
     list_init(&pin->pipe_link);
 }
 

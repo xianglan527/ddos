@@ -154,6 +154,7 @@ int file_open(char *path, uint32_t open_flags){
         filemap_free(file);
         return ret;
     }
+    // sinode_dump_struct_lock();
     file->pos = 0;
     if(open_flags & O_APPEND){
         Stat __stat, *stat = &__stat;
@@ -301,5 +302,66 @@ failed_cleanup_name:
     kfree(name);
 failed_cleanup_file:
     filemap_free(file);
+    return ret;
+}
+
+int file_seek(int fd, off_t pos, int whence){
+    Stat __stat, *stat = &__stat;
+    int ret;
+    File *file;
+    if((ret = fd2file(fd, &file)) != 0){
+        return ret;
+    }
+    filemap_acquire(file);
+    switch(whence){
+        case LSEEK_SET:break;
+        case LSEEK_CUR:pos += file->pos;break;
+        case LSEEK_END:
+            if((ret = vop_fstat(file->node, stat)) == 0){
+                pos += stat->st_size;
+            }
+            break;
+        default:ret = -E_INVAL;
+    }
+    if(ret == 0){
+        if((ret = vop_tryseek(file->node, pos)) == 0){
+            file->pos = pos;
+        }
+    }
+    filemap_release(file);
+    return ret;
+}
+
+int file_fsync(int fd){
+    int ret;
+    File *file;
+    if((ret = fd2file(fd, &file)) != 0){
+        return ret;
+    }
+    filemap_acquire(file);
+    ret = vop_fsync(file->node);
+    filemap_release(file);
+    return ret;
+}
+
+int file_getdirentry(int fd, Dirent *dirent){
+    int ret;
+    File *file;
+    if ((ret = fd2file(fd, &file)) != 0) { return ret; }
+    filemap_acquire(file);
+    Iobuf __iob, *iob;
+try_again:
+    iob = iobuf_init(&__iob, dirent->name, sizeof(dirent->name), dirent->offset);
+    ret = vop_getdirentry(file->node, iob);
+    if(ret == 0) {
+        // dirent->offset += iobuf_used(iob);
+        dirent->offset += sizeof(Sfs_dirent);
+    }
+    else if(ret == -E_NOENT){
+        assert(iobuf_used(iob) == 0);
+        dirent->offset += sizeof(Sfs_dirent);
+        goto try_again;
+    }
+    filemap_release(file);
     return ret;
 }

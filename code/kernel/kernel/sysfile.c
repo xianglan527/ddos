@@ -107,7 +107,10 @@ uint64_t sys_gettime(void) { return ticks; }
 
 uint64_t sys_get_free_page_size(void) { return nr_free_pages(); }
 
-uint64_t sys_get_slab_allocated_size(void) { return slab_allocated(); }
+uint64_t sys_get_slab_allocated_size(void) { 
+    // sinode_dump_struct_lock();
+    return slab_allocated(); 
+}
 
 uint64_t sys_clone(void) {
     int32_t clone_flags;
@@ -365,6 +368,7 @@ uint64_t sys_read(void) {
     while (len != 0) {
         if ((alen = IOBUF_SIZE) > len) { alen = len; }
         ret = file_read(fd, buffer, alen, &alen);
+        // cprintf("444444 fd is %d len is %d alen is %d\n\n", fd, len, alen);
         if (alen != 0) {
             lock_mm(mm);
             {
@@ -377,7 +381,9 @@ uint64_t sys_read(void) {
         if (ret != 0 || alen == 0) { break; }
     }
     kfree(buffer);
-    if (copied != 0) { return copied; }
+    if (copied != 0) { 
+        return copied; 
+    }
     return ret;
 }
 
@@ -464,4 +470,97 @@ uint64_t sys_mkfifo(void) {
     arg_long(1, &open_flags);
     ret = file_mkfifo(name, (uint32_t)open_flags);
     return ret;
+}
+
+uint64_t sys_seek(void){
+    int fd;
+    arg_int(0, &fd);
+    long pos;
+    arg_long(1, &pos);
+    int whence;
+    arg_int(2, &whence);
+    return file_seek(fd, (off_t)pos, whence);
+}
+
+uint64_t sys_fsync(void){
+    int fd;
+    arg_int(0, &fd);
+    return file_fsync(fd);
+}
+
+uint64_t sys_chdir(void){
+    char path[MAXPATH];
+    if (arg_str(0, path, MAXPATH) < 0) return -E_INVAL;
+    return vfs_chdir(path);
+}
+
+uint64_t sys_getcwd(void){
+    int ret;
+    long __buf;
+    arg_long(0, &__buf);
+    char *buf = (char *)__buf;
+    long __len;
+    arg_long(1, &__len);
+    size_t len = (size_t)__len;
+    Mm_struct *mm = myproc()->mm;
+    char *buffer;
+    if ((buffer = kmalloc(len)) == nullptr) { return -E_NO_MEM; }
+    Iobuf __iob, *iob = iobuf_init(&__iob, buffer, len, 0);
+    ret = vfs_getcwd(iob);
+    if(ret < 0){
+        kfree(buffer);
+        return ret;
+    }
+    lock_mm(mm);
+    copy_kernel2user(mm->pagetable, (uintptr_t)buf, (char *)buffer, iobuf_used(iob)); 
+    unlock_mm(mm);
+    kfree(buffer);
+    return 0;
+}
+uint64_t sys_getdirentry(void){
+    int ret;
+    int fd;
+    arg_int(0, &fd);
+    long __dirent;
+    arg_long(1, &__dirent);
+    Dirent *dirent = (Dirent *)__dirent;
+    Mm_struct *mm = myproc()->mm;
+    Dirent local_dirent;
+    lock_mm(mm);
+    copy_user2kernel(mm->pagetable, (char *)&local_dirent, (uint64_t)dirent, sizeof(*dirent));
+    unlock_mm(mm);
+    ret = file_getdirentry(fd, &local_dirent);
+    if(ret < 0) return ret;
+    lock_mm(mm);
+    copy_kernel2user(mm->pagetable, (uint64_t)dirent, (char *)&local_dirent, sizeof(*dirent));
+    unlock_mm(mm);
+    return 0;
+}
+
+uint64_t sys_link(void){
+    char old_path[MAXPATH];
+    if (arg_str(0, old_path, MAXPATH) < 0) return -E_INVAL;
+    char new_path[MAXPATH];
+    if (arg_str(1, new_path, MAXPATH) < 0) return -E_INVAL;
+    return vfs_link(old_path, new_path);
+}
+
+uint64_t sys_unlink(void){
+    char path[MAXPATH];
+    if (arg_str(0, path, MAXPATH) < 0) return -E_INVAL;
+    return vfs_unlink(path);
+}
+
+uint64_t sys_mkdir(void) {
+    char path[MAXPATH];
+    if (arg_str(0, path, MAXPATH) < 0) return -E_INVAL;
+    return vfs_mkdir(path);
+}
+
+uint64_t sys_symlink(void) {
+    char old_path[MAXPATH];
+    if (arg_str(0, old_path, MAXPATH) < 0) return -E_INVAL;
+    char new_path[MAXPATH];
+    if (arg_str(1, new_path, MAXPATH) < 0) return -E_INVAL;
+    return vfs_symlink(old_path, new_path);
 }

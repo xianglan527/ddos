@@ -1,0 +1,20 @@
+"filename", "language", "C", "Assembler file", "comment", "blank", "total"
+"c:\Users\45228\Desktop\share\ddos\code\kernel\driver\virtio\virtio-blk.c", "C", 0, 0, 2, -1, 1
+"c:\Users\45228\Desktop\share\ddos\code\kernel\fs\file.c", "C", 1, 0, 2, 0, 3
+"c:\Users\45228\Desktop\share\ddos\code\kernel\fs\sfs\sfs_inode.c", "C", 9, 0, 4, 0, 13
+"c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\inode.c", "C", -4, 0, 0, 0, -4
+"c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\vfsdev.c", "C", 7, 0, 0, 0, 7
+"c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\vfsfile.c", "C", -1, 0, 0, 0, -1
+"c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\vfspath.c", "C", 47, 0, 0, 1, 48
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\proc.c", "C", 2, 0, 2, 0, 4
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\syscall.c", "C", 2, 0, 2, 0, 4
+"c:\Users\45228\Desktop\share\ddos\code\kernel\kernel\sysfile.c", "C", 9, 0, 2, 1, 12
+"c:\Users\45228\Desktop\share\ddos\code\kernel\mm\pmm.c", "C", 0, 0, 3, 0, 3
+"c:\Users\45228\Desktop\share\ddos\code\kernel\test\usys.S", "Assembler file", 0, -128, 0, -1, -129
+"c:\Users\45228\Desktop\share\ddos\code\user\libs\main.c", "C", 3, 0, 0, 0, 3
+"c:\Users\45228\Desktop\share\ddos\code\user\libs\user.c", "C", 4, 0, 0, 0, 4
+"c:\Users\45228\Desktop\share\ddos\code\user\libs\user.h", "C", 1, 0, 0, 0, 1
+"c:\Users\45228\Desktop\share\ddos\code\user\libs\usys.S", "Assembler file", 0, -288, 0, -1, -289
+"c:\Users\45228\Desktop\share\ddos\code\user\output\user.asm", "Assembler file", 0, -16815, 0, -611, -17426
+"c:\Users\45228\Desktop\share\ddos\code\user\test\usertests.c", "C", 326, 0, 10, 24, 360
+"Total", "-", 406, -17231, 27, -588, -17386

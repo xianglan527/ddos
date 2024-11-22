@@ -27,7 +27,11 @@ int virtio_blk_init(uint32_t base, int idx) {
         return ret;
     }
     else if (blk_device_num == 1) {
-        ret = virtio_blk_add(base, "fs.img", idx);
+        ret = virtio_blk_add(base, "user.img", idx);
+        blk_device_num++;
+        return ret;
+    } else if (blk_device_num == 2) {
+        ret = virtio_blk_add(base, "disk0.img", idx);
         blk_device_num++;
         return ret;
     }
@@ -295,9 +299,10 @@ void virtio_blk_rw_asyn(struct blk_buf *b, char *blk_name) {
     // uint64_t pp = intr_get();
     // intr_on();
     // while (*pflag == 1);
-
     while (*pflag == 1){
         sleeping(b, &blk->blk_lock);
+        // dsb();
+        // cprintf("8888 current is %d   *pflag is %d  b->flag is %d. b address is %p\n", myproc()->pid, *pflag, b->flag ,(void*)b);
     }
     blk->info[index[0]] = NULL;
     release(&blk->blk_lock);
@@ -335,7 +340,7 @@ void virtio_blk_intr(int idx) {
         blk->used_idx += 1;
         dsb();
         do_wakeup(b);
-        // cprintf("virtio_blk_intr b->flag: %d\n", b->flag);
+        // cprintf("99999 b->flag: %d  b address is %p\n", b->flag, (void*)b);
     }
     release(&blk->blk_lock);
 }

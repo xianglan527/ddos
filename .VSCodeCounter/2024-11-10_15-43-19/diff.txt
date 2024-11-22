@@ -1,0 +1,59 @@
+Date : 2024-11-10 15:43:19
+Directory : c:\Users\45228\Desktop\share\ddos\code\kernel\fs
+Total : 29 files,  2333 codes, 251 comments, 284 blanks, all 2868 lines
+
+Languages
++----------+------------+------------+------------+------------+------------+
+| language | files      | code       | comment    | blank      | total      |
++----------+------------+------------+------------+------------+------------+
+| C        |         23 |      2,180 |        168 |        250 |      2,598 |
+| C++      |          5 |        143 |         83 |         30 |        256 |
+| Makefile |          1 |         10 |          0 |          4 |         14 |
++----------+------------+------------+------------+------------+------------+
+
+Directories
++--------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                               | files      | code       | comment    | blank      | total      |
++--------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                  |         29 |      2,333 |        251 |        284 |      2,868 |
+| . (Files)                                                          |          9 |        552 |          5 |         63 |        620 |
+| devs                                                               |          6 |        392 |         12 |         60 |        464 |
+| pipe                                                               |          6 |        556 |          1 |         54 |        611 |
+| vfs                                                                |          8 |        833 |        233 |        107 |      1,173 |
++--------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++--------------------------------------------------------------------+----------+------------+------------+------------+------------+
+| filename                                                           | language | code       | comment    | blank      | total      |
++--------------------------------------------------------------------+----------+------------+------------+------------+------------+
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\Makefile          | Makefile |         10 |          0 |          4 |         14 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\devs\dev.c        | C        |        102 |         12 |         14 |        128 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\devs\dev.h        | C++      |         21 |          0 |          5 |         26 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\devs\dev_disk0.c  | C        |        100 |          0 |         14 |        114 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\devs\dev_null.c   | C        |         29 |          0 |          6 |         35 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\devs\dev_stdin.c  | C        |         92 |          0 |         13 |        105 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\devs\dev_stdout.c | C        |         48 |          0 |          8 |         56 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\file.c            | C        |        281 |          3 |         21 |        305 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\file.h            | C        |         45 |          1 |          6 |         52 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\fs.c              | C        |         70 |          1 |          9 |         80 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\fs.h              | C        |         34 |          0 |          9 |         43 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\iobuf.c           | C        |         39 |          0 |          5 |         44 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\iobuf.h           | C++      |         16 |          0 |          3 |         19 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\pipe\pipe.c       | C        |         52 |          1 |          8 |         61 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\pipe\pipe.h       | C        |         35 |          0 |          9 |         44 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\pipe\pipe_inode.c | C        |        179 |          0 |         12 |        191 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\pipe\pipe_root.c  | C        |        138 |          0 |          6 |        144 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\pipe\pipe_state.c | C        |        123 |          0 |         15 |        138 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\pipe\pipe_state.h | C++      |         29 |          0 |          4 |         33 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\swapfs.c          | C        |         47 |          0 |          5 |         52 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\swapfs.h          | C++      |         10 |          0 |          1 |         11 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\inode.c       | C        |         56 |          0 |         15 |         71 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\inode.h       | C        |        127 |        122 |         26 |        275 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\vfs.c         | C        |         75 |          0 |         10 |         85 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\vfs.h         | C++      |         67 |         83 |         17 |        167 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\vfsdev.c      | C        |        216 |         19 |         18 |        253 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\vfsfile.c     | C        |        124 |          0 |          9 |        133 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\vfslookup.c   | C        |         68 |          9 |          3 |         80 |
+| c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\vfspath.c     | C        |        100 |          0 |          9 |        109 |
+| Total                                                              |          |      2,333 |        251 |        284 |      2,868 |
++--------------------------------------------------------------------+----------+------------+------------+------------+------------+

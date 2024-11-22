@@ -64,7 +64,7 @@ struct virtio_blk_req {
   uint64_t sector;
 };
 
-#define BSIZE 1024  // block size
+// #define BSIZE 1024  // block size
 // struct buf {
 //     int valid;  // has data been read from disk?
 //     int disk;   // does disk "own" buf?
@@ -82,7 +82,7 @@ struct blk_buf {
     void *data;
     uint64_t data_len;
     uint16_t is_write;
-    uint16_t flag;
+    uint16_t flag;  // does disk "own" buf?
     bool syn;
 };
 struct virtio_blk {

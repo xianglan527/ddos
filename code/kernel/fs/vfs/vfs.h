@@ -3,6 +3,7 @@
 
 #include "iobuf.h"
 #include "pipe.h"
+#include "sfs.h"
 #include "types.h"
 
 typedef struct inode Inode;
@@ -12,9 +13,11 @@ typedef struct fs Fs;
 struct fs {
     union {
         Pipe_fs __pipe_info;
+        Sfs_fs __sfs_info;
     } fs_info;
     enum {
         fs_type_pipe_info = 0x5678,
+        fs_type_sfs_info,
     } fs_type;
     int (*fs_sync)(Fs *fs);
     Inode *(*fs_get_root)(Fs *fs);
@@ -113,7 +116,6 @@ int vfs_getcwd(Iobuf *iob);
  */
 int vfs_lookup(char *path, Inode **node_store);
 int vfs_lookup_parent(char *path, Inode **node_store, char **endp);
-
 /*
  * Misc
  *

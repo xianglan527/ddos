@@ -3,6 +3,7 @@
 #include "stdarg.h"
 #include "types.h"
 #include "stat.h"
+#include "printf.h"
 
 static inline char transmode(Stat *stat){
     uint32_t mode = stat->st_mode;

@@ -15,7 +15,7 @@ K_SRCS_PATH += \
 		code/kernel/schedule \
 
 
-CFLAGS += \
+K_INCLUDE += \
 		-I./code/kernel/boot \
 		-I./code/kernel/config \
 		-I./code/kernel/driver \

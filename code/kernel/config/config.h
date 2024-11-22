@@ -67,7 +67,7 @@
 #define FS_MAX_DNAME_LEN 31
 #define FS_MAX_FNAME_LEN 255
 // #define FS_MAX_FPATH_LEN 4095
-#define MAXPATH 1024
+#define MAXPATH 4096
 
 #define STDIN_BUFSIZE 4096
 
@@ -75,4 +75,20 @@
 
 #define PIPE_STATE_TOTAL_SIZE (4 * 4096)
 
+
+//fs conifg
+#define SFS_MAGIC   0x20230822
+#define SFS_BSIZE 4096
+// #define SFS_MAX_FNAME_LEN FS_MAX_FNAME_LEN
+#define SFS_NDIRECT 11
+#define SFS_NINODES 1000
+#define SFS_DISKSIZE  (1024 * 1024 * 1024) //1024MB
+
+#define SFS_MAXOPBLOCKS 30        //max #of blocks any FS op writes
+#define SFS_LOGSIZE (SFS_MAXOPBLOCKS * 10)  // max data blocks in on-disk log
+#define SFS_NBUF (SFS_MAXOPBLOCKS * 10)     // size of disk block cache
+
+#define SFS_PWD_LEN 4096
+
+#define SFS_MAX_SYMLINK_CYCLE 10
 #endif  // __CONFIG_CONFIG_H__

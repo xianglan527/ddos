@@ -10,6 +10,8 @@ struct list_entry{
 
 #define list_for_each(le, head) for ((le) = (head)->next; (le) != (head); (le) = (le)->next)
 
+#define list_for_each_prev(le, head) for ((le) = (head)->prev; (le) != (head); (le) = (le)->prev)
+
 static inline void list_init(List_entry *elem) __attribute__((always_inline));
 static inline void list_add(List_entry *listelem, List_entry *elem) __attribute__((always_inline));
 static inline void list_add_before(List_entry *listelem, List_entry *elem) __attribute__((always_inline));

@@ -54,6 +54,11 @@
 #define SYS_set_proc_cpu 51
 #define SYS_clear_proc_setcpu 52
 #define SYS_mkfifo 53
+#define SYS_seek 54
+#define SYS_fsync 55
+#define SYS_getcwd 56
+#define SYS_getdirentry 57
+#define SYS_symlink 58
 
 #define CLONE_VM 0x00000100
 #define CLONE_THREAD 0x00000200
@@ -74,6 +79,7 @@
 #define O_EXCL 0x00000008    // error if O_CREAT and the file exists
 #define O_TRUNC 0x00000010   // truncate file upon open
 #define O_APPEND 0x00000020  // append on each write
+#define O_NOFOLLOW 0x00000040   //
 // additonal related definition
 #define O_ACCMODE 3  // mask for O_RDONLY / O_WRONLY / O_RDWR
 

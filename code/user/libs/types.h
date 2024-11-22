@@ -33,7 +33,7 @@ typedef uint64_t uintptr_t;
 
 typedef uintptr_t size_t;
 
-typedef uintptr_t off_t;
+typedef intptr_t off_t;
 
 typedef long sem_t;
 

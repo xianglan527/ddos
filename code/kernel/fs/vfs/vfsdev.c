@@ -23,9 +23,13 @@ struct vfs_dev {
 static List_entry vdev_list;
 static Sem vdev_list_sem;
 
-static void lock_vdev_list(void) { down(&vdev_list_sem); }
+static void lock_vdev_list(void) { 
+    down(&vdev_list_sem); 
+}
 
-static void unlock_vdev_list(void) { up(&vdev_list_sem); }
+static void unlock_vdev_list(void) { 
+    up(&vdev_list_sem); 
+}
 
 void vfs_devlist_init(void) {
     list_init(&vdev_list);
@@ -115,7 +119,10 @@ const char *vfs_get_devname(Fs *fs) {
         List_entry *le;
         list_for_each(le, &vdev_list) {
             Vfs_dev *vdev = le2vdev(le);
-            if (vdev->fs == fs) { return vdev->devname; }
+            if (vdev->fs == fs) {
+                unlock_vdev_list();
+                return vdev->devname; 
+            }
         }
     }
     unlock_vdev_list();

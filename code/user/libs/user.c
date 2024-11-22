@@ -59,6 +59,15 @@ int __dup__(int fd1, int fd2);
 int __close__(int fd);
 int __mkpipe__(int *fd_store);
 int __mkfifo__(char *name, uint32_t open_flags);
+int __seek__(int fd, off_t pos, int whence);
+int __fsync__(int fd);
+int __chdir__(char *path);
+int __getcwd__(char *buf, size_t len);
+int __getdirentry__(int fd, Dirent *dirent);
+int __link__(char *oldpath, char *newpath);
+int __unlink__(char *path);
+int __mkdir__(char *path);
+int __symlink__(char *oldpath, char *newpath);
 
 long write(int fd, const void *c, size_t len){
     return __write__(fd, c ,len);
@@ -288,3 +297,38 @@ int mkfifo(char *name, uint32_t open_flags){
     return __mkfifo__(name, open_flags);
 }
 
+int seek(int fd, off_t pos, int whence){
+    return __seek__(fd, pos, whence);
+}
+
+int fsync(int fd){
+    return __fsync__(fd);
+}
+
+int chdir(char *path){
+    return __chdir__(path);
+}
+
+int getcwd(char *buf, size_t len){
+    return __getcwd__(buf, len);
+}
+
+int getdirentry(int fd, Dirent *dirent){
+    return __getdirentry__(fd, dirent);
+}
+
+int link(char *oldpath, char *newpath){
+    return __link__(oldpath, newpath);
+}
+
+int unlink(char *path){
+    return __unlink__(path);
+}
+
+int mkdir(char *path){
+    return __mkdir__(path);
+}
+
+int symlink(char *oldpath, char *newpath){
+    return __symlink__(oldpath, newpath);
+}

@@ -26,9 +26,7 @@ static void lookup_pipe_nolock(Pipe_fs *pipe, const char *name, Inode **rnode_st
                     break;
                 default: panic("unknown pipe_inode type %d.\n", pin->pin_type);
             }
-            if(vop_ref_inc(node) == 1){
-                pin->reclaim_count++;
-            }
+            atomic_inc(&node->ref_count);
         }
     }
 }
@@ -50,7 +48,8 @@ static int pipe_root_create(Inode *__node, const char *name, bool excl, Inode **
     if(node[0] != nullptr){
         if(excl){
             ret = -E_EXISTS;
-            vop_ref_dec(node[0]);
+            // vop_ref_dec(node[0]);
+            atomic_dec(&node[0]->ref_count);
             goto out;
         }
         *node_store = node[0];

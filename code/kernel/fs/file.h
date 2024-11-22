@@ -5,6 +5,7 @@
 #include "atomic.h"
 #include "stat.h"
 #include "sem.h"
+#include "fs_img.h"
 
 typedef struct file File;
 struct file{
@@ -37,6 +38,9 @@ void filemap_acquire(File *file);
 void filemap_release(File *file);
 int file_pipe(int fd[]);
 int file_mkfifo(const char *__name, uint32_t open_flags);
+int file_seek(int fd, off_t pos, int whence);
+int file_fsync(int fd);
+int file_getdirentry(int fd, Dirent *dirent);
 
 static inline long fopen_count(File *file){
     return atomic_read(&file->open_count);

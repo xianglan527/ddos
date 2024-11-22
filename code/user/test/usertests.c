@@ -1,16 +1,17 @@
 #include "assert.h"
+#include "dir.h"
 #include "error.h"
+#include "file.h"
 #include "lock.h"
 #include "malloc.h"
 #include "panic.h"
 #include "printf.h"
+#include "rand.h"
+#include "spipe.h"
 #include "string.h"
 #include "sysdef.h"
 #include "thread.h"
 #include "user.h"
-#include "rand.h"
-#include "spipe.h"
-#include "file.h"
 
 #define UNIQUE_VAR(name) name##__LINE__
 ///////////////////////////////////////////////////////////////////
@@ -582,19 +583,19 @@ static void primeworktest(char *s) {
     printf("use %d ticks.\n", gettime() - time);
 }
 //////////////////////////////////////////////////////////////////////////
-static void sem_test(char *s){
+static void sem_test(char *s) {
     sem_t sem_id = sem_init(1);
     assert(sem_id > 0);
     printf("sem_id = 0x%ld\n", sem_id);
 
     int i, value;
-    for(i = 0; i < 10; i++){
+    for (i = 0; i < 10; i++) {
         assert(sem_get_value(sem_id, &value) == 0);
         assert(value == i + 1 && sem_post(sem_id) == 0);
     }
     printf("post ok.\n");
-    
-    for(; i > 0; i--){
+
+    for (; i > 0; i--) {
         assert(sem_wait(sem_id) == 0);
         assert(sem_get_value(sem_id, &value) == 0 && value == i);
     }
@@ -615,9 +616,7 @@ static void sem_test(char *s){
     }
     assert(pid > 0);
     sleep(10);
-    for (i = 0; i < 10; i ++) {
-        yield();
-    }
+    for (i = 0; i < 10; i++) { yield(); }
 
     printf("wait semaphore...\n");
     assert(sem_wait(sem_id) == 0);
@@ -632,9 +631,7 @@ int *sem_rw_pcount;
 
 static int sem_rw_check_sem_value_sub(sem_t sem_id, int value) {
     int value_store;
-    if (sem_get_value(sem_id, &value_store) != 0 || value_store != value) {
-        return -1;
-    }
+    if (sem_get_value(sem_id, &value_store) != 0 || value_store != value) { return -1; }
     return 0;
 }
 
@@ -645,17 +642,15 @@ static void sem_rw_check_sem_value(void) {
 }
 
 static void sem_rw_init(void) {
-    assert ((sem_rw_count = sem_init(1)) > 0 && (sem_rw_write = sem_init(1)) > 0);
-    assert ((sem_rw_pcount = shmem_malloc(sizeof(int))) != nullptr);
+    assert((sem_rw_count = sem_init(1)) > 0 && (sem_rw_write = sem_init(1)) > 0);
+    assert((sem_rw_pcount = shmem_malloc(sizeof(int))) != nullptr);
     *sem_rw_pcount = 0;
 }
 
 static void sem_rw_reader(int id, int time) {
     printf("reader %d: (pid:%d) arrive\n", id, getpid());
     sem_wait(sem_rw_count);
-    if (*sem_rw_pcount == 0) {
-        sem_wait(sem_rw_write);
-    }
+    if (*sem_rw_pcount == 0) { sem_wait(sem_rw_write); }
     (*sem_rw_pcount)++;
     sem_post(sem_rw_count);
 
@@ -665,9 +660,7 @@ static void sem_rw_reader(int id, int time) {
 
     sem_wait(sem_rw_count);
     (*sem_rw_pcount)--;
-    if (*sem_rw_pcount == 0) {
-        sem_post(sem_rw_write);
-    }
+    if (*sem_rw_pcount == 0) { sem_post(sem_rw_write); }
     sem_post(sem_rw_count);
 }
 
@@ -695,9 +688,7 @@ static void sem_rw_read_test(void) {
             exit(0);
         }
     }
-    for (i = 0; i < total; i++) {
-        assert(wait() == 0);
-    }
+    for (i = 0; i < total; i++) { assert(wait() == 0); }
     printf("read_test ok.\n");
 }
 
@@ -727,11 +718,11 @@ static void sem_rw_read_write_test(void) {
         time = (unsigned int)simulate_rand() % 3;
         if (fork() == 0) {
             yield();
-            if(time == 0){
+            if (time == 0) {
                 sem_rw_writer(i, 100 + time * 10);
-            }else{
+            } else {
                 sem_rw_reader(i, 100 + time * 10);
-            }          
+            }
             exit(0);
         }
     }
@@ -739,7 +730,7 @@ static void sem_rw_read_write_test(void) {
     printf("read_write_test ok.\n");
 }
 
-static void sem_rw_test(char *s){
+static void sem_rw_test(char *s) {
     sem_rw_init();
     sem_rw_read_test();
     sem_rw_write_test();
@@ -789,17 +780,15 @@ top:
     while ((num = prime2_read(index, sem)) > 0) {
         if ((num % this) == 0) { continue; }
         if (pid == 0) {
-           if(index + 1 == prime2_total){
-                goto out;
-           }
-           assert((next_sem[0] = sem_init(0)) > 0 && (next_sem[1] = sem_init(1)) > 0);
-           if ((pid = fork()) == 0) {
-               sem[0] = next_sem[0];
-               sem[1] = next_sem[1];
-               index++;
-               goto top;
-           }
-           assert(pid > 0);
+            if (index + 1 == prime2_total) { goto out; }
+            assert((next_sem[0] = sem_init(0)) > 0 && (next_sem[1] = sem_init(1)) > 0);
+            if ((pid = fork()) == 0) {
+                sem[0] = next_sem[0];
+                sem[1] = next_sem[1];
+                index++;
+                goto top;
+            }
+            assert(pid > 0);
         }
         if (prime2_write(index + 1, next_sem, num) != 0) { goto out; }
     }
@@ -839,7 +828,7 @@ Spipe pipe;
 Thread spipetest_tids[10];
 int spipetest_total = sizeof(spipetest_tids) / sizeof(spipetest_tids[0]);
 
-int spipetest_thread_main(void *arg){
+int spipetest_thread_main(void *arg) {
     long id = (long)arg;
     printf("this is %d\n", id);
     size_t n = 1000;
@@ -847,62 +836,48 @@ int spipetest_thread_main(void *arg){
     assert(buf != nullptr);
     memset(buf, (char)id, n);
     int i, rounds = 20;
-    for(i = 0; i < rounds; i++){
+    for (i = 0; i < rounds; i++) {
         size_t ret = spipe_write(&pipe, buf, n);
-        if(ret != n){
+        if (ret != n) {
             printf("pipe is closed, too early.\n");
             return -1;
         }
-        if(id == 0){
-            printf("send %d/%d\n", i, rounds);
-        }
+        if (id == 0) { printf("send %d/%d\n", i, rounds); }
     }
     return 0;
 }
 
-void spipetest_process_main(void){
+void spipetest_process_main(void) {
     int counts[spipetest_total], i;
-    for(i = 0; i < spipetest_total; i++){
-        counts[i] = 0;
-    }
+    for (i = 0; i < spipetest_total; i++) { counts[i] = 0; }
     char buf[128];
     size_t n = sizeof(buf);
-    while(1){
+    while (1) {
         size_t ret = spipe_read(&pipe, buf, n);
-        if(ret == 0) {
-            break;
-        }
-        for(i = 0; i < ret; i++){
-            counts[((ulong)buf[i]) % spipetest_total] ++;
-        }
+        if (ret == 0) { break; }
+        for (i = 0; i < ret; i++) { counts[((ulong)buf[i]) % spipetest_total]++; }
     }
-    if(spipe_isclosed(&pipe)){
-        for(i = 0; i < spipetest_total; i++){
-            printf("%d reads %d\n", i, counts[i]);
-        }
+    if (spipe_isclosed(&pipe)) {
+        for (i = 0; i < spipetest_total; i++) { printf("%d reads %d\n", i, counts[i]); }
         exit(0);
     }
     exit(0xbad);
 }
 
-static void spipetest(char *s){
+static void spipetest(char *s) {
     int pid, i;
     spipe(&pipe);
-    if((pid = fork()) == 0){
-        spipetest_process_main();
-    }
+    if ((pid = fork()) == 0) { spipetest_process_main(); }
     assert(pid > 0);
     memset(spipetest_tids, 0, sizeof(Thread) * spipetest_total);
-    for(i = 0; i < spipetest_total; i++){
+    for (i = 0; i < spipetest_total; i++) {
         assert(thread(spipetest_thread_main, (void *)(long)i, spipetest_tids + i) == 0);
     }
     int exit_code;
     for (i = 0; i < spipetest_total; i++) {
         assert(thread_wait(spipetest_tids + i, &exit_code) == 0 && exit_code == 0);
     }
-    for (i = 0; i < spipetest_total; i ++) {
-        yield();
-    }
+    for (i = 0; i < spipetest_total; i++) { yield(); }
     spipe_close(&pipe);
     assert(waitpid(pid, &exit_code) == 0 && exit_code == 0);
 }
@@ -952,12 +927,12 @@ static void sem3_test(char *s) {
     assert(sem_free(sem3_mutex) == 0 && waitpid(pid, &value) == 0 && value == 0);
 }
 //////////////////////////////////////////////////////////////////////////
-void __event_test1(void){
+void __event_test1(void) {
     int pid, parent = getpid();
-    if((pid = fork()) == 0){
+    if ((pid = fork()) == 0) {
         int event_num;
-        while(event_recv(&pid, &event_num) == 0 && parent == pid){
-            if(event_num == -1){
+        while (event_recv(&pid, &event_num) == 0 && parent == pid) {
+            if (event_num == -1) {
                 printf("child1 Hmmm!\n");
                 sleep(100);
                 printf("child1 quit\n");
@@ -988,7 +963,7 @@ void __event_test2(void) {
     wait();
 }
 
-void __event_test3(void){
+void __event_test3(void) {
     int pid;
     if ((pid = fork()) == 0) {
         int event;
@@ -999,7 +974,7 @@ void __event_test3(void){
     assert(waitpid(pid, NULL) == 0);
 }
 
-static void event_test(char *s){
+static void event_test(char *s) {
     // __event_test1();
     __event_test2();
     __event_test3();
@@ -1014,7 +989,7 @@ top:
     printf("%d is a primer.\n", this);
 
     while (event_recv(NULL, &num) == 0) {
-        if(num == -1) goto out;
+        if (num == -1) goto out;
         if ((num % this) == 0) { continue; }
         if (pid == 0) {
             if (index + 1 == prime3work_total) {
@@ -1027,22 +1002,21 @@ top:
             }
             if (pid < 0) { goto out; }
         }
-        if(*prime3work_dong == 0){
+        if (*prime3work_dong == 0) {
             if (event_send(pid, num) != 0) { goto out; }
         }
     }
 out:
     printf("[%04d] %d quit.   recv_pid id %d\n", getpid(), index, recv_pid);
     // printf("pid id %d 111111\n", getpid());
-    if(this != 2)
-        event_send(recv_pid, -1);
+    if (this != 2) event_send(recv_pid, -1);
     // printf("pid id %d 222222\n", getpid());
     wait();
     // printf("pid id %d 333333\n", getpid());
     exit(0);
 }
 
-static void prime3worktest(char *s){
+static void prime3worktest(char *s) {
     int i, pid;
     prime3work_dong = shmem_malloc(sizeof(*prime3work_dong));
     assert(prime3work_dong != nullptr);
@@ -1065,7 +1039,7 @@ static void prime3worktest(char *s){
 }
 //////////////////////////////////////////////////////////////////////////
 // Mboxbuf __buf, *buf = &__buf;
-static void mboxtest(char *s){
+static void mboxtest(char *s) {
     int mbox_id = mbox_init(1);
     assert(mbox_id >= 0);
     Mboxbuf __buf, *buf = &__buf;
@@ -1075,9 +1049,7 @@ static void mboxtest(char *s){
     assert(buf->data != nullptr);
     char *data = (char *)(buf->data);
     int i;
-    for(i = 0; i < buf->size; i++){
-        data[i] = (char)i;
-    }
+    for (i = 0; i < buf->size; i++) { data[i] = (char)i; }
     ulong timeout = 100, save_ticks = gettime();
     assert(mbox_send(mbox_id, buf) == 0);
     assert(mbox_send_timeout(mbox_id, buf, timeout) == -E_TIMEOUT);
@@ -1092,54 +1064,46 @@ static void mboxtest(char *s){
     assert(mbox_recv(mbox_id, buf) == 0);
     assert(buf->size == save_size && buf->len == save_size);
     data = (char *)(buf->data);
-    for(i = 0; i < buf->size; i++){
-        assert(data[i] == (char)i);
-    }
+    for (i = 0; i < buf->size; i++) { assert(data[i] == (char)i); }
     save_ticks = gettime();
     assert(mbox_recv_timeout(mbox_id, buf, timeout) == -E_TIMEOUT);
     assert((ulong)(gettime() - save_ticks) >= timeout);
     assert(mbox_free(mbox_id) == 0);
     assert(mbox_send(mbox_id, buf) != 0);
-    sleep(500);  //for wait mbox_cleanup;
+    sleep(500);  // for wait mbox_cleanup;
 }
 //////////////////////////////////////////////////////////////////////////
 const int mboxmap_mod = 23;
 const int mboxmap_max_data = 2048;
 const int mboxmap_max_slots = 1024;
 
-int mboxmap_send(int id, void *data, size_t len){
+int mboxmap_send(int id, void *data, size_t len) {
     Mboxbuf buf;
     buf.data = data, buf.len = len;
     return mbox_send(id, &buf);
 }
 
-int mboxmap_recv(int id, void *data, size_t size, size_t *lenp){
+int mboxmap_recv(int id, void *data, size_t size, size_t *lenp) {
     Mboxbuf buf;
     buf.data = data, buf.size = size;
     int ret;
-    if((ret = mbox_recv(id, &buf)) == 0){
-        *lenp = buf.len;
-    }
+    if ((ret = mbox_recv(id, &buf)) == 0) { *lenp = buf.len; }
     return ret;
 }
 
-void mboxmap_filter_main(int *data, int mbox_data, int mbox[]){
+void mboxmap_filter_main(int *data, int mbox_data, int mbox[]) {
     int i, count[mboxmap_mod];
     size_t size = mboxmap_max_data * sizeof(int), len;
     while (mboxmap_recv(mbox_data, data, size, &len) == 0) {
         assert((len % sizeof(int)) == 0);
         memset(count, 0, sizeof(count));
         len /= sizeof(int);
-        for(i = 0; i < len; i++){
-            count[data[i] % mboxmap_mod]++;
-        }
-        for(i = 0; i < mboxmap_mod; i++){
-            mboxmap_send(mbox[i], count + i, sizeof(int));
-        }
+        for (i = 0; i < len; i++) { count[data[i] % mboxmap_mod]++; }
+        for (i = 0; i < mboxmap_mod; i++) { mboxmap_send(mbox[i], count + i, sizeof(int)); }
     }
 }
 
-void mboxmap_select_main(int mbox, int pid){
+void mboxmap_select_main(int mbox, int pid) {
     size_t len;
     int count = 0, ans;
     while (mboxmap_recv(mbox, &ans, sizeof(int), &len) == 0) {
@@ -1149,36 +1113,30 @@ void mboxmap_select_main(int mbox, int pid){
     event_send(pid, count);
 }
 
-int mboxmap_wait_for_empty(int mbox){
+int mboxmap_wait_for_empty(int mbox) {
     Mboxinfo info;
-    while(1){
-        if(mbox_info(mbox, &info) != 0){
-            return -1;
-        }
-        if(info.slots == 0){
-            return 0;
-        }
+    while (1) {
+        if (mbox_info(mbox, &info) != 0) { return -1; }
+        if (info.slots == 0) { return 0; }
         sleep(10);
     }
 }
 
-int mboxmap_wait_for_quit(int count[], int pids[]){
+int mboxmap_wait_for_quit(int count[], int pids[]) {
     int i, j, pid, event, ans[mboxmap_mod];
     memset(ans, 0, sizeof(ans));
-    for(i = 0; i < mboxmap_mod; i++){
-        if(event_recv(&pid, &event) != 0){
-            return -1;
-        }
-        for(j = 0; j < mboxmap_mod; j++){
-            if(pids[j] == pid){
+    for (i = 0; i < mboxmap_mod; i++) {
+        if (event_recv(&pid, &event) != 0) { return -1; }
+        for (j = 0; j < mboxmap_mod; j++) {
+            if (pids[j] == pid) {
                 ans[j] = event;
                 printf("-- recv count %02d: %08d\n", j, event);
             }
         }
     }
     int err = 0;
-    for(i = 0; i < mboxmap_mod; i++){
-        if(count[i] != ans[i]){
+    for (i = 0; i < mboxmap_mod; i++) {
+        if (count[i] != ans[i]) {
             err++;
             printf("wrong: %d, %d, %d.\n", i, count[i], ans[i]);
         }
@@ -1186,9 +1144,9 @@ int mboxmap_wait_for_quit(int count[], int pids[]){
     return err;
 }
 
-static void mboxmaptest(char *s){
+static void mboxmaptest(char *s) {
     int i, j, k, mbox[mboxmap_mod], count[mboxmap_mod];
-    for(i = 0; i < mboxmap_mod; i++){
+    for (i = 0; i < mboxmap_mod; i++) {
         mbox[i] = mbox_init(mboxmap_max_slots);
         assert(mbox[i] >= 0);
         printf("mod_%d id is %d\n", i, mbox[i]);
@@ -1206,8 +1164,8 @@ static void mboxmaptest(char *s){
     int s_pids[mboxmap_mod], this = getpid();
     memset(s_pids, 0, sizeof(s_pids));
 
-    for(i = 0; i < mboxmap_mod; i++){
-        if((s_pids[i] = fork()) == 0){
+    for (i = 0; i < mboxmap_mod; i++) {
+        if ((s_pids[i] = fork()) == 0) {
             mboxmap_select_main(mbox[i], this);
             exit(0);
         }
@@ -1216,8 +1174,8 @@ static void mboxmaptest(char *s){
     int f_pids[100], f_pids_num = sizeof(f_pids) / sizeof(f_pids[0]);
     memset(f_pids, 0, sizeof(f_pids));
 
-    for(i = 0; i < f_pids_num; i++){
-        if((f_pids[i] = fork()) == 0){
+    for (i = 0; i < f_pids_num; i++) {
+        if ((f_pids[i] = fork()) == 0) {
             // memset(data, 0, size);
             mboxmap_filter_main(data, mbox_data, mbox);
             exit(0);
@@ -1227,34 +1185,28 @@ static void mboxmaptest(char *s){
     printf("fork children ok.\n");
     memset(count, 0, sizeof(count));
     srand(913);
-    for(i = 0; i < 5; i++){
-        for(j = 0; j < 512; j++){
-            for(k = 0; k < mboxmap_max_data; k++){
+    for (i = 0; i < 5; i++) {
+        for (j = 0; j < 512; j++) {
+            for (k = 0; k < mboxmap_max_data; k++) {
                 data[k] = simulate_rand();
                 count[data[k] % mboxmap_mod]++;
             }
-            assert(mboxmap_send(mbox_data, data, len) == 0);    
+            assert(mboxmap_send(mbox_data, data, len) == 0);
         }
         printf("round %d\n", i);
     }
-    for (i = 0; i < mboxmap_mod; i ++) {
-        printf("-- send count %02d: %08d\n", i, count[i]);
-    }
+    for (i = 0; i < mboxmap_mod; i++) { printf("-- send count %02d: %08d\n", i, count[i]); }
     sleep(500);
-    if(mboxmap_wait_for_empty(mbox_data) == 0){
+    if (mboxmap_wait_for_empty(mbox_data) == 0) {
         assert(mbox_free(mbox_data) == 0);
         int exit_code;
-        for(i = 0; i < f_pids_num; i++){
+        for (i = 0; i < f_pids_num; i++) {
             waitpid(f_pids[i], &exit_code);
             assert(exit_code == 0);
         }
-        for(i = 0; i < mboxmap_mod; i++){
-            assert(mboxmap_wait_for_empty(mbox[i]) == 0);
-        }
+        for (i = 0; i < mboxmap_mod; i++) { assert(mboxmap_wait_for_empty(mbox[i]) == 0); }
         printf("wait children ok.\n");
-        for(i = 0; i < mboxmap_mod; i++){
-            assert(mbox_free(mbox[i]) == 0);
-        }
+        for (i = 0; i < mboxmap_mod; i++) { assert(mbox_free(mbox[i]) == 0); }
         assert(mboxmap_wait_for_quit(count, s_pids) == 0);
         for (i = 0; i < mboxmap_mod; i++) {
             waitpid(s_pids[i], &exit_code);
@@ -1265,23 +1217,23 @@ static void mboxmaptest(char *s){
 }
 //////////////////////////////////////////////////////////////////////////
 static bool sigtest_exit_flag = false;
-void sigtest_signal_handler(void) { 
-    printf("Signal handler invoked by child process!\n"); 
+void sigtest_signal_handler(void) {
+    printf("Signal handler invoked by child process!\n");
     sigtest_exit_flag = true;
 }
 
 static void sigtest(char *s) {
     int pid = fork();
-    if (pid == 0) { 
+    if (pid == 0) {
         printf("Child process %d started\n", getpid());
         Sigaction sa;
         sa.sa_handler = sigtest_signal_handler;
-        sa.sa_flags = 0;             
-        sa.sa_mask = 0;         
+        sa.sa_flags = 0;
+        sa.sa_mask = 0;
         assert(set_sigaction(SIGUSR1, &sa) == 0);
         printf("Child process completed\n");
-        while(sigtest_exit_flag == false);
-        exit(0);  
+        while (sigtest_exit_flag == false);
+        exit(0);
     } else {
         assert(pid > 0);
         sleep(100);
@@ -1292,25 +1244,23 @@ static void sigtest(char *s) {
     }
 }
 //////////////////////////////////////////////////////////////////////////
-#define sched_CFS_NUM_PROCS 5  
+#define sched_CFS_NUM_PROCS 5
 #define sched_CFS_LOOP 100000000
 
 static void sched_CFS_test(char *s) {
     int i;
     int pids[sched_CFS_NUM_PROCS];
-    int nice_values[sched_CFS_NUM_PROCS] = {-20, -10, 0, 10, 19};  
+    int nice_values[sched_CFS_NUM_PROCS] = {-20, -10, 0, 10, 19};
     double user_times[sched_CFS_NUM_PROCS];
 
     for (i = 0; i < sched_CFS_NUM_PROCS; i++) {
         pids[i] = fork();
         if (pids[i] == 0) {
-            assert(setpriority(getpid(),nice_values[i]) == 0);
+            assert(setpriority(getpid(), nice_values[i]) == 0);
             ulong j, sum = 0;
             set_proc_cpu(getpid(), 0);
             ulong start_ticks = gettime();
-            for (j = 0; j < sched_CFS_LOOP; j++) {
-                sum += j % 100; 
-            }
+            for (j = 0; j < sched_CFS_LOOP; j++) { sum += j % 100; }
             ulong end_ticks = gettime();
             printf("Process %d with nice value %d used %lu ticks\n", getpid(), getpriority(getpid()),
                    end_ticks - start_ticks);
@@ -1321,7 +1271,7 @@ static void sched_CFS_test(char *s) {
     for (i = 0; i < sched_CFS_NUM_PROCS; i++) { waitpid(pids[i], nullptr); }
 }
 //////////////////////////////////////////////////////////////////////////
-#define LOAD_BALANCE_NUM_TASKS 100  
+#define LOAD_BALANCE_NUM_TASKS 100
 
 void cpu_intensive_work() {
     unsigned long sum = 0;
@@ -1329,15 +1279,15 @@ void cpu_intensive_work() {
 }
 
 int task_fn_bind_cpu0(void *arg) {
-    set_proc_cpu(getpid(), 0); 
+    set_proc_cpu(getpid(), 0);
     cpu_intensive_work();
-    exit(0);  
+    exit(0);
 }
 
 int task_fn_clear_bind(void *arg) {
-    clear_proc_setcpu(getpid()); 
+    clear_proc_setcpu(getpid());
     cpu_intensive_work();
-    exit(0); 
+    exit(0);
 }
 
 static void cpu_load_balance_test(char *s) {
@@ -1432,7 +1382,8 @@ static void fwrite_test(char *s) {
     write(fd, buf, len);
 
     int ret;
-    while ((ret = dup(fd)) >= 0) /* do nothing */;
+    while ((ret = dup(fd)) >= 0) /* do nothing */
+        ;
 
     close(fd);
     len = snprintf(buf, size, "FAIL: T.T\n");
@@ -1478,9 +1429,7 @@ static void __pipe_test1(void) {
     if ((pid = fork()) == 0) {
         fd = __fd[1];
         for (i = 0; i < 10; i++) { yield(); }
-        if (write(fd, "A", 1) == 1) { 
-            printf("pid : %d child write ok\n", getpid()); 
-        }
+        if (write(fd, "A", 1) == 1) { printf("pid : %d child write ok\n", getpid()); }
         exit(0);
     }
     assert(pid > 0);
@@ -1653,6 +1602,733 @@ static void pipe_test2(char *s) {
     assert(waitpid(pid, &exit_code) == 0 && exit_code == 0);
 }
 //////////////////////////////////////////////////////////////////////////
+static int safe_open(char *path, int open_flags) {
+    int fd = open(path, open_flags);
+    if (fd < 0) { int pp = 3; }
+    assert(fd >= 0);
+    return fd;
+}
+
+static Stat *safe_fstat(int fd) {
+    static struct stat __stat, *stat = &__stat;
+    int ret = fstat(fd, stat);
+    assert(ret == 0);
+    return stat;
+}
+
+static int safe_dup(int fd1) {
+    int fd2 = dup(fd1);
+    assert(fd2 >= 0);
+    return fd2;
+}
+
+static void safe_read(int fd, void *data, size_t len) {
+    long ret = read(fd, data, len);
+    assert(ret == len);
+}
+
+static void safe_write(int fd, void *data, size_t len) {
+    long ret = write(fd, data, len);
+    assert(ret == len);
+}
+
+static void safe_seek(int fd, off_t pos, int whence) {
+    int ret = seek(fd, pos, whence);
+    assert(ret == 0);
+}
+
+static void __fs_read_test() {
+    char buf[SFS_BSIZE];
+    int fd = safe_open("README", O_RDONLY);
+    printf("fs_read fd is %d\n", fd);
+    int ret = read(fd, buf, SFS_BSIZE);
+    assert(ret > 0);
+    printf("read %d from %d, buf is :%s\n", ret, fd, buf);
+    assert(open("README", O_CREAT | O_EXCL | O_RDONLY) == -E_EXISTS);
+    close(fd);
+    printf("__fs_read_test ok.\n");
+}
+
+static void __fs_write_test() {
+    char buf_write[SFS_BSIZE] = "this a simple write test!!!";
+    char buf_read[SFS_BSIZE];
+    int fd = safe_open("__fs_write_test", O_CREAT | O_RDWR | O_EXCL);
+    printf("fs_write_test fd is %d\n", fd);
+    safe_write(fd, buf_write, SFS_BSIZE);
+    printf("write to %d, buf is :%s\n", fd, buf_write);
+    safe_seek(fd, 0, LSEEK_SET);
+    safe_read(fd, buf_read, SFS_BSIZE);
+    printf("read from %d, buf is :%s\n", fd, buf_read);
+    assert(strcmp(buf_read, buf_write) == 0);
+    close(fd);
+    printf("__fs_write_test ok.\n");
+}
+
+static void __fs_trunc_test() {
+    char buf_write[SFS_BSIZE] = "this a simple trunc test!!!";
+    char buf_read[SFS_BSIZE];
+    int fd = safe_open("__fs_trunc_test", O_CREAT | O_RDWR | O_EXCL);
+    printf("fs_trunc_test fd is %d\n", fd);
+    safe_write(fd, buf_write, SFS_BSIZE);
+    printf("write to %d, buf is :%s\n", fd, buf_write);
+    Stat *stat = safe_fstat(fd);
+    assert(stat->st_size == SFS_BSIZE && S_ISREG(stat->st_mode) && stat->st_blocks == 1);
+    safe_seek(fd, 0, LSEEK_SET);
+    safe_read(fd, buf_read, SFS_BSIZE);
+    printf("read from %d, buf is :%s\n", fd, buf_read);
+    assert(strcmp(buf_read, buf_write) == 0);
+    fd = safe_open("__fs_trunc_test", O_RDWR | O_TRUNC);
+    printf("__fs_trunc_test fd is %d\n", fd);
+    stat = safe_fstat(fd);
+    assert(stat->st_size == 0 && S_ISREG(stat->st_mode) && stat->st_blocks == 0);
+    safe_seek(fd, 0, LSEEK_SET);
+    long ret = read(fd, buf_read, SFS_BSIZE);
+    assert(ret < 0);
+    printf("read from %d, buf is :%s\n", fd, buf_read);
+    close(fd);
+    printf("__fs_trunc_test ok.\n");
+}
+
+static void __fs_append_test() {
+    char buf_write[SFS_BSIZE] = "this a simple append test!!!";
+    char buf_read[SFS_BSIZE];
+    int fd = safe_open("__fs_append_test", O_CREAT | O_RDWR | O_EXCL);
+    printf("__fs_append_test fd is %d\n", fd);
+    char *str1 = "ABCD";
+    char *str2 = "EFGH";
+    char *str3 = "IJKL";
+    char *str4 = "MNOP";
+    safe_write(fd, str1, strlen(str1));
+    safe_write(fd, str2, strlen(str2));
+    safe_seek(fd, 0, LSEEK_SET);
+    read(fd, buf_read, SFS_BSIZE);
+    printf("read from %d, buf is :%s\n", fd, buf_read);
+    safe_seek(fd, 0, LSEEK_SET);
+    safe_write(fd, str3, strlen(str3));
+    memset(buf_read, 0, SFS_BSIZE);
+    safe_seek(fd, 0, LSEEK_SET);
+    read(fd, buf_read, SFS_BSIZE);
+    printf("read from %d, buf is :%s\n", fd, buf_read);
+    safe_seek(fd, 0, LSEEK_SET);
+    fd = safe_open("__fs_append_test", O_RDWR | O_APPEND);
+    safe_write(fd, str4, strlen(str4));
+    memset(buf_read, 0, SFS_BSIZE);
+    safe_seek(fd, 0, LSEEK_SET);
+    read(fd, buf_read, SFS_BSIZE);
+    printf("read from %d, buf is :%s\n", fd, buf_read);
+    close(fd);
+    printf("__fs_append_test ok.\n");
+}
+
+static void __fs_seek_test() {
+    char buf_read[SFS_BSIZE];
+    const int buf_nr = 1000;
+    int fd = safe_open("__fs_seek_test", O_CREAT | O_RDWR | O_TRUNC);
+    Stat *stat = safe_fstat(fd);
+    assert(stat->st_size == 0 && S_ISREG(stat->st_mode) && stat->st_blocks == 0);
+    safe_seek(fd, sizeof(buf_read) * buf_nr, LSEEK_SET);
+    stat = safe_fstat(fd);
+    assert(stat->st_size == sizeof(buf_read) * buf_nr && S_ISREG(stat->st_mode) && stat->st_blocks == buf_nr);
+    for (int i = 0; i < sizeof(buf_read); i++) { buf_read[i] = i; }
+    safe_write(fd, buf_read, sizeof(buf_read));
+    stat = safe_fstat(fd);
+    assert(stat->st_size == sizeof(buf_read) * (buf_nr + 1) && S_ISREG(stat->st_mode) &&
+           stat->st_blocks == buf_nr + 1);
+    memset(buf_read, 0, sizeof(buf_read));
+    safe_seek(fd, -sizeof(buf_read), LSEEK_END);
+    safe_read(fd, buf_read, sizeof(buf_read));
+    for (int i = 0; i < sizeof(buf_read); i++) { assert(buf_read[i] == (unsigned char)i); }
+    fd = safe_open("__fs_seek_test", O_RDWR | O_TRUNC);
+    printf("__fs_seek_test fd is %d\n", fd);
+    stat = safe_fstat(fd);
+    assert(stat->st_size == 0 && S_ISREG(stat->st_mode) && stat->st_blocks == 0);
+    printf("__fs_seek_test ok.\n");
+}
+
+static void fs_basic_test(char *s) {
+    __fs_read_test();
+    __fs_write_test();
+    __fs_trunc_test();
+    __fs_append_test();
+    __fs_seek_test();
+}
+//////////////////////////////////////////////////////////////////////////
+static uint32_t fs_file_buffer[1024];
+
+void init_data(int fd, int pages) {
+    uint32_t value = 0;
+    for (int i = 0; i < pages; i++) {
+        for (int j = 0; j < sizeof(fs_file_buffer) / sizeof(fs_file_buffer[0]); j++) {
+            fs_file_buffer[j] = value++;
+        }
+        safe_write(fd, fs_file_buffer, sizeof(fs_file_buffer));
+    }
+}
+
+void random_test(int fd, int pages) {
+    const int size = sizeof(fs_file_buffer) / sizeof(fs_file_buffer[0]);
+    safe_seek(fd, 0, LSEEK_SET);
+    srand(527);
+    for (int i = 0; i < pages; i++) {
+        safe_read(fd, fs_file_buffer, sizeof(fs_file_buffer));
+        for (int j = 0; j < 32; j++) {
+            uint32_t value = simulate_rand() % size;
+            assert(fs_file_buffer[value] == i * size + value);
+        }
+    }
+}
+
+static void fs_file_test(char *s) {
+    int fd1 = safe_open("fs_file_test", O_CREAT | O_RDWR | O_EXCL);
+    Stat *stat = safe_fstat(fd1);
+    assert(stat->st_size == 0 && S_ISREG(stat->st_mode) && stat->st_blocks == 0);
+    const int npages = 128;
+    init_data(fd1, npages);
+    printf("init_data ok.\n");
+    int fd2 = safe_dup(fd1);
+    stat = safe_fstat(fd2);
+    assert(stat->st_size == npages * sizeof(fs_file_buffer) && S_ISREG(stat->st_mode));
+    random_test(fd2, npages);
+    printf("random_test ok.\n");
+    int fd3 = safe_open("fs_file_test", O_RDWR | O_TRUNC);
+    stat = safe_fstat(fd3);
+    assert(stat->st_size == 0 && S_ISREG(stat->st_mode) && stat->st_blocks == 0);
+    safe_seek(fd3, sizeof(fs_file_buffer), LSEEK_END);
+    safe_seek(fd3, 0, LSEEK_SET);
+    stat = safe_fstat(fd3);
+    assert(stat->st_size == sizeof(fs_file_buffer));
+    safe_seek(fd3, sizeof(fs_file_buffer), LSEEK_END);
+    stat = safe_fstat(fd3);
+    assert(stat->st_size == sizeof(fs_file_buffer) * 2);
+    safe_seek(fd3, -sizeof(fs_file_buffer), LSEEK_CUR);
+    safe_read(fd3, fs_file_buffer, sizeof(fs_file_buffer));
+    for (int i = 0; i < sizeof(fs_file_buffer) / sizeof(fs_file_buffer[0]); i++) {
+        assert(fs_file_buffer[i] == 0);
+    }
+    int fd4 = safe_open("fs_file_test", O_RDWR | O_TRUNC);
+    printf("fs_trunc_test fd is %d\n", fd4);
+    stat = safe_fstat(fd4);
+    assert(stat->st_size == 0 && S_ISREG(stat->st_mode) && stat->st_blocks == 0);
+}
+//////////////////////////////////////////////////////////////////////////
+static char getmode(uint32_t st_mode) {
+    char mode = '?';
+    if (S_ISREG(st_mode)) mode = '-';
+    if (S_ISDIR(st_mode)) mode = 'd';
+    if (S_ISLNK(st_mode)) mode = 'l';
+    if (S_ISCHR(st_mode)) mode = 'c';
+    if (S_ISBLK(st_mode)) mode = 'b';
+    return mode;
+}
+
+static void safe_stat_print(char *name) {
+    Stat __stat, *stat = &__stat;
+    int fd = open(name, O_RDONLY), ret = fstat(fd, stat);
+    assert(fd >= 0 && ret == 0);
+    printf("%c %3d   %4d %10d  ", getmode(stat->st_mode), stat->st_nlinks, stat->st_blocks, stat->st_size);
+}
+
+static void safe_chdir(char *path) {
+    int ret = chdir(path);
+    assert(ret == 0);
+}
+
+static void safe_getcwd(int round) {
+    static char fs_dir_buffer[SFS_PWD_LEN];
+    int ret = getcwd(fs_dir_buffer, sizeof(fs_dir_buffer));
+    assert(ret == 0);
+    printf("%d: current: %s\n", round, fs_dir_buffer);
+}
+
+static void safe_lsdir(int round) {
+    DIR *dir = opendir(".");
+    assert(dir != nullptr);
+    Dirent *dirent;
+    while ((dirent = readdir(dir)) != nullptr) {
+        printf("%d: ", round);
+        safe_stat_print(dirent->name);
+        printf("%s\n", dirent->name);
+    }
+    closedir(dir);
+}
+
+static void changedir(char *path) {
+    static int fs_dir_test_round = 0;
+    printf("------------------------\n");
+    safe_chdir(path);
+    safe_getcwd(fs_dir_test_round);
+    safe_lsdir(fs_dir_test_round);
+    fs_dir_test_round++;
+}
+
+static void fs_dir_test(char *s) {
+    changedir("/");
+    mkdir("/AA");
+    changedir("/");
+    changedir("/AA");
+    mkdir("/AA/BB");
+    changedir("/AA/BB");
+    changedir("/AA/BB/./../../AA");
+    mkdir("/AA/BB/./../../AA/BB/CC");
+    changedir("/AA/BB/CC");
+    changedir("../..");
+}
+//////////////////////////////////////////////////////////////////////////
+static void safe_link(char *oldpath, char *newpath) {
+    int ret = link(oldpath, newpath);
+    assert(ret == 0);
+}
+
+static void safe_unlink(char *path) {
+    int ret = unlink(path);
+    assert(ret == 0);
+}
+
+static uint32_t fs_link_buffer[1024];
+
+static void fs_link_test(char *s) {
+    char *str = "hello";
+    int fd = safe_open("lf1", O_CREAT | O_RDWR);
+    safe_write(fd, str, strlen(str));
+    // safe_seek(fd, 0, LSEEK_SET);
+    close(fd);
+    changedir(".");
+    safe_link("lf1", "lf2");
+    changedir(".");
+    safe_unlink("lf1");
+    changedir(".");
+    assert(open("lf1", 0) < 0);
+    fd = safe_open("lf2", 0);
+    safe_read(fd, fs_link_buffer, strlen(str));
+    char *fs_link = (char *)fs_link_buffer;
+    assert(strcmp(str, fs_link) == 0);
+    close(fd);
+    assert(link("lf2", "lf2") < 0);
+    changedir(".");
+    safe_unlink("lf2");
+    assert(unlink("lf2") < 0);
+    changedir(".");
+}
+//////////////////////////////////////////////////////////////////////////
+// four processes create and delete different files in same directory
+static void fs_test1(char *s) {
+    enum { N = 10, NCHILD = 10 };
+    int pid, i, fd, pi;
+    char name[32];
+    for (pi = 0; pi < NCHILD; pi++) {
+        if ((pid = fork()) == 0) {
+            name[0] = 'p' + pi;
+            name[2] = '\0';
+            for (i = 0; i < N; i++) {
+                name[1] = '0' + i;
+                fd = safe_open(name, O_CREAT | O_RDWR);
+                close(fd);
+                if (i > 0 && (i % 2) == 0) {
+                    name[1] = '0' + (i / 2);
+                    safe_unlink(name);
+                }
+            }
+            exit(0);
+        }
+        assert(pid > 0);
+    }
+    int xstatus;
+    for (pi = 0; pi < NCHILD; pi++) { assert(waitpid(0, &xstatus) == 0 && xstatus == 0); }
+    name[0] = name[1] = name[2] = 0;
+    for (i = 0; i < N; i++) {
+        for (pi = 0; pi < NCHILD; pi++) {
+            name[0] = 'p' + pi;
+            name[1] = '0' + i;
+            fd = open(name, 0);
+            if ((i == 0 || i >= N / 2) && fd < 0) {
+                panic("i is: %d  fd is: %d", i, fd);
+            } else if ((i >= 1 && i < N / 2) && fd >= 0) {
+                panic("i is: %d  fd is: %d", i, fd);
+            }
+        }
+        if (fd > 0) { close(fd); }
+    }
+    for (i = 0; i < N; i++) {
+        for (pi = 0; pi < NCHILD; pi++) {
+            name[0] = 'p' + i;
+            name[1] = '0' + i;
+            unlink(name);
+        }
+    }
+}
+//////////////////////////////////////////////////////////////////////////
+// another concurrent link/unlink/create test,
+// to look for deadlocks.
+static void fs_test2(char *s) {
+    int pid, i;
+    uint32_t x;
+    unlink("x");
+    pid = fork();
+    assert(pid >= 0);
+    pid ? srand(1) : srand(527);
+    for (i = 0; i < 100; i++) {
+        x = simulate_rand();
+        if ((x % 3) == 0) {
+            close(open("x", O_RDWR | O_CREAT));
+        } else if ((x % 3) == 1) {
+            link("cat", "x");
+        } else {
+            unlink("x");
+        }
+    }
+    if (pid)
+        wait();
+    else
+        exit(0);
+}
+//////////////////////////////////////////////////////////////////////////
+// can I unlink a file and still read it?
+char fs_test3_buf[SFS_BSIZE];
+static void fs_test3(char *s) {
+    enum { SZ = 5 };
+    int fd, fd1;
+    fd = safe_open("unlinkread", O_CREAT | O_RDWR);
+    safe_write(fd, "hello", SZ);
+    close(fd);
+    fd = safe_open("unlinkread", O_RDWR);
+    safe_unlink("unlinkread");  // At this point, although the file has been deleted from the file system, it
+                                // has not been completely removed because the file descriptor (fd) is still
+                                // open (open_count > 0 && ref_count > 0).
+    fd1 = safe_open("unlinkread", O_CREAT | O_RDWR);
+    safe_write(fd1, "yyy", 3);
+    close(fd1);
+    safe_read(fd, fs_test3_buf, SZ);
+    assert(fs_test3_buf[0] == 'h');
+    safe_write(fd, fs_test3_buf, 10);
+    close(fd);
+    unlink("unlinkread");
+}
+//////////////////////////////////////////////////////////////////////////
+static void fs_test4(char *s) {
+    enum { N = 10 };
+    char file[3];
+    int i, pid, fd;
+    char fa[N];
+    file[0] = 'C';
+    file[2] = '\0';
+    for (i = 0; i < N; i++) {
+        file[1] = '0' + i;
+        unlink(file);
+        pid = fork();
+        assert(pid >= 0);
+        if (pid && (i % 3) == 1) {
+            link("C0", file);
+        } else if (pid == 0 && (i % 5) == 1) {
+            link("C0", file);
+        } else {
+            fd = safe_open(file, O_CREAT | O_RDWR);
+            close(fd);
+        }
+        if (pid == 0) {
+            exit(0);
+        } else {
+            int xstatus;
+            assert(waitpid(0, &xstatus) == 0 && xstatus == 0);
+        }
+    }
+
+    memset(fa, 0, sizeof(fa));
+    int n = 0;
+    DIR *dir = opendir(".");
+    assert(dir != nullptr);
+    Dirent *dirent;
+    while ((dirent = readdir(dir)) != nullptr) {
+        if (dirent->name[0] == 'C' && dirent->name[2] == '\0') {
+            i = dirent->name[1] - '0';
+            assert(i >= 0 && i < sizeof(fa));
+            assert(!fa[i]);
+            fa[i] = 1;
+            n++;
+        }
+    }
+    closedir(dir);
+    assert(n == N);
+
+    for (i = 0; i < N; i++) {
+        file[1] = '0' + i;
+        pid = fork();
+        assert(pid >= 0);
+
+        if (((i % 3) == 0 && pid == 0) || ((i % 3) == 1 && pid != 0)) {
+            for (int j = 0; j < 6; j++) { close(open(file, 0)); }
+        } else {
+            for (int j = 0; j < 6; j++) { unlink(file); }
+        }
+        if (pid == 0) {
+            exit(0);
+        } else {
+            assert(waitpid(0, NULL) == 0);
+        }
+    }
+}
+//////////////////////////////////////////////////////////////////////////
+// four processes write different files at the same
+// time, to test block allocation.
+static void fs_test5(char *s) {
+    int fd, pid, i, j, n, total, pi;
+    char *names[] = {"f0", "f1", "f2", "f3"};
+    char *fname;
+    enum { N = 12, NCHILD = 4, SZ = 500 };
+    char buf[SZ];
+
+    for (pi = 0; pi < NCHILD; pi++) {
+        fname = names[pi];
+        unlink(fname);
+        pid = fork();
+        assert(pid >= 0);
+        if (pid == 0) {
+            fd = safe_open(fname, O_CREAT | O_RDWR);
+            memset(buf, '0' + pi, SZ);
+            for (i = 0; i < N; i++) { safe_write(fd, buf, SZ); }
+            close(fd);
+            exit(0);
+        }
+    }
+
+    int xstatus;
+    for (pi = 0; pi < NCHILD; pi++) { assert(waitpid(0, &xstatus) == 0 && xstatus == 0); }
+
+    for (i = 0; i < NCHILD; i++) {
+        fname = names[i];
+        fd = safe_open(fname, O_RDONLY);
+        total = 0;
+        while ((n = read(fd, buf, sizeof(buf))) > 0) {
+            for (j = 0; j < n; j++) { assert(buf[j] == '0' + i); }
+            total += n;
+        }
+        close(fd);
+        assert(total == N * SZ);
+        safe_unlink(fname);
+    }
+}
+//////////////////////////////////////////////////////////////////////////
+// two processes write to the same file descriptor
+// is the offset shared? does inode locking work?
+static void fs_test6(char *s) {
+    int fd, pid, i, n, nc, np;
+    enum { N = 1000, SZ = 10 };
+    char buf[SZ];
+
+    unlink("sharedfd");
+    fd = safe_open("sharedfd", O_CREAT | O_RDWR);
+    pid = fork();
+    assert(pid >= 0);
+    memset(buf, pid == 0 ? 'c' : 'p', sizeof(buf));
+    for (i = 0; i < N; i++) {
+        safe_write(fd, buf, sizeof(buf));  // file->pos is not shared, so subsequent write operations will
+                                           // overwrite the previous content. Therefore, the total number of
+                                           // 'C' and 'p' characters should add up to N * SZ.
+    }
+    if (pid == 0) {
+        close(fd);
+        exit(0);
+    } else {
+        int xstatus;
+        assert(waitpid(0, &xstatus) == 0 && xstatus == 0);
+    }
+
+    close(fd);
+    fd = safe_open("sharedfd", O_RDONLY);
+    nc = np = 0;
+    while ((n = read(fd, buf, sizeof(buf))) > 0) {
+        for (i = 0; i < n; i++) {
+            if (buf[i] == 'c') nc++;
+            if (buf[i] == 'p') np++;
+        }
+    }
+    close(fd);
+    safe_unlink("sharedfd");
+    assert(nc + np == N * SZ);
+}
+
+//////////////////////////////////////////////////////////////////////////
+// concurrent writes to try to provoke deadlock in the virtio disk
+// driver.
+char fs_test7_buf[SFS_BSIZE];
+static void fs_test7(char *s) {
+    int nchildren = 4;
+    int howmany = 30;  // increase to look for deadlock
+
+    for (int ci = 0; ci < nchildren; ci++) {
+        int pid = fork();
+        assert(pid >= 0);
+        if (pid == 0) {
+            char name[3];
+            name[0] = 'b';
+            name[1] = 'a' + ci;
+            name[2] = '\0';
+            unlink(name);
+            for (int iters = 0; iters < howmany; iters++) {
+                for (int i = 0; i < ci + 1; i++) {
+                    int fd = safe_open(name, O_CREAT | O_RDWR);
+                    int sz = sizeof(fs_test7_buf);
+                    safe_write(fd, fs_test7_buf, sz);
+                    close(fd);
+                }
+                unlink(name);
+            }
+            unlink(name);
+            exit(0);
+        }
+    }
+    int xstatus;
+    for (int ci = 0; ci < nchildren; ci++) { assert(waitpid(0, &xstatus) == 0 && xstatus == 0); }
+}
+//////////////////////////////////////////////////////////////////////////
+// test write a big file
+char fs_test8_buf[SFS_BSIZE];
+static void fs_test8(char *s) {
+    int i, fd, n;
+    unlink("big");
+    fd = safe_open("big", O_CREAT | O_RDWR);
+    for (i = 0; i < SFS_NDIRECT + SFS_NINDIRECT + 100; i++) {
+        ((int *)fs_test8_buf)[0] = i;
+        safe_write(fd, fs_test8_buf, SFS_BSIZE);
+    }
+    close(fd);
+    fd = safe_open("big", O_RDONLY);
+    n = 0;
+    for (;;) {
+        i = read(fd, fs_test8_buf, SFS_BSIZE);
+        if (i <= 0) {
+            assert(n == SFS_NDIRECT + SFS_NINDIRECT + 100);
+            break;
+        } else {
+            assert(i == SFS_BSIZE);
+        }
+        assert(((int *)fs_test8_buf)[0] == n);
+        n++;
+    }
+    close(fd);
+    safe_unlink("big");
+}
+//////////////////////////////////////////////////////////////////////////
+// test open a dir
+static void fs_test9(char *s) {
+    int pid, xstatus;
+    unlink("oldir");
+    assert(mkdir("oldir") == 0);
+    pid = fork();
+    assert(pid >= 0);
+    if (pid == 0) {
+        assert(open("oldir", O_RDWR) == -E_ISDIR);
+        exit(0);
+    }
+    sleep(200);
+    safe_unlink("oldir");
+    assert(waitpid(0, &xstatus) == 0 && xstatus == 0);
+}
+//////////////////////////////////////////////////////////////////////////
+// test unlink pwd and chdir
+static void fs_test10(char *s) {
+    unlink("inputdir");
+    assert(mkdir("inputdir") == 0);
+    changedir("inputdir");
+    safe_unlink("../inputdir");
+    changedir("/");
+}
+//////////////////////////////////////////////////////////////////////////
+// test remove "." and ".."
+static void fs_test11(char *s) {
+    unlink("dots");
+    assert(mkdir("dots") == 0);
+    changedir("dots");
+    assert(unlink(".") < 0);
+    assert(unlink("..") < 0);
+    changedir("/");
+    assert(unlink("dots/.") < 0);
+    assert(unlink("dots/..") < 0);
+    safe_unlink("dots");
+}
+//////////////////////////////////////////////////////////////////////////
+void safe_symlink(char *oldpath, char *newpath) {
+    int ret = symlink(oldpath, newpath);
+    assert(ret == 0);
+}
+
+static int stat_slink(char *pn, struct stat *st) {
+    int fd = open(pn, O_RDONLY | O_NOFOLLOW);
+    if (fd < 0) return -1;
+    if (fstat(fd, st) != 0) return -1;
+    return 0;
+}
+
+static void fs_symlink_test(char *s) {
+    int fd1 = -1, fd2 = -1;
+    char buf[4] = {'a', 'b', 'c', 'd'};
+    char c = 0, c2 = 0;
+    Stat st;
+    assert(mkdir("/testsymlink") == 0);
+    fd1 = safe_open("/testsymlink/a", O_CREAT | O_RDWR);
+    safe_symlink("/testsymlink/a", "/testsymlink/b");
+    safe_write(fd1, buf, sizeof(buf));
+    if (stat_slink("/testsymlink/b", &st) != 0)
+        panic("failed to stat b");
+    if(!(S_ISLNK(st.st_mode)))
+        panic("b isn't a symlink");
+    fd2 = safe_open("/testsymlink/b", O_RDWR);
+    safe_read(fd2, &c, 1);
+    assert(c == 'a');
+    safe_unlink("/testsymlink/a");
+    assert(open("/testsymlink/b", O_RDWR) < 0);
+    safe_symlink("/testsymlink/b", "/testsymlink/a");
+    assert(open("/testsymlink/b", O_RDWR) < 0);
+    safe_symlink("/testsymlink/nonexistent", "/testsymlink/c");
+
+    safe_symlink("/testsymlink/2", "/testsymlink/1");
+    safe_symlink("/testsymlink/3", "/testsymlink/2");
+    safe_symlink("/testsymlink/4", "/testsymlink/3");
+    close(fd1);
+    close(fd2);
+
+    fd1 = safe_open("/testsymlink/4", O_CREAT | O_RDWR);
+    fd2 = safe_open("/testsymlink/1", O_RDWR);
+    c = '#';
+    safe_write(fd2, &c, 1);
+    safe_read(fd1, &c2, 1);
+    assert(c == c2);
+}
+//////////////////////////////////////////////////////////////////////////
+// concurrent symlink/unlink/ test,
+// to look for deadlocks.
+static void fs_test12(char *s){
+    int pid, i;
+    int fd;
+    Stat st;
+    uint32_t x;
+    int nchild = 2;
+    assert(mkdir("/fs_test12") == 0);
+    fd = safe_open("/fs_test12/z", O_CREAT | O_RDWR);
+    close(fd);
+    for(int j = 0; j < nchild; j++){
+        pid = fork();
+        assert(pid >= 0);
+        if(pid == 0){
+            srand(1);
+            for(i = 0; i < 100; i++){
+                x = simulate_rand();
+                if((x % 3) == 0){
+                    symlink("/fs_test12/z", "/fs_test12/y");
+                     if (stat_slink("/fs_test12/y", &st) == 0){
+                        assert(S_ISLNK(st.st_mode));
+                     }
+                }else{
+                    unlink("/fs_test12/y");
+                }
+                // unlink("/fs_test12/y");
+            }
+            exit(0);
+        }
+    }
+    int xstatus;
+    for (int ci = 0; ci < nchild; ci++) { assert(waitpid(0, &xstatus) == 0 && xstatus == 0); }
+}
+/////////////////////////////////////////////////////////////////////////
 static int run(void f(char *), char *s) {
     int pid;
     int xstatus = 1;
@@ -1727,6 +2403,23 @@ struct test {
     {fnull_test, "fnull_test"},
     {pipe_test, "pipe_test"},
     {pipe_test2, "pipe_test2"},
+    {fs_basic_test, "fs_basic_test"},
+    {fs_file_test, "fs_file_test"},
+    {fs_dir_test, "fs_dir_test"},
+    {fs_link_test, "fs_link_test"},
+    {fs_test1, "fs_test1"},
+    {fs_test2, "fs_test2"},
+    {fs_test3, "fs_test3"},
+    {fs_test4, "fs_test4"},
+    {fs_test5, "fs_test5"},
+    {fs_test6, "fs_test6"},
+    {fs_test7, "fs_test7"},
+    {fs_test8, "fs_test8"},
+    {fs_test9, "fs_test9"},
+    {fs_test10, "fs_test10"},
+    {fs_test11, "fs_test11"},
+    {fs_symlink_test, "fs_symlink_test"},
+    {fs_test12, "fs_test12"},
     {swaptest, "swaptest"},
     {nullptr, nullptr},
 };

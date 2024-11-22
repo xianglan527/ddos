@@ -133,6 +133,7 @@ static inline int proc_vruntime_compare_value(Rb_node *node1, void *value) {
 #define WT_MBOX_SEND (0x00000120 | WT_INTERAUPTED)
 #define WT_MBOX_RECV (0x00000121 | WT_INTERAUPTED)
 #define WT_PIPE (0x00000200 | WT_INTERAUPTED)
+#define WT_DISK_BUF (0x00000201 | WT_INTERAUPTED)
 
 #define le2proc(le, member) to_struct((le), Proc, member);
 

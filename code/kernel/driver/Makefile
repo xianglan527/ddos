@@ -3,5 +3,5 @@ K_SRCS_PATH += \
 
 
 
-CFLAGS += \
+K_INCLUDE += \
 		-I./code/kernel/driver/virtio \

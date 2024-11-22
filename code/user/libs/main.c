@@ -28,8 +28,11 @@ static void prework(void){
     }
 }
 
-int main(void){
+int main(int argc, char *argv[]) {
     prework();
+    for (int i = 0; i < argc; i++) { 
+        printf("arg %d is %s\n", i, argv[i]); 
+    }
     printf("welcome user space\n");
     test_main();
     return 0;
