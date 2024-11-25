@@ -210,6 +210,7 @@ int file_write(int fd, void *base, size_t len, size_t *copied_store) {
     *copied_store = 0;
     if ((ret = fd2file(fd, &file)) != 0) { return ret; }
     if (!file->writable) { return -E_INVAL; }
+    if (file->status != FD_OPENED) { return -E_OPEN; }
     filemap_acquire(file);
     Iobuf __iob, *iob = iobuf_init(&__iob, base, len, file->pos);
     ret = vop_write(file->node, iob);
@@ -339,7 +340,9 @@ int file_fsync(int fd){
         return ret;
     }
     filemap_acquire(file);
+    begin_op();
     ret = vop_fsync(file->node);
+    end_op();
     filemap_release(file);
     return ret;
 }

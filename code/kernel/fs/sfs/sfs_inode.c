@@ -17,7 +17,7 @@
 static void buf_zero(Sfs_fs *sfs, uint blockno) {
     Disk_buf *buf = buf_read(sfs, blockno);
     memset(buf->data, 0, SFS_BSIZE);
-    buf_write(buf);
+    log_write(buf);
     buf_release(sfs, buf);
 }
 
@@ -30,7 +30,7 @@ static uint blk_alloc(Sfs_fs *sfs) {
             index = 1 << (bit % 8);
             if ((buf->data[bit / 8] & index) == 0) {
                 buf->data[bit / 8] |= index;
-                buf_write(buf);
+                log_write(buf);
                 buf_release(sfs, buf);
                 buf_zero(sfs, blk + bit);
                 return blk + bit;
@@ -49,7 +49,7 @@ static void blk_free(Sfs_fs *sfs, uint blockno) {
     index = 1 << (bit % 8);
     if ((buf->data[bit / 8] & index) == 0) panic("freeing free block.\n");
     buf->data[bit / 8] &= ~index;
-    buf_write(buf);
+    log_write(buf);
     buf_release(sfs, buf);
 }
 
@@ -145,7 +145,7 @@ static Inode *inode_alloc(Sfs_fs *sfs, ushort type) {
             din->type = type;
             din->size = 0;
             din->nlink = 1;
-            buf_write(buf);
+            log_write(buf);
             buf_release(sfs, buf);
             return get_inode(sfs, inum);
         }
@@ -163,7 +163,7 @@ static void sinode_updata_nolock(Sfs_fs *sfs, Sfs_inode *sin, int mem2disk) {
     din = (Dinode *)buf->data + sin->ino % inodes_per_block;
     if (mem2disk == MEM2DISK) {
         *din = *sin->din;
-        buf_write(buf);
+        log_write(buf);
     } else {
         *sin->din = *din;
     }
@@ -215,7 +215,7 @@ static uint bmap_load_nolock(Sfs_fs *sfs, Sfs_inode *sin, uint bn) {
         data = (uint *)buf->data;
         if ((addr = data[bn]) == 0) {
             data[bn] = addr = blk_alloc(sfs);
-            buf_write(buf);
+            log_write(buf);
         }
         buf_release(sfs, buf);
         return addr;
@@ -232,14 +232,14 @@ static uint bmap_load_nolock(Sfs_fs *sfs, Sfs_inode *sin, uint bn) {
         data = (uint *)buf->data;
         if ((addr = data[idx]) == 0) {
             data[idx] = addr = blk_alloc(sfs);
-            buf_write(buf);
+            log_write(buf);
         }
         buf_release(sfs, buf);
         buf = buf_read(sfs, addr);
         data = (uint *)buf->data;
         if ((addr = data[off]) == 0) {
             data[off] = addr = blk_alloc(sfs);
-            buf_write(buf);
+            log_write(buf);
         }
         buf_release(sfs, buf);
         return addr;
@@ -267,18 +267,11 @@ static void bmap_free_nolock(Sfs_fs *sfs, Sfs_inode *sin, uint bn) {
         data = (uint *)buf->data;
         if (data[bn] != 0) {
             blk_free(sfs, data[bn]);
-            data[bn] = 0;
-            buf_write(buf);
-        }
-        bool del_indirect = true;
-        for (int i = 0; i < SFS_NINDIRECT; i++) {
-            if (data[i] != 0) {
-                del_indirect = false;
-                break;
-            }
+            // data[bn] = 0;
+            // log_write(buf);
         }
         buf_release(sfs, buf);
-        if (del_indirect == true) {
+        if (bn == 0) {
             blk_free(sfs, sin->din->addrs[SFS_NDIRECT]);
             sin->din->addrs[SFS_NDIRECT] = 0;
             sin->valid = false;
@@ -298,32 +291,13 @@ static void bmap_free_nolock(Sfs_fs *sfs, Sfs_inode *sin, uint bn) {
             data_lvl2 = (uint *)buf_lvl2->data;
             if (data_lvl2[off] != 0) {
                 blk_free(sfs, data_lvl2[off]);
-                data_lvl2[off] = 0;
-                buf_write(buf_lvl2);
-            }
-
-            bool del_lvl2 = true;
-            for (int i = 0; i < SFS_NINDIRECT; i++) {
-                if (data_lvl2[i] != 0) {
-                    del_lvl2 = false;
-                    break;
-                }
             }
             buf_release(sfs, buf_lvl2);
-            if (del_lvl2 == true) {
+            if (off == true) {
                 blk_free(sfs, data[idx]);
-                data[idx] = 0;
-                buf_write(buf);
-            }
-            bool del_indirect = true;
-            for (int i = 0; i < SFS_NINDIRECT; i++) {
-                if (data[i] != 0) {
-                    del_indirect = false;
-                    break;
-                }
             }
             buf_release(sfs, buf);
-            if (del_indirect == true) {
+            if (bn == 0) {
                 blk_free(sfs, sin->din->addrs[SFS_NDIRECT + 1]);
                 sin->din->addrs[SFS_NDIRECT + 1] = 0;
                 sin->valid = false;
@@ -342,14 +316,29 @@ static int sfs_truncfile_nolock(Inode *inode, off_t len) {
     // assert(din->type != SFS_TYPE_DIR);
     uint32_t nblks = ROUNDUP(sin->din->size, SFS_BSIZE) / SFS_BSIZE;
     uint32_t tblks = ROUNDUP(len, SFS_BSIZE) / SFS_BSIZE;
+    size_t blocks_done = 0, max_blocks_once = (SFS_MAXOPBLOCKS - 1) / 2;
     if (din->size == len) { return 0; }
     if (nblks < tblks) {
-        while (nblks != tblks) { bmap_load_nolock(sfs, sin, nblks++); }
+        while (nblks != tblks ) { 
+            begin_op();
+            blocks_done = 0;
+            while(blocks_done++ < max_blocks_once && nblks != tblks ){
+                bmap_load_nolock(sfs, sin, nblks++); 
+            }
+            if(nblks == tblks){
+                din->size = len;
+            }else{
+                din->size = nblks * SFS_BLKBITS;
+            }
+            sin->valid = false;
+            sinode_updata_nolock(sfs, sin, MEM2DISK);
+            end_op();
+        }
     } else if (tblks < nblks) {
         while (tblks != nblks) { bmap_free_nolock(sfs, sin, --nblks); }
+        din->size = len;
+        sin->valid = false;
     }
-    din->size = len;
-    sin->valid = false;
     return 0;
 }
 
@@ -467,7 +456,7 @@ static int sfs_write_nolock(Inode *inode, void *src, off_t off, size_t len, size
         buf = buf_read(sfs, bmap_load_nolock(sfs, sin, off / SFS_BSIZE));
         mlen = min(len - tot, SFS_BSIZE - off % SFS_BSIZE);
         memmove(buf->data + (off % SFS_BSIZE), src, mlen);
-        buf_write(buf);
+        log_write(buf);
         buf_release(sfs, buf);
     }
     if (len > 0) {
@@ -766,7 +755,13 @@ static int sfs_openfile(Inode *inode, uint32_t open_flags) {
     return 0; 
 }
 
-static int sfs_close(Inode *node) { return vop_fsync(node); }
+static int sfs_close(Inode *inode) { 
+    Sfs_fs *sfs = fsop_info(vop_fs(inode), sfs);
+    Sfs_inode *sin = vop_info(inode, sfs_inode);
+    if (sin->din->nlink == 0 || sin->valid == true) { return 0; }
+    sinode_updata_nolock(sfs, sin, MEM2DISK);
+    return 0;
+}
 
 extern char fs_cur_pwd[SFS_PWD_LEN];
 

@@ -347,6 +347,8 @@ uint64_t sys_close(void) {
     return 0;
 }
 
+#define read_max_onece  SFS_MAXOPBLOCKS * SFS_BSIZE
+
 uint64_t sys_read(void) {
     int ret;
     struct file *file;
@@ -362,11 +364,11 @@ uint64_t sys_read(void) {
     if (len == 0) { return 0; }
     if (!file_testfd(fd, 1, 0)) { return -E_INVAL; }
     void *buffer;
-    if ((buffer = kmalloc(IOBUF_SIZE)) == nullptr) { return -E_NO_MEM; }
+    if ((buffer = kmalloc(read_max_onece)) == nullptr) { return -E_NO_MEM; }
     ret = 0;
     size_t copied = 0, alen;
     while (len != 0) {
-        if ((alen = IOBUF_SIZE) > len) { alen = len; }
+        if ((alen = read_max_onece) > len) { alen = len; }
         ret = file_read(fd, buffer, alen, &alen);
         // cprintf("444444 fd is %d len is %d alen is %d\n\n", fd, len, alen);
         if (alen != 0) {
@@ -387,9 +389,10 @@ uint64_t sys_read(void) {
     return ret;
 }
 
+#define write_max_onece  (((SFS_MAXOPBLOCKS - 1 - 1 - 1 - 2) / 2) * SFS_BSIZE)
+
 uint64_t sys_write(void) {
     int ret;
-    struct file *file;
     int fd;
     arg_int(0, &fd);
     long __base;
@@ -402,19 +405,25 @@ uint64_t sys_write(void) {
     if (len == 0) { return 0; }
     if (!file_testfd(fd, 0, 1)) { return -E_INVAL; }
     void *buffer;
-    if ((buffer = kmalloc(IOBUF_SIZE)) == nullptr) { return -E_NO_MEM; }
+    // write a few blocks at a time to avoid exceeding
+    // the maximum log transaction size, including
+    // i-node, 2 indirect block, allocation blocks,
+    // and 2 blocks of slop for non-aligned writes.
+    if ((buffer = kmalloc(write_max_onece)) == nullptr) { return -E_NO_MEM; }
     ret = 0;
     size_t copied = 0, alen;
     while (len != 0) {
-        if ((alen = IOBUF_SIZE) > len) { alen = len; }
+        if ((alen = write_max_onece) > len) { alen = len; }
         lock_mm(mm);
-        { copy_user2kernel(mm->pagetable, (char *)buffer, (uintptr_t)base, alen); }
+        copy_user2kernel(mm->pagetable, (char *)buffer, (uintptr_t)base, alen);
         unlock_mm(mm);
+        begin_op();
         ret = file_write(fd, buffer, alen, &alen);
         if (alen != 0) {
             assert(len >= alen);
             base += alen, len -= alen, copied += alen;
         }
+        end_op();
         if (ret != 0 || alen == 0) { break; }
     }
     kfree(buffer);

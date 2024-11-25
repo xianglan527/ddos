@@ -39,11 +39,11 @@ static bool pipe_state_wait(Wait_queue *queue, Pipe_state *state) {
 }
 
 static void pipe_state_wakeup(Wait_queue *queue, Pipe_state *state) {
+    acquire(&state->pipe_state_lock);
     if (!wait_queue_empty(queue)) {
-        acquire(&state->pipe_state_lock);
-        wakeup_queue(queue, WT_PIPE, 1);
-        release(&state->pipe_state_lock);
+        wakeup_first(queue, WT_PIPE, 1);
     }
+    release(&state->pipe_state_lock);
 }
 
 #define wait_reader(state)  pipe_state_wait(&state->writer_queue, state)

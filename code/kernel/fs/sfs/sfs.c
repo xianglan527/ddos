@@ -147,6 +147,7 @@ static int sfs_do_mount(Device *dev, Fs **fs_store) {
     fs->fs_unmount = sfs_unmount;
     fs->fs_cleanup = sfs_cleanup;
     *fs_store = fs;
+    initlog(sfs);
     cprintf("sfs has mount successed.\n");
     return 0;
 failed:

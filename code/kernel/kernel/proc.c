@@ -846,7 +846,6 @@ found:
     // }
     unhash_proc(proc);
     remove_links(proc);
-    free_proc(proc);
     release(&procs_lock);
     if (code_store != nullptr) {
         lock_mm(current->mm);
@@ -857,6 +856,7 @@ found:
     // cprintf("do exit...current pid is %d proc pid is %d mm_count is %d cpuid is %d\n", myproc()->pid,
     // proc->pid,
     //         mm_count(current->mm), mycpu() - cpus);
+    free_proc(proc);
     return 0;
 }
 

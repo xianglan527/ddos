@@ -18,8 +18,8 @@ typedef struct sfs_inode Sfs_inode;
 struct sfs_inode {
     Dinode *din;
     uint32_t ino;           // Inode number
-    Sem sem;                /* semaphore for din */
-    bool valid;             // Inode has been read from disk?
+    // Sem sem;                // semaphore for din
+    bool valid;             // Check if the inode is synchronized with the data on the disk
     List_entry inode_link;  // entry for linked-list in sfs_fs
     List_entry hash_link;   // entry for hash linked-list in sfs_fs
 };
@@ -55,12 +55,28 @@ struct sfs_fs{
     Wait_queue wait_buf_queue;
 };
 
-#define MEM2DISK 1
 #define DISK2MEM 0
+#define MEM2DISK 1
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
 #define sfs_dentry_size sizeof(((Sfs_dirent *)0)->name)
+
+typedef struct log_header Log_header;
+struct log_header{
+    int log_num;
+    uint block[SFS_LOGSIZE];
+};   
+
+typedef struct log Log;
+struct log{
+    Spinlock log_lock;
+    int outstanding;
+    bool committing;
+    Sfs_fs *sfs;
+    Wait_queue log_wait_queue;
+    Log_header lh;
+};
 
 typedef struct fs Fs;
 typedef struct inode Inode;
@@ -76,4 +92,9 @@ void sfs_init(void);
 
 void sinode_dump(void);
 void sinode_dump_struct_lock(void);
+
+void initlog(Sfs_fs *sfs);
+void begin_op(void);
+void end_op(void);
+void log_write(Disk_buf *buf);
 #endif

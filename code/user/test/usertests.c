@@ -2267,10 +2267,8 @@ static void fs_symlink_test(char *s) {
     fd1 = safe_open("/testsymlink/a", O_CREAT | O_RDWR);
     safe_symlink("/testsymlink/a", "/testsymlink/b");
     safe_write(fd1, buf, sizeof(buf));
-    if (stat_slink("/testsymlink/b", &st) != 0)
-        panic("failed to stat b");
-    if(!(S_ISLNK(st.st_mode)))
-        panic("b isn't a symlink");
+    if (stat_slink("/testsymlink/b", &st) != 0) panic("failed to stat b");
+    if (!(S_ISLNK(st.st_mode))) panic("b isn't a symlink");
     fd2 = safe_open("/testsymlink/b", O_RDWR);
     safe_read(fd2, &c, 1);
     assert(c == 'a');
@@ -2296,7 +2294,7 @@ static void fs_symlink_test(char *s) {
 //////////////////////////////////////////////////////////////////////////
 // concurrent symlink/unlink/ test,
 // to look for deadlocks.
-static void fs_test12(char *s){
+static void fs_test12(char *s) {
     int pid, i;
     int fd;
     Stat st;
@@ -2305,19 +2303,17 @@ static void fs_test12(char *s){
     assert(mkdir("/fs_test12") == 0);
     fd = safe_open("/fs_test12/z", O_CREAT | O_RDWR);
     close(fd);
-    for(int j = 0; j < nchild; j++){
+    for (int j = 0; j < nchild; j++) {
         pid = fork();
         assert(pid >= 0);
-        if(pid == 0){
+        if (pid == 0) {
             srand(1);
-            for(i = 0; i < 100; i++){
+            for (i = 0; i < 100; i++) {
                 x = simulate_rand();
-                if((x % 3) == 0){
+                if ((x % 3) == 0) {
                     symlink("/fs_test12/z", "/fs_test12/y");
-                     if (stat_slink("/fs_test12/y", &st) == 0){
-                        assert(S_ISLNK(st.st_mode));
-                     }
-                }else{
+                    if (stat_slink("/fs_test12/y", &st) == 0) { assert(S_ISLNK(st.st_mode)); }
+                } else {
                     unlink("/fs_test12/y");
                 }
                 // unlink("/fs_test12/y");
@@ -2327,6 +2323,30 @@ static void fs_test12(char *s){
     }
     int xstatus;
     for (int ci = 0; ci < nchild; ci++) { assert(waitpid(0, &xstatus) == 0 && xstatus == 0); }
+}
+/////////////////////////////////////////////////////////////////////////
+// test writes that are larger than the log.
+char fs_test13_buf[(SFS_MAXOPBLOCKS + 2) * SFS_BSIZE];
+
+static void fs_test13(char *s) {
+    int fd, sz = (SFS_MAXOPBLOCKS + 2) * SFS_BSIZE;
+    memset(fs_test13_buf, 5, sz);
+    unlink("bigwrite");
+    for (sz = (SFS_MAXOPBLOCKS - 10) * SFS_BSIZE - 471; sz < (SFS_MAXOPBLOCKS + 2) * SFS_BSIZE; sz += SFS_BSIZE + 499) {
+        fd = open("bigwrite", O_CREAT | O_RDWR);
+        if (fd < 0) {
+            printf("%s: cannot create bigwrite\n", s);
+            exit(1);
+        }
+        int i;
+        static int kk = 1;
+        for (i = 0; i < 2; i++) {
+            long cc = write(fd, fs_test13_buf, sz);
+            assert(cc == sz);
+        }
+        close(fd);
+        unlink("bigwrite");
+    }
 }
 /////////////////////////////////////////////////////////////////////////
 static int run(void f(char *), char *s) {
@@ -2420,6 +2440,7 @@ struct test {
     {fs_test11, "fs_test11"},
     {fs_symlink_test, "fs_symlink_test"},
     {fs_test12, "fs_test12"},
+    {fs_test13, "fs_test13"},
     {swaptest, "swaptest"},
     {nullptr, nullptr},
 };

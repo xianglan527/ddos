@@ -31,6 +31,7 @@ static const char *const error_string[MAXERROR + 1] = {
     [E_EXISTS] = "file or directory already exists",
     [E_NOTEMPTY] = "directory is not empty",
     [E_LOOP] = "file is a symlink",
+    [E_OPEN] = "file not open",
 };
 
 static void printnum(void (*putch)(int, void *, int), int fd, void *putdat, uint64_t num, unsigned base, int width,

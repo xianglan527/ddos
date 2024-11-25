@@ -1,6 +1,7 @@
 # project/Makefile (顶层目录)
 CFLAGS =
 K_SRCS_PATH =
+K_INCLUDE =
 include code/kernel/Makefile
 
 K=code/kernel
@@ -65,28 +66,35 @@ swap.img:
 	${DD} if=/dev/zero of=$@ bs=1024M count=1
 	# ${DD} if=/dev/urandom of=$@ bs=1024M count=1
 
-fs.img:
-	${DD} if=/dev/zero of=$@ bs=256M count=1
-	# ${DD} if=/dev/urandom of=$@ bs=256M count=1
+user.img:
+	${DD} if=/dev/zero of=$@ bs=32M count=1
+	# ${DD} if=/dev/urandom of=$@ bs=32M count=1
 
+mkfs: mkfs.c 
+	gcc -g -Werror -Wall -o mkfs mkfs.c
+
+disk0.img: mkfs README
+	./mkfs disk0.img README
 
 QEMUOPTS = -machine virt -bios none -kernel ${KERNEL_ELF} -m 1024M -smp $(CPUS) -nographic
 QEMUOPTS += -global virtio-mmio.force-legacy=false
 QEMUOPTS += -device virtio-rng-device,bus=virtio-mmio-bus.0
 QEMUOPTS += -drive file=swap.img,if=none,format=raw,id=x0
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.1
-QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x1
+QEMUOPTS += -drive file=user.img,if=none,format=raw,id=x1
 QEMUOPTS += -device virtio-blk-device,drive=x1,bus=virtio-mmio-bus.2
+QEMUOPTS += -drive file=disk0.img,if=none,format=raw,id=x2
+QEMUOPTS += -device virtio-blk-device,drive=x2,bus=virtio-mmio-bus.3
 
 
 # 添加C文件的编译规则
 define K_compile_c_file
-$(CC) ${DEFS} ${CFLAGS} -c -o ${KERNEL_PATH}/$(notdir $(1:.c=.o)) $(1)
+$(CC) ${DEFS} ${K_INCLUDE} ${CFLAGS} -c -o ${KERNEL_PATH}/$(notdir $(1:.c=.o)) $(1)
 endef
 
 # 添加汇编文件的编译规则
 define K_compile_asm_file
-$(CC) ${CFLAGS} -c -o ${KERNEL_PATH}/$(notdir $(1:.S=.o)) $(1)
+$(CC) ${K_INCLUDE} ${CFLAGS} -c -o ${KERNEL_PATH}/$(notdir $(1:.S=.o)) $(1)
 endef
 
 # 生成所有C文件的目标文件
@@ -179,8 +187,8 @@ write_size_and_user_elf_to_fs: user
 		size=$$(stat --format="%s" ${USER_ELF}); \
 		hex_size=$$(printf "%08x" $$size); \
 		le_hex_size=$$(echo $$hex_size | sed 's/\(..\)/\1 /g' | awk '{print $$4$$3$$2$$1}'); \
-		echo $$le_hex_size | xxd -r -p | dd of=fs.img bs=1 count=4 conv=notrunc; \
-		dd if=${USER_ELF} of=fs.img bs=512 seek=1 conv=notrunc; \
+		echo $$le_hex_size | xxd -r -p | dd of=user.img bs=1 count=4 conv=notrunc; \
+		dd if=${USER_ELF} of=user.img bs=512 seek=1 conv=notrunc; \
 	else \
 		echo "Error: ${USER_ELF} does not exist!"; \
 		exit 1; \
@@ -197,18 +205,18 @@ pp:
 
 kernel: ${KERNEL_ELF}
 
-qemu: clean kernel swap.img fs.img write_size_and_user_elf_to_fs
+qemu: clean kernel swap.img user.img disk0.img write_size_and_user_elf_to_fs
 	$(QEMU) $(QEMUOPTS)
 
 .gdbinit: .gdbinit.tmpl-riscv
 	sed "s/:1234/:$(GDBPORT)/" < $^ > $@
 
-qemu-gdb: clean kernel .gdbinit swap.img fs.img write_size_and_user_elf_to_fs
+qemu-gdb: clean kernel .gdbinit swap.img user.img disk0.img write_size_and_user_elf_to_fs
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	@echo "$(QEMUGDB)"
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)	
 
-debug: clean kernel swap.img fs.img write_size_and_user_elf_to_fs
+debug: clean kernel swap.img user.img disk0.img write_size_and_user_elf_to_fs
 	@echo "Press Ctrl-C and then input 'quit' to exit GDB and QEMU"
 	@echo "-------------------------------------------------------"
 	@${QEMU} ${QEMUOPTS} -s -S &
@@ -217,5 +225,5 @@ debug: clean kernel swap.img fs.img write_size_and_user_elf_to_fs
 clean:
 	rm -rf .gdbinit $K/test/usys.S $(KERNEL_PATH) kernel.p $U/libs/usys.S $(USER_PATH)
 all-clean:
-	rm -rf .gdbinit $K/test/usys.S $(KERNEL_PATH) kernel.p $U/libs/usys.S $(USER_PATH) *.img *.txt
+	rm -rf .gdbinit $K/test/usys.S $(KERNEL_PATH) kernel.p $U/libs/usys.S $(USER_PATH) *.img *.txt mkfs
 

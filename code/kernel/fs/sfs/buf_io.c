@@ -13,19 +13,21 @@ static void unlock_disk_buf(Disk_buf *buf){
 }
 
 static bool disk_buf_wait(Sfs_fs *sfs){
+    acquire(&sfs->buffer_list_lock);
     Wait __wait, *wait = &__wait;
     wait_current_set(&sfs->wait_buf_queue, wait, WT_DISK_BUF);
     sleeping(myproc(), &sfs->buffer_list_lock);
     wait_current_del(&sfs->wait_buf_queue, wait);
+    release(&sfs->buffer_list_lock);
     return wait->wakeup_flags == WT_DISK_BUF;
 }
 
 static void disk_buf_wakeup(Sfs_fs *sfs){
+    acquire(&sfs->buffer_list_lock);
     if(!wait_queue_empty(&sfs->wait_buf_queue)){
-        acquire(&sfs->buffer_list_lock);
-        wakeup_queue(&sfs->wait_buf_queue, WT_DISK_BUF, 1);
-        release(&sfs->buffer_list_lock);
+        wakeup_first(&sfs->wait_buf_queue, WT_DISK_BUF, 1);
     }
+    release(&sfs->buffer_list_lock);
 }
 
 static Disk_buf *buf_get(Sfs_fs *sfs, uint blockno) {
@@ -53,8 +55,8 @@ try_again:
             return buf;
         }
     }
-    assert(disk_buf_wait(sfs) == true);
     release(&sfs->buffer_list_lock);
+    assert(disk_buf_wait(sfs) == true);
     goto try_again;
 }
 
