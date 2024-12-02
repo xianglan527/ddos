@@ -1,6 +1,5 @@
 #include "assert.h"
 #include "virtio_device.h"
-#include "console.h"
 #include "error.h"
 #include "plic.h"
 #include "pmm.h"
@@ -20,6 +19,7 @@
 #include "syn.h"
 #include "atomic.h"
 #include "fs.h"
+#include "uart.h"
 
 // volatile static int started = 0;
 Atomic cpus_num;
@@ -35,8 +35,8 @@ void basic_test(void) {
     cprintf("  error is %e\n", E_UNSPECIFIED);
     cprintf("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
 
-    char *buf = readline("------>>");
-    cprintf("------<<%s\n", buf);
+    // char *buf = readline("------>>");
+    // cprintf("------<<%s\n", buf);
 
     assert(1 == 1);
     warn("warning...");
@@ -52,7 +52,7 @@ void main(){
         // timer_start_init();
         atomic_set(&cpus_num, 0);
         // initlock_info();
-        console_init();
+        uart_init();
         cprintf("ddos kernel is booting\n");
         pmm_init();
         slab_init();

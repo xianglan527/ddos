@@ -12,4 +12,8 @@ typedef struct{
 DIR *opendir(char *path);
 Dirent *readdir(DIR *dir);
 void closedir(DIR *dir);
+
+void print_cwd(void);
+void lsdir(char *path);
+void print_current_dir(void);
 #endif

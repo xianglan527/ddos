@@ -18,4 +18,5 @@ char *strchr(const char *s, int c);
 char *strfind(const char *s, int c);
 long strtol(const char *s, char **endptr, int base);
 char *strcat(char *dst, const char *src);
+int atoi(const char *s);
 #endif

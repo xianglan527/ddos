@@ -38,7 +38,7 @@ void __panic(const char *file, int line, const char *fmt, ...) {
     is_panic = 1;
     va_list ap;
     va_start(ap, fmt);
-    printf("panic at %s:%d:\n", file, line);
+    fprintf(2,"panic at %s:%d:\n", file, line);
     vcprintf(fmt, ap);
     printf("\n");
     va_end(ap);
@@ -53,7 +53,7 @@ panic_dead:
 void __warn(const char *file, int line, const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
-    printf("warning at %s:%d:\n    ", file, line);
+    fprintf(2,"warning at %s:%d:\n    ", file, line);
     vcprintf(fmt, ap);
     printf("\n");
     va_end(ap);

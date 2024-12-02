@@ -414,7 +414,11 @@ int sfs_read_nolock(Inode *inode, void *dst, off_t off, size_t len, size_t *len_
     size_t tot, mlen;
     Disk_buf *buf;
     int ret;
-    if (off < 0 || off >= sin->din->size) {
+    if(off == sin->din->size){
+        if (len_store != nullptr) *len_store = 0;
+        return 0;
+    }
+    if (off < 0 || off > sin->din->size) {
         ret = -E_INVAL;
         return ret;
     }

@@ -340,9 +340,7 @@ int file_fsync(int fd){
         return ret;
     }
     filemap_acquire(file);
-    begin_op();
     ret = vop_fsync(file->node);
-    end_op();
     filemap_release(file);
     return ret;
 }

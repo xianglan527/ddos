@@ -1,47 +1,96 @@
 #include "assert.h"
+#include "config.h"
 #include "dev.h"
 #include "error.h"
 #include "inode.h"
 #include "iobuf.h"
-#include "stdio.h"
-#include "vfs.h"
-#include "config.h"
-#include "wait.h"
-#include "spinlock.h"
 #include "proc.h"
+#include "spinlock.h"
+#include "stdio.h"
+#include "string.h"
 #include "sysdef.h"
-
-Spinlock stdin_lock;
-static char stdin_buffer[STDIN_BUFSIZE];
-static off_t p_rpos, p_wpos;
+#include "uart.h"
+#include "vfs.h"
+#include "wait.h"
 
 static Wait_queue __wait_queue, *wait_queue = &__wait_queue;
+#define BACKSPACE 0x100
+#define C(x) ((x) - '@')  // Control-x
+
+static struct {
+    Spinlock lock;
+    uint8_t buf[STDIN_BUFSIZE];
+    size_t rpos;
+    size_t wpos;
+    size_t epos;
+} stdin_str;
+
+static void stdin_str_putc(int c) {
+    if (c == BACKSPACE) {
+        uart_putc('\b');
+        uart_putc(' ');
+        uart_putc('\b');
+    } else
+        uart_putc(c);
+}
 
 void dev_stdin_write(char c){
-    if(c != '\0'){
-        acquire(&stdin_lock); 
-        stdin_buffer[p_wpos % STDIN_BUFSIZE] = c;
-        if(p_wpos - p_rpos < STDIN_BUFSIZE){
-            p_wpos++;
+    acquire(&stdin_str.lock);
+    if(c != 0 || c != -1){
+        switch (c) {
+            case C('X'): proc_dump(); break;
+            case C('U'):
+                while (stdin_str.epos != stdin_str.wpos && stdin_str.buf[(stdin_str.epos - 1) % STDIN_BUFSIZE] != '\n') {
+                    stdin_str.epos--;
+                    stdin_str_putc(BACKSPACE);
+                }
+                break;
+            case C('H'):
+            case '\x7f':
+                if (stdin_str.epos != stdin_str.wpos) {
+                    stdin_str.epos--;
+                    stdin_str_putc(BACKSPACE);
+                }
+                break;
+            default:
+                if (c != 0 && stdin_str.epos - stdin_str.rpos < STDIN_BUFSIZE) {
+                    c = (c == '\r' || c == C('D')) ? '\n' : c;
+                    stdin_str_putc(c);
+                    stdin_str.buf[stdin_str.epos++ % STDIN_BUFSIZE] = c;
+                    if (c == '\n' || stdin_str.epos == stdin_str.rpos + STDIN_BUFSIZE) {
+                        if (!wait_queue_empty(wait_queue)) { 
+                            wakeup_queue(wait_queue, WT_KBD, 1); 
+                        }
+                        stdin_str.wpos = stdin_str.epos; 
+                    }
+                }
+                break;
         }
-        if(!wait_queue_empty(wait_queue)){
-            wakeup_queue(wait_queue, WT_KBD, 1);
-        }
-        release(&stdin_lock);
     }
+    release(&stdin_str.lock);
 }
 
 static int dev_stdin_read(char *buf, size_t len){
     long ret = 0;
-    acquire(&stdin_lock);
-    for(; ret < len; ret++, p_rpos++){
+    char c;
+    acquire(&stdin_str.lock);
+    for(; ret < len; ret++, stdin_str.rpos++){
         try_again:
-            if(p_rpos < p_wpos){
-                *buf++ = stdin_buffer[p_rpos % STDIN_BUFSIZE];
-            }else{
+            if (stdin_str.rpos < stdin_str.wpos) {
+                c = stdin_str.buf[stdin_str.rpos % STDIN_BUFSIZE];
+                if(c == '\n'){
+                    if(ret == 0){
+                        stdin_str.rpos++;
+                    }
+                    *buf = 0;
+                    break;;
+                }else{
+                    *buf++ = stdin_str.buf[stdin_str.rpos % STDIN_BUFSIZE];
+                }
+            } else {
                 Wait __wait, *wait = &__wait;
                 wait_current_set(wait_queue, wait, WT_KBD);
-                sleeping(myproc(), &stdin_lock);
+                sleeping(myproc(), &stdin_str.lock);
                 wait_current_del(wait_queue, wait);
                 if(wait->wakeup_flags == WT_KBD){
                     goto try_again;
@@ -49,7 +98,14 @@ static int dev_stdin_read(char *buf, size_t len){
                 break;
             }
     }
-    release(&stdin_lock);
+    release(&stdin_str.lock);
+    return ret;
+}
+
+int stdin_getchar(void) {
+    char c;
+    int ret;
+    ret = dev_stdin_read(&c, 1);
     return ret;
 }
 
@@ -89,9 +145,8 @@ static void stdin_device_init(Device *dev){
     dev->d_io = stdin_io;
     dev->d_ioctl = stdin_ioctl;
 
-    p_rpos = p_wpos = 0;
     wait_queue_init(wait_queue);
-    initlock(&stdin_lock, "stdin_lock");
+    initlock(&stdin_str.lock, "stdin_str_lock");
 }
 
 void dev_init_stdin(void) {

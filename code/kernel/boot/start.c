@@ -1,5 +1,4 @@
 #include "assert.h"
-#include "console.h"
 #include "error.h"
 #include "config.h"
 #include "stdio.h"

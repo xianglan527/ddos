@@ -1,6 +1,5 @@
 #include "stdio.h"
 
-#include "console.h"
 #include "printf.h"
 #include "spinlock.h"
 #include "uart.h"
@@ -47,10 +46,13 @@ int cputs(const char *str) {
     return cnt;
 }
 
+extern int stdin_getchar(void);
+
 int getchar(void) {
-    int c;
-    while ((c = cons_getc()) == 0);
-    return c;
+    // int c;
+    // while ((c = cons_getc()) == 0);
+    // return c;
+    return stdin_getchar();
 }
 
 void printf_init(void) {

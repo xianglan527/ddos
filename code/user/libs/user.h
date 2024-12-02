@@ -70,4 +70,6 @@ int link(char *oldpath, char *newpath);
 int unlink(char *path);
 int mkdir(char *path);
 int symlink(char *oldpath, char *newpath);
+
+void prework(void);
 #endif

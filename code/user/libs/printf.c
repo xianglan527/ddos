@@ -9,7 +9,7 @@ static void vprintfmt(void (*putch)(int, void *), void *putdat, const char *fmt,
 int vsnprintf(char *str, size_t size, const char *fmt, va_list ap);
 
 static void cputch(int c, int *cnt) {
-    putc(1, c);
+    putc(2, c);
     (*cnt)++;
 }
 

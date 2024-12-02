@@ -33,7 +33,6 @@
 #define PRINT_MM_TEST
 #endif
 
-#define CONSOLE_BUF_SIZE 1024
 #define NPROC 2000
 #define NCPU 8
 #define STACK_SIZE 4096

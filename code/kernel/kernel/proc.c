@@ -955,31 +955,8 @@ static int load_icode(Proc *current, char *binary) {
 }
 
 int do_execve(char *path, char **argv) {
-    struct blk_buf req;
-    int rdata[SECTOR_SZIE / 4] = {0};
-    req.addr = 0;
-    req.data = rdata;
-    req.data_len = SECTOR_SZIE;
-    req.is_write = 0;
-    virtio_blk_rw(&req, "user.img");
-    size_t pages_num = PGROUNDUP(rdata[0]) / PGSIZE;
-    Page *pages = alloc_pages(pages_num);
-    char *binary = (char *)page2kva(pages);
-    size_t count = rdata[0] / SECTOR_SZIE + 1;
-    for (size_t i = 0; i < count; i++) {
-        req.addr = (i + 1) * SECTOR_SZIE;
-        req.data = rdata;
-        req.data_len = SECTOR_SZIE;
-        req.is_write = 0;
-        virtio_blk_rw(&req, "user.img");
-        memcpy((void *)(binary + (i * SECTOR_SZIE)), (void *)(rdata), SECTOR_SZIE);
-    }
-    char *s, *last;
-    for (last = s = path; *s; s++) {
-        if (*s == '/') last = s + 1;
-    }
+    int ret;
     Proc *current = myproc();
-    safestrcpy(current->name, last, sizeof(current->name));
     Mm_struct *mm = current->mm;
     lock_mm(mm);
     if (mm != nullptr) {
@@ -994,14 +971,47 @@ int do_execve(char *path, char **argv) {
         current->mm = nullptr;
     }
     unlock_mm(mm);
-    put_fs(current);
-    assert((current->fs_struct = fs_create()) != nullptr);
-    fs_count_inc(current->fs_struct);
-    vfs_set_bootfs("disk0:");
+    if(myproc() == initproc){
+        put_fs(current);
+        assert((current->fs_struct = fs_create()) != nullptr);
+        fs_count_inc(current->fs_struct);
+        char bootfs_name[] = "disk0:";
+        vfs_set_bootfs(bootfs_name);
+    }
     put_sem_queue(current);
     assert((current->sem_queue = sem_queue_create()) != nullptr);
     atomic_inc(&current->sem_queue->count);
-    int ret;
+    // char bootfs_name[] = "disk0:";
+    // vfs_set_bootfs(bootfs_name);
+    Stat __stat, *stat = &__stat;
+    Inode *inode;
+    begin_op();
+    ret = vfs_exec(path, &inode);
+    // assert(ret == 0);
+    if(ret != 0){
+        end_op();
+        return ret;
+    }
+    vop_fstat(inode, stat);
+    size_t load_size = stat->st_size;
+    size_t load_pages = PGROUNDUP(load_size) / PGSIZE;
+    Page *pages = alloc_pages(load_pages);
+    char *binary = (char *)page2kva(pages);
+    Iobuf __iob, *iob = iobuf_init(&__iob, binary, load_size, 0);
+    ret = vop_read(inode, iob);
+    assert(ret == 0 && iobuf_used(iob) == load_size);
+    vop_ref_dec(inode);
+    end_op();
+    char *s, *last;
+    for (last = s = path; *s; s++) {
+        if (*s == '/') last = s + 1;
+    }
+    if ((path = strchr(path, '/')) != nullptr) { *--last = 0; }
+    else{
+        path = nullptr;
+    }
+    safestrcpy(current->name, last, sizeof(current->name));
+    if (path != nullptr) { vfs_chdir(path); }
     ret = load_icode(current, binary);
     assert(ret == 0);
 
@@ -1029,7 +1039,7 @@ int do_execve(char *path, char **argv) {
     current->trapframe->epc = ((struct elfhdr *)binary)->entry;
     current->trapframe->sp = sp;
     current->trapframe->a0 = argc;
-    free_pages(pages, pages_num);
+    free_pages(pages, load_pages);
     return argc;
 }
 

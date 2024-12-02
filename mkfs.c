@@ -220,8 +220,9 @@ int main(int argc, char *argv[]) {
     for (i = 2; i < argc; i++) {
         int cmd_flag = 0;
         char *shortname = argv[i];
-        if(strncmp(argv[i], "code/user/cmd/", 14) == 0){
-            shortname = argv[i] + 5;
+        char *cmd_path = "code/user/output/";
+        if (strncmp(argv[i], cmd_path, strlen(cmd_path)) == 0) {
+            shortname = argv[i] + strlen(cmd_path);
             cmd_flag = 1;
         }
         if ((fd = open(argv[i], 0)) < 0) { bug("%s", argv[i]); }

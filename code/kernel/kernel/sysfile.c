@@ -1,4 +1,3 @@
-#include "console.h"
 #include "error.h"
 #include "file.h"
 #include "iobuf.h"
@@ -347,7 +346,7 @@ uint64_t sys_close(void) {
     return 0;
 }
 
-#define read_max_onece  SFS_MAXOPBLOCKS * SFS_BSIZE
+#define read_max_onece  (SFS_MAXOPBLOCKS * SFS_BSIZE)
 
 uint64_t sys_read(void) {
     int ret;
@@ -494,7 +493,10 @@ uint64_t sys_seek(void){
 uint64_t sys_fsync(void){
     int fd;
     arg_int(0, &fd);
-    return file_fsync(fd);
+    begin_op();
+    int ret = file_fsync(fd);
+    end_op();
+    return ret;
 }
 
 uint64_t sys_chdir(void){

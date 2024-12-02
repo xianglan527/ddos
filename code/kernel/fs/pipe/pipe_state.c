@@ -3,6 +3,7 @@
 #include "assert.h"
 #include "proc.h"
 #include "slab.h"
+#include "stdio.h"
 
 Pipe_state *pipe_state_create(void) {
     assert((int)PIPE_BUFSIZE > 128);

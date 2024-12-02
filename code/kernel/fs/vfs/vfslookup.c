@@ -69,6 +69,19 @@ int vfs_lookup(char *path, Inode **node_store){
     return 0;
 }
 
+int vfs_exec(char *path, Inode **node_store) {
+    int ret;
+    Inode *node;
+    if ((ret = vfs_get_bootfs(&node)) != 0) { return ret; }
+    if (*path != '\0') {
+        ret = vop_lookup(node, path, node_store);
+        vop_ref_dec(node);
+        return ret;
+    }
+    *node_store = node;
+    return 0;
+}
+
 int vfs_lookup_parent(char *path, Inode **node_store, char **endp){
     int ret;
     Inode *node;

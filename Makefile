@@ -12,6 +12,7 @@ GDB = gdb-multiarch
 CC = $(TOOLPREFIX)gcc
 AS = $(TOOLPREFIX)as
 LD = $(TOOLPREFIX)ld
+AR = $(TOOLPREFIX)ar
 DD = dd
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
@@ -66,25 +67,18 @@ swap.img:
 	${DD} if=/dev/zero of=$@ bs=1024M count=1
 	# ${DD} if=/dev/urandom of=$@ bs=1024M count=1
 
-user.img:
-	${DD} if=/dev/zero of=$@ bs=32M count=1
-	# ${DD} if=/dev/urandom of=$@ bs=32M count=1
 
 mkfs: mkfs.c 
 	gcc -g -Werror -Wall -o mkfs mkfs.c
 
-disk0.img: mkfs README
-	./mkfs disk0.img README
 
 QEMUOPTS = -machine virt -bios none -kernel ${KERNEL_ELF} -m 1024M -smp $(CPUS) -nographic
 QEMUOPTS += -global virtio-mmio.force-legacy=false
 QEMUOPTS += -device virtio-rng-device,bus=virtio-mmio-bus.0
 QEMUOPTS += -drive file=swap.img,if=none,format=raw,id=x0
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.1
-QEMUOPTS += -drive file=user.img,if=none,format=raw,id=x1
+QEMUOPTS += -drive file=disk0.img,if=none,format=raw,id=x1
 QEMUOPTS += -device virtio-blk-device,drive=x1,bus=virtio-mmio-bus.2
-QEMUOPTS += -drive file=disk0.img,if=none,format=raw,id=x2
-QEMUOPTS += -device virtio-blk-device,drive=x2,bus=virtio-mmio-bus.3
 
 
 # 添加C文件的编译规则
@@ -122,108 +116,119 @@ GDBPORT = $(shell expr `id -u` % 5000 + 25027)
 QEMUGDB = -gdb tcp::$(GDBPORT)
 
 # USER......................................................
+
 U=code/user
-USER_PATH = ${U}/output
+U_OUTPUT_PATH = ${U}/output
+U_CMD_PATH = ${U}/cmd
+U_LIBS_PATH = ${U}/libs
 
-U_INCLUDE = 
-U_SRCS_PATH =
-include code/user/Makefile
-
+U_INCLUDE = -I${U_LIBS_PATH} 
 U_INCLUDE += -I./code/kernel/config
 
 USER_DEFS += -DCPUS=$(CPUS)
 
-${USER_PATH}:
+${U_OUTPUT_PATH}:
 	@${MKDIR} $@
 
-$U/libs/usys.S : $U/libs/usys.py
-	python3 $U/libs/usys.py > $U/libs/usys.S
+# usys 目标生成 usys.S 文件
+$U/libs/usys.S: $U/usys.py
+	python3 $U/usys.py > $U/libs/usys.S
 
-U_SRCS_C := $(foreach dir,$(U_SRCS_PATH),$(wildcard $(dir)/*.c))
-U_SRCS_ASM := $(foreach dir,$(U_SRCS_PATH),$(wildcard $(dir)/*.S))
+# 获取 U_LIBS_PATH 下的所有 .c 文件
+USER_LIB_C_SRCS = $(wildcard ${U_LIBS_PATH}/*.c)
 
-ifneq ($(filter ${U}/libs/usys.S,$(U_SRCS_ASM)),${U}/libs/usys.S)
-U_SRCS_ASM += ${U}/libs/usys.S
-endif
+# 先执行 usys 目标，确保 usys.S 文件存在
+USER_LIB_ASM_SRCS = $(wildcard ${U_LIBS_PATH}/*.S) $U/libs/usys.S
 
-U_OBJS_ASM := $(addprefix ${USER_PATH}/, $(patsubst %.S, %.o, $(notdir ${U_SRCS_ASM})))
-U_OBJS_C   := $(addprefix ${USER_PATH}/, $(patsubst %.c, %.o, $(notdir ${U_SRCS_C})))
-U_OBJS = ${U_OBJS_ASM} ${U_OBJS_C}
-
-define U_compile_c_file
-$(CC) ${USER_DEFS} ${U_INCLUDE} ${CFLAGS} -c -o ${USER_PATH}/$(notdir $(1:.c=.o)) $(1)
-endef
-
-# 添加汇编文件的编译规则
-define U_compile_asm_file
-$(CC) ${U_INCLUDE} ${CFLAGS} -c -o ${USER_PATH}/$(notdir $(1:.S=.o)) $(1)
-endef
-
-# 生成所有C文件的目标文件
-U_compile_c: $(U_SRCS_C)
-	$(foreach src, $(U_SRCS_C), $(call U_compile_c_file, $(src));)
-
-# 生成所有汇编文件的目标文件
-U_compile_S: $(U_SRCS_ASM)
-	$(foreach src, $(U_SRCS_ASM), $(call U_compile_asm_file, $(src));)
-
-USER_ELF = ${USER_PATH}/user.elf
-USER_BIN = ${USER_PATH}/user.bin
+# ifneq ($(filter ${U}/libs/usys.S,$(U_SRCS_ASM)),${U}/libs/usys.S)
+# U_SRCS_ASM += ${U}/libs/usys.S
+# endif
 
 ULDFLAGS ?= -T user.ld
 
 ULDFLAGS += -z max-page-size=4096
 
-${USER_ELF}: ${USER_PATH} U_compile_c U_compile_S
-	$(LD) ${ULDFLAGS} -o ${USER_ELF} ${U_OBJS}
-	$(OBJDUMP) -S ${USER_ELF} > ${USER_PATH}/user.asm
-	$(OBJDUMP) -t ${USER_ELF} | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > ${USER_PATH}/user.sym
-	${OBJCOPY} -O binary ${USER_ELF} ${USER_BIN}
+# 获取 U_CMD_PATH 下的所有 .c 文件
+USER_CMD_SRCS = $(wildcard ${U_CMD_PATH}/*.c)
 
-user: ${USER_ELF}
+# 提取所有命令的目标对象文件
+USER_CMD_OBJS = $(addprefix ${U_OUTPUT_PATH}/, $(patsubst %.c, %.o, $(notdir ${USER_CMD_SRCS})))
+USER_LIB_C_OBJS = $(addprefix ${U_OUTPUT_PATH}/, $(patsubst %.c, %.o, $(notdir ${USER_LIB_C_SRCS})))
+USER_LIB_ASM_OBJS = $(addprefix ${U_OUTPUT_PATH}/, $(patsubst %.S, %.o, $(notdir ${USER_LIB_ASM_SRCS})))
 
-write_size_and_user_elf_to_fs: user
-	@if [ -f ${USER_ELF} ]; then \
-		size=$$(stat --format="%s" ${USER_ELF}); \
-		hex_size=$$(printf "%08x" $$size); \
-		le_hex_size=$$(echo $$hex_size | sed 's/\(..\)/\1 /g' | awk '{print $$4$$3$$2$$1}'); \
-		echo $$le_hex_size | xxd -r -p | dd of=user.img bs=1 count=4 conv=notrunc; \
-		dd if=${USER_ELF} of=user.img bs=512 seek=1 conv=notrunc; \
-	else \
-		echo "Error: ${USER_ELF} does not exist!"; \
-		exit 1; \
-	fi
+# 通用的编译规则，用于编译所有命令的 C 文件
+define CMD_compile_c_file
+$(CC) ${USER_DEFS} ${U_INCLUDE} ${CFLAGS} -c -o ${U_OUTPUT_PATH}/$(notdir $(1:.c=.o)) $(1)
+endef
 
-pp:
-	@echo "U_SRCS_C = $(U_SRCS_C)"
-	@echo "U_SRCS_ASM = $(U_SRCS_ASM)"
-	@echo "U_OBJS_ASM = $(U_OBJS_ASM)"
-	@echo "U_OBJS_C = $(U_OBJS_C)"
-	@echo "U_OBJS = $(U_OBJS)"
-	@echo "user.elf size = $$(stat --format="%s" ${USER_ELF})"
+# 生成所有命令的目标文件
+CMD_compile_c: $(USER_CMD_SRCS)
+	$(foreach src, $(USER_CMD_SRCS), $(call CMD_compile_c_file, $(src));)
+
+# 编译库中 C 文件的规则
+define U_compile_c_file
+$(CC) ${USER_DEFS} ${U_INCLUDE} ${CFLAGS} -c -o ${U_OUTPUT_PATH}/$(notdir $(1:.c=.o)) $(1)
+endef
+
+# 编译库中汇编文件的规则
+define U_compile_asm_file
+$(CC) ${U_INCLUDE} ${CFLAGS} -c -o ${U_OUTPUT_PATH}/$(notdir $(1:.S=.o)) $(1)
+endef
+
+# 生成库中的目标文件
+U_compile: $(USER_LIB_C_SRCS) $(USER_LIB_ASM_SRCS)
+	$(foreach src, $(USER_LIB_C_SRCS), $(call U_compile_c_file, $(src));)
+	$(foreach src, $(USER_LIB_ASM_SRCS), $(call U_compile_asm_file, $(src));)
+
+# 链接成静态库 libulib.a
+USER_LIB = ${U_OUTPUT_PATH}/libulib.a
+$(USER_LIB): U_compile
+	$(AR) rcs $(USER_LIB) $(USER_LIB_C_OBJS) $(USER_LIB_ASM_OBJS)
+
+# 通用的链接规则，用于生成每个命令的 ELF 文件，文件名前加上 "_"
+define CMD_link_elf_file
+$(LD) ${ULDFLAGS} -o ${U_OUTPUT_PATH}/_$(notdir $(1:.c=)) ${U_OUTPUT_PATH}/$(notdir $(1:.c=.o)) $(USER_LIB)
+$(OBJDUMP) -S ${U_OUTPUT_PATH}/_$(notdir $(1:.c=)) > ${U_OUTPUT_PATH}/$(notdir $(1:.c=)).asm
+$(OBJDUMP) -t ${U_OUTPUT_PATH}/_$(notdir $(1:.c=)) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > ${U_OUTPUT_PATH}/$(notdir $(1:.c=)).sym
+${OBJCOPY} -O binary ${U_OUTPUT_PATH}/_$(notdir $(1:.c=)) ${U_OUTPUT_PATH}/$(notdir $(1:.c=)).bin
+endef
+
+# 为所有命令生成 ELF 文件
+CMD_link_all: ${U_OUTPUT_PATH} CMD_compile_c $(USER_LIB)
+	$(foreach cmd, $(USER_CMD_SRCS), $(call CMD_link_elf_file, $(cmd));)
+
+cmd_target_path = $(addprefix ${U_OUTPUT_PATH}/_, $(notdir $(USER_CMD_SRCS:.c=)))
+
+# 默认目标，先执行 usys 目标，再执行 CMD_link_all
+user: $U/libs/usys.S CMD_link_all
+
+
+disk0.img: CMD_link_all mkfs README 
+	./mkfs disk0.img README $(cmd_target_path)
+
 #END USER......................................................................
 
 kernel: ${KERNEL_ELF}
 
-qemu: clean kernel swap.img user.img disk0.img write_size_and_user_elf_to_fs
+qemu: clean kernel swap.img disk0.img 
 	$(QEMU) $(QEMUOPTS)
 
 .gdbinit: .gdbinit.tmpl-riscv
 	sed "s/:1234/:$(GDBPORT)/" < $^ > $@
 
-qemu-gdb: clean kernel .gdbinit swap.img user.img disk0.img write_size_and_user_elf_to_fs
+qemu-gdb: clean kernel .gdbinit swap.img disk0.img 
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	@echo "$(QEMUGDB)"
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)	
 
-debug: clean kernel swap.img user.img disk0.img write_size_and_user_elf_to_fs
+debug: clean kernel swap.img disk0.img 
 	@echo "Press Ctrl-C and then input 'quit' to exit GDB and QEMU"
 	@echo "-------------------------------------------------------"
 	@${QEMU} ${QEMUOPTS} -s -S &
 	@${GDB} ${KERNEL_ELF} -q -x gdbinit
 
 clean:
-	rm -rf .gdbinit $K/test/usys.S $(KERNEL_PATH) kernel.p $U/libs/usys.S $(USER_PATH)
-all-clean:
-	rm -rf .gdbinit $K/test/usys.S $(KERNEL_PATH) kernel.p $U/libs/usys.S $(USER_PATH) *.img *.txt mkfs
+	rm -rf .gdbinit $K/test/usys.S $(KERNEL_PATH) kernel.p $U/libs/usys.S $(U_OUTPUT_PATH)
+all-clean: clean
+	rm -rf *.img *.txt mkfs
 

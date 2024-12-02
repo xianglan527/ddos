@@ -1336,13 +1336,22 @@ static void fprintf_test(char *s) {
 //////////////////////////////////////////////////////////////////////////
 static void fread_test(char *s) {
     /* type 'q' to stop reading */
-    char c;
-    printf("now reading...\n");
-    do {
-        int ret = read(0, &c, sizeof(c));
-        assert(ret == 1);
-        printf("type [%03d] %c.\n", c, c);
-    } while (c != 'q');
+    // char c;
+    // printf("now reading...\n");
+    // do {
+    //     int ret = read(0, &c, sizeof(c));
+    //     assert(ret == 1);
+    //     printf("type [%03d] %c.\n", c, c);
+    // } while (c != 'q');
+
+    char buf[100];
+    memset(buf, 0, 100);
+    int ret = read(0, buf, sizeof(buf));
+    printf("read %d from stdio buf is %s.\n", ret, buf);
+
+    memset(buf, 0, 100);
+    ret = read(0, buf, sizeof(buf));
+    printf("read %d from stdio buf is %s.\n", ret, buf);
 }
 //////////////////////////////////////////////////////////////////////////
 static void fread_test2(char *s) {
@@ -1683,7 +1692,7 @@ static void __fs_trunc_test() {
     assert(stat->st_size == 0 && S_ISREG(stat->st_mode) && stat->st_blocks == 0);
     safe_seek(fd, 0, LSEEK_SET);
     long ret = read(fd, buf_read, SFS_BSIZE);
-    assert(ret < 0);
+    assert(ret == 0);
     printf("read from %d, buf is :%s\n", fd, buf_read);
     close(fd);
     printf("__fs_trunc_test ok.\n");
@@ -2332,7 +2341,8 @@ static void fs_test13(char *s) {
     int fd, sz = (SFS_MAXOPBLOCKS + 2) * SFS_BSIZE;
     memset(fs_test13_buf, 5, sz);
     unlink("bigwrite");
-    for (sz = (SFS_MAXOPBLOCKS - 10) * SFS_BSIZE - 471; sz < (SFS_MAXOPBLOCKS + 2) * SFS_BSIZE; sz += SFS_BSIZE + 499) {
+    for (sz = (SFS_MAXOPBLOCKS - 10) * SFS_BSIZE - 471; sz < (SFS_MAXOPBLOCKS + 2) * SFS_BSIZE;
+         sz += SFS_BSIZE + 499) {
         fd = open("bigwrite", O_CREAT | O_RDWR);
         if (fd < 0) {
             printf("%s: cannot create bigwrite\n", s);
@@ -2425,27 +2435,29 @@ struct test {
     {pipe_test2, "pipe_test2"},
     {fs_basic_test, "fs_basic_test"},
     {fs_file_test, "fs_file_test"},
-    {fs_dir_test, "fs_dir_test"},
+    {fs_dir_test, "fs_dir_test"}, 
     {fs_link_test, "fs_link_test"},
-    {fs_test1, "fs_test1"},
+    {fs_test1, "fs_test1"},       
     {fs_test2, "fs_test2"},
-    {fs_test3, "fs_test3"},
+    {fs_test3, "fs_test3"},       
     {fs_test4, "fs_test4"},
-    {fs_test5, "fs_test5"},
+    {fs_test5, "fs_test5"},       
     {fs_test6, "fs_test6"},
-    {fs_test7, "fs_test7"},
+    {fs_test7, "fs_test7"},       
     {fs_test8, "fs_test8"},
-    {fs_test9, "fs_test9"},
+    {fs_test9, "fs_test9"},       
     {fs_test10, "fs_test10"},
-    {fs_test11, "fs_test11"},
+    {fs_test11, "fs_test11"},     
     {fs_symlink_test, "fs_symlink_test"},
-    {fs_test12, "fs_test12"},
+    {fs_test12, "fs_test12"},     
     {fs_test13, "fs_test13"},
-    {swaptest, "swaptest"},
+    {swaptest, "swaptest"},       
     {nullptr, nullptr},
 };
 
-void test_main() {
+int main(int argc, char *argv[]) {
+    prework();
+    printf("welcome usertest\n");
     bool fail = false;
     for (struct test *t = tests; t->s != nullptr; t++) {
         if (!run(t->f, t->s)) fail = true;
@@ -2455,4 +2467,5 @@ void test_main() {
     } else {
         printf("ALL TESTS PASSED\n");
     }
+    exit(0);
 }

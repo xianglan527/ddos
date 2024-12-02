@@ -78,8 +78,8 @@ static inline uint64_t get_cpuid() {
 
 void user_task() {
     // printf("cpu: %d pid: %d running user_task1\n", get_cpuid(), getpid());
-    char *args[] = {"usermain", "hello ddos.!!!", 0};
-    exec("usermain", args);
+    char *args[] = {"init", "hello ddos.!!!", 0};
+    exec("init", args);
 }
 
 void os_main(void) {

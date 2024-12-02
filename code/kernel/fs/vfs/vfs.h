@@ -116,6 +116,7 @@ int vfs_getcwd(Iobuf *iob);
  */
 int vfs_lookup(char *path, Inode **node_store);
 int vfs_lookup_parent(char *path, Inode **node_store, char **endp);
+int vfs_exec(char *path, Inode **node_store);
 /*
  * Misc
  *

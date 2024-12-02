@@ -2,7 +2,6 @@
 
 #include "assert.h"
 #include "config.h"
-#include "console.h"
 #include "error.h"
 #include "memlayout.h"
 #include "plic.h"
@@ -90,7 +89,7 @@ Trap_eum trap_work() {
 #ifdef PRINT_UART_CHAR
                 cprintf(" \n serial num is:%03x : serial char is %c\n", c, c);
 #endif
-                uart_intr(c);
+                // uart_intr(c);
                 extern void dev_stdin_write(char c);
                 dev_stdin_write(c);
             } break;

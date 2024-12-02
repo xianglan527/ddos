@@ -27,10 +27,6 @@ int virtio_blk_init(uint32_t base, int idx) {
         return ret;
     }
     else if (blk_device_num == 1) {
-        ret = virtio_blk_add(base, "user.img", idx);
-        blk_device_num++;
-        return ret;
-    } else if (blk_device_num == 2) {
         ret = virtio_blk_add(base, "disk0.img", idx);
         blk_device_num++;
         return ret;
