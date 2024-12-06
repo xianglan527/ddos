@@ -5,10 +5,12 @@
 #include "config.h"
 #include "error.h"
 #include "hash.h"
+#include "mbox.h"
 #include "memlayout.h"
 #include "pmm.h"
 #include "proc.h"
 #include "rand.h"
+#include "sched.h"
 #include "slab.h"
 #include "stdio.h"
 #include "string.h"
@@ -20,8 +22,7 @@
 #include "virtio.h"
 #include "virtio_device.h"
 #include "vmm.h"
-#include "mbox.h"
-#include "sched.h"
+#include "virtio-net.h"
 // #include "swapfs.h"
 
 static void virtio_mmio_rng_test(void) {
@@ -78,12 +79,27 @@ L1:
     panic("failed!\n");
 }
 
+void virtio_mmio_net_test(char *name) {
+    uint ret;
+    uchar buf[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0x08, 0x06,
+                0x00, 0x01, 0x08, 0x00, 0x06, 0x04, 0x00, 0x01, 0x12, 0x34, 0x56, 0x78, 0x90, 0xab,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0xa8, 0x01, 0x64};
+    cprintf("buf: %p\n", buf);
+    for (int i = 0; i < 200; ++i) {
+        ret = virtio_net_tx(buf, sizeof(buf), name);
+        // assert(ret == sizeof(buf));
+        cprintf("ret: %d\n", ret);
+    }
+    cprintf("done\n");
+}
 
 void kernel_test(){
 #ifdef PRINT_VIRTIO_DEVICE_TEST
     virtio_mmio_rng_test();
     rand_test();
     virtio_mmio_blk_test("swap.img");
+    virtio_mmio_net_test("net0");
+    while(1);
     // do_execve("user.elf", nullptr);
 #endif
 }

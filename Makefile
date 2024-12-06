@@ -7,15 +7,15 @@ include code/kernel/Makefile
 K=code/kernel
 
 TOOLPREFIX = riscv64-unknown-elf-
-QEMU = qemu-system-riscv64
-GDB = gdb-multiarch
-CC = $(TOOLPREFIX)gcc
-AS = $(TOOLPREFIX)as
-LD = $(TOOLPREFIX)ld
-AR = $(TOOLPREFIX)ar
-DD = dd
-OBJCOPY = $(TOOLPREFIX)objcopy
-OBJDUMP = $(TOOLPREFIX)objdump
+QEMU = sudo qemu-system-riscv64
+GDB = sudo gdb-multiarch
+DD = sudo dd
+OBJCOPY = sudo $(TOOLPREFIX)objcopy
+OBJDUMP = sudo $(TOOLPREFIX)objdump
+AR = sudo $(TOOLPREFIX)ar
+CC = sudo $(TOOLPREFIX)gcc
+AS = sudo $(TOOLPREFIX)as
+LD = sudo $(TOOLPREFIX)ld
 
 XCFLAGS = 
 DEFS += -DPRINT_KERNEL_INFO
@@ -79,6 +79,10 @@ QEMUOPTS += -drive file=swap.img,if=none,format=raw,id=x0
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.1
 QEMUOPTS += -drive file=disk0.img,if=none,format=raw,id=x1
 QEMUOPTS += -device virtio-blk-device,drive=x1,bus=virtio-mmio-bus.2
+QEMUOPTS += -netdev tap,id=net0,ifname=tap0,script=no,downscript=no
+QEMUOPTS += -object filter-dump,id=net0,netdev=net0,file=$(KERNEL_PATH)/packets.pcap
+QEMUOPTS += -device virtio-net-device,netdev=net0,mac=02:ca:fe:f0:0d:01,bus=virtio-mmio-bus.3
+
 
 
 # 添加C文件的编译规则
@@ -208,7 +212,13 @@ disk0.img: CMD_link_all mkfs README
 
 #END USER......................................................................
 
-kernel: ${KERNEL_ELF}
+.PHONY: uptap0.sh
+
+uptap0.sh:
+	@echo "Executing ./uptap0.sh..."
+	./uptap0.sh
+
+kernel: uptap0.sh ${KERNEL_ELF}
 
 qemu: clean kernel swap.img disk0.img 
 	$(QEMU) $(QEMUOPTS)
