@@ -17,8 +17,8 @@
 #include "swap.h"
 #include "syscall.h"
 #include "trap.h"
-#include "virtio-blk.h"
 #include "vfs.h"
+#include "virtio-blk.h"
 
 Cpu cpus[NCPU];
 Proc *initproc;
@@ -158,9 +158,7 @@ void set_proc_cpu(Proc *proc, Cpu *cpu) {
         release(&proc->lock);
         return;
     }
-    if (!list_empty(&proc->run_link)) { 
-        sched_class_dequeue(proc); 
-    }
+    if (!list_empty(&proc->run_link)) { sched_class_dequeue(proc); }
     sched_class_enqueue(proc);
     release(&proc->lock);
     // proc->set_cpu = nullptr;
@@ -276,12 +274,17 @@ void user_init(void (*start_routin)(void)) {
 }
 
 static void kernel_thread_ret(void (*start_roution)(void *), void *arg) {
+    Proc *p = myproc();
     release(&myproc()->lock);
     intr_on();
     start_roution(arg);
+    acquire(&myproc()->lock);
+    myproc()->state = ZOMBIE;
+    wakeup_queue(&myproc()->event.wait_queue, WT_INTERAUPTED, 1);
+    sched();
 }
 
-void kernel_thread_init(void (*start_roution)(void *), void *arg) {
+Proc *kernel_thread_init(void (*start_roution)(void *), void *arg) {
     // acquire(&procs_lock);
     Proc *proc = alloc_proc();
     assert(proc != nullptr);
@@ -296,10 +299,11 @@ void kernel_thread_init(void (*start_roution)(void *), void *arg) {
     assert((proc->fs_struct = fs_create()) != nullptr);
     fs_count_inc(proc->fs_struct);
     acquire(&procs_lock);
-    snprintf(proc->name, sizeof(proc->name), "%s%d", (char *)arg, proc->pid);
+    snprintf(proc->name, sizeof(proc->name), "kernel_proc%d",proc->pid);
     hash_proc(proc);
     set_links(proc);
     release(&procs_lock);
+    return proc;
 }
 
 int cpuid() {
@@ -333,8 +337,9 @@ void do_yield(void) {
     Proc *p = myproc();
     assert(p->state == RUNNING);
     acquire(&p->lock);
-    if (p->cpu->sc == &CFS_sched_class) { sched_class_insert_rbtree(p); }
-    else{
+    if (p->cpu->sc == &CFS_sched_class) {
+        sched_class_insert_rbtree(p);
+    } else {
         p->state = RUNNABLE;
     }
     p->need_resched = false;
@@ -463,7 +468,7 @@ void scheduler(void) {
             //         c->next->context.ra, myproc()->pid, mycpu() - cpus);
             c->proc = nullptr;
             release(&c->next->lock);
-            if (c->prev->state == ZOMBIE) { release(&procs_lock); }
+            if (c->prev->kernel_proc == false && c->prev->state == ZOMBIE) { release(&procs_lock); }
         } else {
             // release(&procs_lock);
             // int old_intr = intr_get();
@@ -482,6 +487,15 @@ void either_copy_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len
         copy_user2kernel(p->mm->pagetable, dst, src, len);
     } else {
         memmove(dst, (char *)src, len);
+    }
+}
+
+void either_copy_kernel2user(uint64_t dst, int user_dst, void *src, uint64_t len) {
+    Proc *p = myproc();
+    if (user_dst) {
+        copy_kernel2user(p->mm->pagetable, dst, src, len);
+    } else {
+        memmove((char *)dst, src, len);
     }
 }
 
@@ -557,7 +571,8 @@ void wakeup_proc(Proc *proc) {
     //     myproc()->pid,
     //             mycpu() - cpus, proc->pid, proc->state);
     if (proc->chan == proc && proc->state == SLEEPING) {
-        if (proc->cpu->sc == &CFS_sched_class) { sched_class_insert_rbtree(proc);
+        if (proc->cpu->sc == &CFS_sched_class) {
+            sched_class_insert_rbtree(proc);
         } else {
             proc->state = RUNNABLE;
         }
@@ -576,7 +591,7 @@ static void de_thread(Proc *proc) {
 static Proc *next_thread(Proc *proc) { return le2proc(list_next(&proc->thread_group), thread_group); }
 
 static void copy_mm(uint32_t clone_flags, Proc *proc) {
-    int ret = -1;  
+    int ret = -1;
     Proc *current = myproc();
     Mm_struct *mm, *oldmm = current->mm;
     if (oldmm == nullptr) { return; }
@@ -645,20 +660,16 @@ static void put_siginfo(Proc *proc) {
     }
 }
 
-static int copy_fs(uint32_t clone_flags, Proc *proc){
+static int copy_fs(uint32_t clone_flags, Proc *proc) {
     Fs_struct *fs_struct, *old_fs_struct = myproc()->fs_struct;
     assert(old_fs_struct != nullptr);
-    if(clone_flags & CLONE_FS){
+    if (clone_flags & CLONE_FS) {
         fs_struct = old_fs_struct;
         goto good_fs_struct;
     }
     int ret = -E_NO_MEM;
-    if((fs_struct = fs_create()) == nullptr){
-        goto bad_fs_struct;
-    }
-    if((ret = dup_fs(fs_struct, old_fs_struct)) != 0){
-        goto bad_dup_cleanup_fs;
-    }
+    if ((fs_struct = fs_create()) == nullptr) { goto bad_fs_struct; }
+    if ((ret = dup_fs(fs_struct, old_fs_struct)) != 0) { goto bad_dup_cleanup_fs; }
 good_fs_struct:
     fs_count_inc(fs_struct);
     proc->fs_struct = fs_struct;
@@ -669,19 +680,15 @@ bad_fs_struct:
     return ret;
 }
 
-static void put_fs(Proc *proc){
+static void put_fs(Proc *proc) {
     Fs_struct *fs_struct = proc->fs_struct;
-    if(fs_struct != nullptr){
-        if(fs_count_dec(fs_struct) == 0){
-            fs_destroy(fs_struct);
-        }
+    if (fs_struct != nullptr) {
+        if (fs_count_dec(fs_struct) == 0) { fs_destroy(fs_struct); }
     }
 }
 
 void may_killed(void) {
-    if (myproc() != nullptr && myproc()->flags & PF_EXITING) {
-        __do_exit();
-    }
+    if (myproc() != nullptr && myproc()->flags & PF_EXITING) { __do_exit(); }
 }
 
 int do_fork(uint32_t clone_flags, uintptr_t stack) {
@@ -971,7 +978,7 @@ int do_execve(char *path, char **argv) {
         current->mm = nullptr;
     }
     unlock_mm(mm);
-    if(myproc() == initproc){
+    if (myproc() == initproc) {
         put_fs(current);
         assert((current->fs_struct = fs_create()) != nullptr);
         fs_count_inc(current->fs_struct);
@@ -988,7 +995,7 @@ int do_execve(char *path, char **argv) {
     begin_op();
     ret = vfs_exec(path, &inode);
     // assert(ret == 0);
-    if(ret != 0){
+    if (ret != 0) {
         end_op();
         return ret;
     }
@@ -1006,8 +1013,9 @@ int do_execve(char *path, char **argv) {
     for (last = s = path; *s; s++) {
         if (*s == '/') last = s + 1;
     }
-    if ((path = strchr(path, '/')) != nullptr) { *--last = 0; }
-    else{
+    if ((path = strchr(path, '/')) != nullptr) {
+        *--last = 0;
+    } else {
         path = nullptr;
     }
     safestrcpy(current->name, last, sizeof(current->name));
@@ -1274,4 +1282,31 @@ int do_shmem(uintptr_t *addr_store, size_t len, uint32_t mmap_flags) {
 out_unlock:
     unlock_mm(mm);
     return ret;
+}
+
+void clean_kernel_proc(void) {
+    Proc *p;
+    List_entry *le = &proc_list;
+    acquire(&procs_lock);
+    while ((le = list_next(le)) != &proc_list) {
+        p = le2proc(le, list_link);
+        acquire(&p->lock);
+        if (p->state == ZOMBIE && p->kernel_proc == true) {
+            // unmap_range(p->mm->pagetable, TRAPFRAME(p->mm_index), TRAPFRAME(p->mm_index) + PGSIZE);
+            assert(mm_count(p->mm) == 0);
+            // exit_mmap(p->mm);
+            // put_pagetable(p->mm);
+            acquire(&proc_mm_list_lock);
+            list_del(&p->mm->proc_mm_link);
+            release(&proc_mm_list_lock);
+            mm_destroy(p->mm);
+            unhash_proc(p);
+            remove_links(p);
+            release(&p->lock);
+            free_proc(p);
+            continue;
+        }
+        release(&p->lock);
+    }
+    release(&procs_lock);
 }

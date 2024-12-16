@@ -216,12 +216,12 @@ int ipc_mbox_send(int id, Mboxbuf *buf, ulong timeout) {
     int ret = -E_INVAL;
     lock_mm(mm);
     {
-        either_copy_user2kernel(local_buf, 1, (uint64_t)buf, sizeof(*buf));
+        either_copy_user2kernel(local_buf, !current->kernel_proc, (uint64_t)buf, sizeof(*buf));
         size_t len = local_buf->len;
         local_data = kmalloc(len);
         assert(local_data != nullptr);
         if (0 < len && len <= MAX_MSG_BYTES) {
-            either_copy_user2kernel(local_data, 1, (uint64_t)local_buf->data, len);
+            either_copy_user2kernel(local_data, !current->kernel_proc, (uint64_t)local_buf->data, len);
             ret = ((msg = load_msg(local_data, len)) != nullptr) ? 0 : -E_NO_MEM;
         }
     }
@@ -305,7 +305,7 @@ int ipc_mbox_recv(int id, Mboxbuf *buf, ulong timeout) {
     size_t size;
     lock_mm(mm);
     {
-        either_copy_user2kernel(local_buf, 1, (uint64_t)buf, sizeof(*buf));
+        either_copy_user2kernel(local_buf, !current->kernel_proc, (uint64_t)buf, sizeof(*buf));
         size = local_buf->size;
     }
     unlock_mm(mm);
@@ -319,13 +319,15 @@ int ipc_mbox_recv(int id, Mboxbuf *buf, ulong timeout) {
     lock_mm(mm);
     {
         size_t len = msg->bytes;
-        copy_kernel2user(mm->pagetable, (uintptr_t)&buf->len, (char *)&msg->bytes, sizeof(msg->bytes));
-        copy_kernel2user(mm->pagetable, (uintptr_t)&buf->from, (char *)&msg->pid, sizeof(msg->pid));
+        either_copy_kernel2user((uintptr_t)&buf->len, !current->kernel_proc, (char *)&msg->bytes,
+                                sizeof(msg->bytes));
+        either_copy_kernel2user((uintptr_t)&buf->from, !current->kernel_proc, (char *)&msg->pid,
+                                sizeof(msg->pid));
         local_data = kmalloc(len);
         store_msg(msg, local_data);
         // vm_print(mm->pagetable);
         // print_vma_list(mm);
-        copy_kernel2user(mm->pagetable, (uintptr_t)local_buf->data, (char *)local_data, len);
+        either_copy_kernel2user((uintptr_t)local_buf->data, !current->kernel_proc, (char *)local_data, len);
     }
     unlock_mm(mm);
     kfree(local_data);
@@ -363,7 +365,7 @@ int ipc_mbox_info(int id, Mboxinfo *info) {
     local_info->has_receiver = !wait_queue_empty(&(mbox->receivers));
     release(&mbox->msg_mbox_lock);
     lock_mm(mm);
-    copy_kernel2user(mm->pagetable, (uintptr_t)info, (char *)local_info, sizeof(*local_info));
+    either_copy_kernel2user((uintptr_t)info, !myproc()->kernel_proc, (char *)local_info, sizeof(*local_info));
     unlock_mm(mm);
     return 0;
 }

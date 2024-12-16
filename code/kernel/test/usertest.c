@@ -81,8 +81,10 @@ void user_task() {
     char *args[] = {"init", "hello ddos.!!!", 0};
     exec("init", args);
 }
+extern void net_main(void *arg);
 
 void os_main(void) {
     user_init(user_task);
     kernel_thread_init(daemon_proc, "daemon_proc");
+    kernel_thread_init(net_main, "net_main");
 }

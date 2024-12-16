@@ -26,6 +26,10 @@ int virtio_net_init(uint32_t base, int idx) {
         list_init(&nets_list);
         ret = virtio_net_add(base, "net0", idx);
         net_device_num++;
+        return ret;
+    } else if (net_device_num == 1) {
+        ret = virtio_net_add(base, "net1", idx);
+        net_device_num++;
         net_init_done = true;
         return ret;
     }
@@ -239,6 +243,7 @@ uint32_t virtio_net_tx(uint8_t *buf, uint32_t buf_len, char *net_name){
 }
 
 void virtio_net_intr(int idx){
+    // return;
     if(net_init_done == false) return;
     struct virtio_net *net = find_net_by_index(idx);
     assert(net != nullptr);
@@ -251,4 +256,11 @@ void virtio_net_intr(int idx){
         virtio_net_rx(buf, net);
         dsb();
     }
+}
+
+int virtio_net_close(char *netname) {
+    struct virtio_net *net = find_net_by_name(netname);
+    virtio_mmio_set_status(VIRTIO_STAT_FAILED, net->idx);
+    virtio_mmio_reset_device(net->idx);
+    return 0;
 }

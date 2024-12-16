@@ -122,5 +122,5 @@ struct virtio_net *find_net_by_index(int idx);
 uint32_t virtio_net_rx(uint8_t *buf, struct virtio_net *net);
 uint32_t virtio_net_tx(uint8_t *buf, uint32_t buf_len, char *net_name);
 void virtio_net_intr(int idx);
-
+int virtio_net_close(char *netname);
 #endif 

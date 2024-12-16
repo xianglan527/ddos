@@ -187,7 +187,7 @@ void kerneltrap() {
     // indicate that it effectively resolves the bug
     if (trap_enum == TRAP_SOFT_INT && myproc() != 0 && myproc()->state == RUNNING) {
         sched_class_proc_tick(myproc());
-        if (myproc()->need_resched == true && myproc()->kernel_proc == true) { 
+        if (myproc()->need_resched == true /*&& myproc()->kernel_proc == true*/) { 
             do_yield(); 
         }
         if(!list_empty(&myproc()->siginfo_list)){

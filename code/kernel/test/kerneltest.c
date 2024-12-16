@@ -98,8 +98,8 @@ void kernel_test(){
     virtio_mmio_rng_test();
     rand_test();
     virtio_mmio_blk_test("swap.img");
-    virtio_mmio_net_test("net0");
-    while(1);
+    virtio_mmio_net_test("net1");
+    // while(1);
     // do_execve("user.elf", nullptr);
 #endif
 }
@@ -107,12 +107,15 @@ void kernel_test(){
 void daemon_proc(void *arg) {
     Proc *p = myproc();
     kernel_test();
+    virtio_net_close("net0");
+    virtio_net_close("net1");
     while (1) {
         // cprintf("%s running %s ... all test passed\n", p->name, (const char *)arg);
         kswap_main();
         mbox_cleanup();
         updata_cpu_rq_load();
         load_balance(3);
+        clean_kernel_proc();
         do_sleep(10);
         // task_delay(DELAY);
     }

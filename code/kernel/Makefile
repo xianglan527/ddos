@@ -13,6 +13,7 @@ K_SRCS_PATH += \
 		code/kernel/fs \
 		code/kernel/syn \
 		code/kernel/schedule \
+		code/kernel/net \
 
 
 K_INCLUDE += \
@@ -27,3 +28,4 @@ K_INCLUDE += \
 		-I./code/kernel/fs \
 		-I./code/kernel/syn \
 		-I./code/kernel/schedule \
+	    -I./code/kernel/net \

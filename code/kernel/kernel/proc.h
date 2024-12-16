@@ -177,9 +177,10 @@ Cpu *mycpu(void);
 Proc *alloc_proc(void);
 void proc_init(void);
 void user_init(void (*start_routin)(void));
-void kernel_thread_init(void (*start_roution)(void *), void *arg);
+Proc *kernel_thread_init(void (*start_roution)(void *), void *arg);
 Proc *find_proc(int pid);
 void either_copy_user2kernel(void *dst, int user_src, uint64_t src, uint64_t len);
+void either_copy_kernel2user(uint64_t dst, int user_dst, void *src, uint64_t len);
 void sleeping(void *chan, Spinlock *lk);
 void wakeup_proc(Proc *proc);
 void do_wakeup(void *chan);
@@ -206,4 +207,5 @@ void ipc_add_timer(Timer *timer);
 void ipc_del_timer(Timer *timer);
 Timer *ipc_timer_init(ulong timeout, ulong *saved_ticks, Timer *timer);
 int ipc_check_timeout(ulong timeout, ulong saved_ticks);
+void clean_kernel_proc(void);
 #endif

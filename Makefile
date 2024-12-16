@@ -79,9 +79,14 @@ QEMUOPTS += -drive file=swap.img,if=none,format=raw,id=x0
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.1
 QEMUOPTS += -drive file=disk0.img,if=none,format=raw,id=x1
 QEMUOPTS += -device virtio-blk-device,drive=x1,bus=virtio-mmio-bus.2
+
 QEMUOPTS += -netdev tap,id=net0,ifname=tap0,script=no,downscript=no
-QEMUOPTS += -object filter-dump,id=net0,netdev=net0,file=$(KERNEL_PATH)/packets.pcap
+QEMUOPTS += -object filter-dump,id=net0,netdev=net0,file=$(KERNEL_PATH)/packets0.pcap
 QEMUOPTS += -device virtio-net-device,netdev=net0,mac=02:ca:fe:f0:0d:01,bus=virtio-mmio-bus.3
+
+QEMUOPTS += -netdev tap,id=net1,ifname=tap1,script=no,downscript=no
+QEMUOPTS += -object filter-dump,id=net1,netdev=net1,file=$(KERNEL_PATH)/packets1.pcap
+QEMUOPTS += -device virtio-net-device,netdev=net1,mac=02:ca:fe:f0:0d:02,bus=virtio-mmio-bus.4
 
 
 
@@ -212,13 +217,13 @@ disk0.img: CMD_link_all mkfs README
 
 #END USER......................................................................
 
-.PHONY: uptap0.sh
+.PHONY: uptap.sh
 
-uptap0.sh:
-	@echo "Executing ./uptap0.sh..."
-	./uptap0.sh
+uptap.sh:
+	@echo "Executing ./uptap.sh..."
+	./uptap.sh
 
-kernel: uptap0.sh ${KERNEL_ELF}
+kernel: uptap.sh ${KERNEL_ELF}
 
 qemu: clean kernel swap.img disk0.img 
 	$(QEMU) $(QEMUOPTS)

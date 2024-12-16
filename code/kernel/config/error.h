@@ -28,6 +28,14 @@
 #define E_NOTEMPTY 24     // Directory is Not Empty
 #define E_LOOP 25         // file is a symlink
 #define E_OPEN 26        // file not open
+
+/*  net error
+
+
+
+end of net error */ 
+
+
 /* the maximum allowed */
 #define MAXERROR 26
 #endif 
