@@ -82,4 +82,14 @@ static inline bool list_contains(List_entry *head, List_entry *elem){
     return false;
 }
 
+static inline void list_join(List_entry *list1, List_entry *list2) {
+    if (list_empty(list2)) { return; }
+    list1->prev->next = list2->next;
+    list2->next->prev = list1->prev;
+
+    list2->prev->next = list1;
+    list1->prev = list2->prev;
+    list_init(list2);
+}
+
 #endif

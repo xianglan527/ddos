@@ -3,7 +3,7 @@
 #include "debug.h"
 
 int net_device_init(void){
-    net_tx_rx_create();
+    // net_tx_rx_create();
     return NET_OK;
 }
 #define DBG_TEST DBG_LEVEL_INFO
@@ -15,8 +15,8 @@ void net_main(void *arg){
     net_init();
     net_start();
     net_device_init();
-    dbg_info(DBG_TEST, "info");
-    dbg_warning(DBG_TEST, "warning");
-    dbg_error(DBG_TEST, "error");
+    // dbg_info(DBG_TEST, "info");
+    // dbg_warning(DBG_TEST, "warning");
+    // dbg_error(DBG_TEST, "error");
     while(1);
 }

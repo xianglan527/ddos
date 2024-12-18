@@ -29,13 +29,13 @@
 #define E_LOOP 25         // file is a symlink
 #define E_OPEN 26        // file not open
 
-/*  net error
-
-
-
-end of net error */ 
+//  net error
+#define E_NET_ERROR 27    //general net error
+#define E_NET_ERROR_SIZE 28
+#define E_NET_ERROR_PARAM 29
+//end of net error
 
 
 /* the maximum allowed */
-#define MAXERROR 26
+#define MAXERROR 29
 #endif 

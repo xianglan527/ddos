@@ -32,7 +32,7 @@ static inline bool is_full(Pipe_state *state) { return state->p_wpos - state->p_
 static bool pipe_state_wait(Wait_queue *queue, Pipe_state *state) {
     acquire(&state->pipe_state_lock);
     Wait __wait, *wait = &__wait;
-    wait_current_set(queue, wait, WT_KBD);
+    wait_current_set(queue, wait, WT_PIPE);
     sleeping(myproc(), &state->pipe_state_lock);
     wait_current_del(queue, wait);
     release(&state->pipe_state_lock);

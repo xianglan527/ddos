@@ -3,6 +3,7 @@
 
 #include "types.h"
 #include "net_config.h"
+#include "error.h"
 
 #define NET_OK 0;
 

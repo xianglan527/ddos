@@ -136,6 +136,9 @@ static inline int proc_vruntime_compare_value(Rb_node *node1, void *value) {
 #define WT_DISK_BUF (0x00000201 | WT_INTERAUPTED)
 #define WT_LOG (0x00000202 | WT_INTERAUPTED)
 
+#define WT_PKTBUF (0x00000400 | WT_INTERAUPTED)
+
+
 #define le2proc(le, member) to_struct((le), Proc, member);
 
 extern List_entry proc_list;

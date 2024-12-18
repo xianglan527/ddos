@@ -203,7 +203,7 @@ uint32_t virtio_net_rx(uint8_t *buf, struct virtio_net *net) {
     }
     int nn = net->rx_used_idx % NET_QSIZE;
     net->rx_used_idx += 1;
-    cprintf("rx idx: %d\n", nn);
+    cprintf("%s rx idx: %d\n",net->net_name, nn);
     int idx = net->rx_vr.used->ring[nn].id;
     int rlen = net->rx_vr.used->ring[nn].len - 10;
     cprintf("rlen: %d\n", rlen);
@@ -226,7 +226,7 @@ uint32_t virtio_net_tx(uint8_t *buf, uint32_t buf_len, char *net_name){
     idx[0] = net->tx_avail_idx++ % NET_QSIZE;
     idx[1] = net->tx_avail_idx++ % NET_QSIZE;
 
-    cprintf("tx idx: %d, %d\n", idx[0], idx[1]);
+    cprintf("%s tx idx: %d, %d\n", net_name, idx[0], idx[1]);
     virtio_vring_fill_desc(net->tx_vr.desc + idx[0], (uint64_t)&net->tx_hdr[idx[0]],
                            sizeof(struct virtio_net_txhdr), VRING_DESC_F_NEXT, idx[1]);
     virtio_vring_fill_desc(net->tx_vr.desc + idx[1], (uint64_t)buf, buf_len, 0, 0);

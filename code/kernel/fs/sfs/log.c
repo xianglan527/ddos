@@ -134,7 +134,7 @@ static void log_wait_nolock() {
 }
 
 static void log_wakeup_nolock() {
-    if (!wait_queue_empty(&log.log_wait_queue)) { wakeup_first(&log.log_wait_queue, WT_PIPE, 1); }
+    if (!wait_queue_empty(&log.log_wait_queue)) { wakeup_first(&log.log_wait_queue, WT_LOG, 1); }
 }
 
 void begin_op(void) {

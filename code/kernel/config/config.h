@@ -8,6 +8,7 @@
 #define __PRINT_VIRTIO_DEVICE_INFO 1
 #define __PRINT_VIRTIO_DEVICE_TEST 0
 #define __PRINT_MM_TEST 1
+#define __PRINT_NET_TEST 1
 
 #if defined(PRINT_KERNEL_INFO) && (__PRINT_TRICKS)
 #define PRINT_TRICKS
@@ -27,6 +28,10 @@
 
 #if defined(PRINT_KERNEL_INFO) && (__PRINT_VIRTIO_DEVICE_TEST)
 #define PRINT_VIRTIO_DEVICE_TEST
+#endif
+
+#if defined(PRINT_KERNEL_INFO) && (__PRINT_NET_TEST)
+#define PRINT_NET_TEST
 #endif
 
 #if defined(PRINT_KERNEL_INFO) && (__PRINT_MM_TEST)
