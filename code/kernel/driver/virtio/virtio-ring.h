@@ -32,8 +32,8 @@ struct vring_used_elem {
 };
 struct vring_used {
 	uint16_t flags;
-	uint16_t idx;
-	struct vring_used_elem ring[];
+    volatile uint16_t idx;
+    struct vring_used_elem ring[];
 };
 
 struct vring {

@@ -4,6 +4,8 @@
 TAP_IFS="tap0 tap1"             # 定义所有 TAP 接口
 BR_IF="br0"
 LAN_IF="ens33"
+BR_IP="192.168.74.2/24"         # br0 的 IP 地址和子网掩码
+GATEWAY="192.168.74.1"          # 默认网关
 
 # 错误处理函数
 error_exit() {
@@ -48,6 +50,28 @@ if ! ip link show "$BR_IF" >/dev/null 2>&1; then
 else
     echo "$BR_IF 已存在，确保已禁用 STP..."
     sudo ip link set dev "$BR_IF" type bridge stp_state 0
+fi
+
+# 分配 IP 地址给 br0（如果尚未分配）
+if ! ip addr show "$BR_IF" | grep -q "$BR_IP"; then
+    echo "为 $BR_IF 分配 IP 地址 $BR_IP..."
+    sudo ip addr add "$BR_IP" dev "$BR_IF"
+    if [ $? -ne 0 ]; then
+        error_exit "无法为 $BR_IF 设置 IP 地址。"
+    fi
+else
+    echo "$BR_IF 已具有 IP 地址 $BR_IP。"
+fi
+
+# 设置默认网关（如果尚未设置）
+if ! ip route | grep -q "default via $GATEWAY"; then
+    echo "设置默认网关为 $GATEWAY..."
+    sudo ip route add default via "$GATEWAY"
+    if [ $? -ne 0 ]; then
+        error_exit "无法设置默认网关。"
+    fi
+else
+    echo "默认网关已设置为 $GATEWAY。"
 fi
 
 # 确保物理接口 (ens33) 存在并保持其 IP 地址

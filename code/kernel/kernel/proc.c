@@ -299,7 +299,7 @@ Proc *kernel_thread_init(void (*start_roution)(void *), void *arg) {
     assert((proc->fs_struct = fs_create()) != nullptr);
     fs_count_inc(proc->fs_struct);
     acquire(&procs_lock);
-    snprintf(proc->name, sizeof(proc->name), "kernel_proc%d",proc->pid);
+    snprintf(proc->name, sizeof(proc->name), "kernel_proc%d", proc->pid);
     hash_proc(proc);
     set_links(proc);
     release(&procs_lock);
@@ -1211,9 +1211,10 @@ Timer *ipc_timer_init(ulong timeout, ulong *saved_ticks, Timer *timer) {
 }
 
 int ipc_check_timeout(ulong timeout, ulong saved_ticks) {
+    ulong delt;
     if (timeout != 0) {
-        ulong delt = (ulong)(ticks - saved_ticks);
-        if (delt >= timeout) { return -E_TIMEOUT; }
+        delt = (ulong)(ticks - saved_ticks);
+        if (delt >= timeout - 1) { return -E_TIMEOUT; }
     }
     return -1;
 }

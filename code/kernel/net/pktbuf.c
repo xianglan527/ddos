@@ -174,7 +174,7 @@ int pktbuf_add_header(Pktbuf *buf, size_t size, bool cont) {
         if (cont) {
             if (size > PKTBUF_BLK_SIZE) {
                 warn("size is too big %ul > %ul", size, PKTBUF_BLK_SIZE);
-                return -E_NET_ERROR_SIZE;
+                return -E_NET_SIZE;
             }
             pktblock_alloc_list(buf, size, 1);
             buf->total_size += size;
@@ -222,7 +222,7 @@ int pktbuf_remove_header(Pktbuf *buf, size_t size) {
 }
 
 int pktbuf_resize(Pktbuf *buf, size_t to_size) {
-    if (to_size == buf->total_size) { return NET_OK }
+    if (to_size == buf->total_size) { return NET_OK;}
     // if (to_size == 0) {
     //     pktbuf_free(buf);
     //     return NET_OK
@@ -291,11 +291,11 @@ int pktbuf_join(Pktbuf *dest, Pktbuf *src) {
 int pktbuf_set_cont(Pktbuf *buf, size_t size) {
     if (size > buf->total_size) {
         dbg_error(DBG_BUF, "size too big > %lu", buf->total_size);
-        return -E_NET_ERROR_SIZE;
+        return -E_NET_SIZE;
     }
     if (size > PKTBUF_BLK_SIZE) {
         dbg_error(DBG_BUF, "size too big > %lu", PKTBUF_BLK_SIZE);
-        return -E_NET_ERROR_SIZE;
+        return -E_NET_SIZE;
     }
     acquire(&pktbuf_head->pktbuf_lock);
     assert(!list_empty(&buf->pktblk_list));
@@ -370,13 +370,13 @@ static void move_forward_nolock(Pktbuf *buf, size_t size){
 }
 
 int pktbuf_write(Pktbuf *buf, uint8_t *src, size_t size) {
-    if (!src || !size) { return -E_NET_ERROR_PARAM; }
+    if (!src || !size) { return -E_NET_PARAM; }
     acquire(&buf->pktblk_lock);
     size_t remain_size = buf->total_size - buf->pos;
     if (remain_size < size) {
         dbg_error(DBG_BUF, "size errorL %d < %d", remain_size, size);
         release(&buf->pktblk_lock);
-        return -E_NET_ERROR_SIZE;
+        return -E_NET_SIZE;
     }
     while(size > 0){
         size_t blk_size = cur_blk_remain_nolock(buf);
@@ -396,7 +396,7 @@ int pktbuf_read(Pktbuf *buf, uint8_t *dest, size_t size) {
     size_t remain_size = buf->total_size - buf->pos;
     if (remain_size < size) {
         dbg_error(DBG_BUF, "size errorL %d < %d", remain_size, size);
-        return -E_NET_ERROR_SIZE;
+        return -E_NET_SIZE;
         release(&buf->pktblk_lock);
     }
     while (size > 0) {
@@ -419,7 +419,7 @@ int pktbuf_seek(Pktbuf *buf, off_t offset){
     }
     if ((offset < 0) || (offset >= buf->total_size)) {
         release(&buf->pktblk_lock);
-        return -E_NET_ERROR_SIZE;
+        return -E_NET_SIZE;
     }
     assert(!list_empty(&buf->pktblk_list));
     size_t move_size;
@@ -447,7 +447,7 @@ int pktbuf_copy(Pktbuf *dest, Pktbuf *src, size_t size){
     if (dest->total_size - dest->pos < size || src->total_size - src->pos < size) {
         release(&src->pktblk_lock);
         release(&dest->pktblk_lock);
-        return -E_NET_ERROR_SIZE;
+        return -E_NET_SIZE;
     }
     while(size){
         size_t dest_remain = cur_blk_remain_nolock(dest);
@@ -461,17 +461,17 @@ int pktbuf_copy(Pktbuf *dest, Pktbuf *src, size_t size){
     }
     release(&src->pktblk_lock);
     release(&dest->pktblk_lock);
-    return NET_OK
+    return NET_OK;
 }
 
 int pktbuf_fill(Pktbuf *buf, uint8_t v, int size){
     if(!size){
-        return -E_NET_ERROR_PARAM;
+        return -E_NET_PARAM;
     }
     acquire(&buf->pktblk_lock);
     if (buf->total_size - buf->pos < size) {
         release(&buf->pktblk_lock);
-        return -E_NET_ERROR_SIZE;
+        return -E_NET_SIZE;
     }
     while(size){
           size_t blk_size = cur_blk_remain_nolock(buf);

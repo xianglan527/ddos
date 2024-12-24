@@ -30,12 +30,16 @@
 #define E_OPEN 26        // file not open
 
 //  net error
-#define E_NET_ERROR 27    //general net error
-#define E_NET_ERROR_SIZE 28
-#define E_NET_ERROR_PARAM 29
+#define E_NET 27    //general net error
+#define E_NET_SIZE 28 //net error size
+#define E_NET_PARAM 29    //net error parameter
+#define E_NET_STATE 30    //net error state
+#define E_NET_MBOX 31    // net error mbox
+#define E_NET_CONFIG 32     //net error config
+#define E_NET_SYS 33     // net error system
 //end of net error
 
 
 /* the maximum allowed */
-#define MAXERROR 29
+#define MAXERROR 33
 #endif 

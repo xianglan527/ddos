@@ -13,9 +13,10 @@
 #include "virtio-mmio.h"
 #include "virtio-ring.h"
 #include "virtio.h"
+#include "slab.h"
 
 List_entry nets_list;
-#define le2net(le, member) to_struct((le), struct virtio_net, member)
+// #define le2net(le, member) to_struct((le), struct virtio_net, member)
 static int net_device_num = 0;
 
 static bool net_init_done = false;
@@ -142,9 +143,14 @@ int virtio_net_add(uint32_t base, char *name, int idx) {
     cprintf("net device status:0x%02x\n", virtio_mmio_get_status(idx));
     net->idx = idx;
     virtio_net_cfg(net);
+    assert(net->mtu >= 46);
+    net->recv_buf = kmalloc(net->mtu + 14);
+    assert(net->recv_buf != nullptr);
+    net->tran_buf = kmalloc(net->mtu + 14);
+    assert(net->tran_buf != nullptr);
     snprintf(net->net_name, sizeof(net->net_name), "%s", name);
     initlock(&net->net_lock, name);
-    list_add(&nets_list, &net->net_list);
+    list_add(&nets_list, &net->net_link);
     return 0;
 }
 
@@ -160,7 +166,7 @@ void virtio_net_cfg(struct virtio_net *net) {
     if(net->mtu == 0){
         net->mtu = 1500;
     }
-#ifdef PRINT_VIRTIO_DEVICE_INFO
+#ifdef PRINT_VIRTIO_NET_RX_TX_INFO
     cprintf("mac: %02x:%02x:%02x:%02x:%02x:%02x\n", cfg->mac[0], cfg->mac[1], cfg->mac[2], cfg->mac[3],
            cfg->mac[4], cfg->mac[5]);
     cprintf("status: %d\n", cfg->status);
@@ -178,7 +184,7 @@ struct virtio_net *find_net_by_name(char *name) {
     List_entry *list, *le;
     list = le = &nets_list;
     while ((le = list_next(le)) != list) {
-        struct virtio_net *net = le2net(le, net_list);
+        struct virtio_net *net = le2virtio_net(le);
         if (strcmp(net->net_name, name) == 0) { return net; }
     }
     return nullptr;
@@ -188,14 +194,15 @@ struct virtio_net *find_net_by_index(int idx) {
     List_entry *list, *le;
     list = le = &nets_list;
     while ((le = list_next(le)) != list) {
-        struct virtio_net *net = le2net(le, net_list);
+        struct virtio_net *net = le2virtio_net(le);
         if (net->idx == idx) { return net; }
     }
     return nullptr;
 }
 
-uint32_t virtio_net_rx(uint8_t *buf, struct virtio_net *net) {
+uint32_t virtio_net_rx(Virtio_net *net) {
     assert(net != nullptr);
+    uint8_t *buf = net->recv_buf;
     int qnum = 0;
     acquire(&net->net_lock);
     if (net->rx_used_idx == net->rx_vr.used->idx) {  // not rx pkt
@@ -203,13 +210,17 @@ uint32_t virtio_net_rx(uint8_t *buf, struct virtio_net *net) {
     }
     int nn = net->rx_used_idx % NET_QSIZE;
     net->rx_used_idx += 1;
+#ifdef PRINT_VIRTIO_NET_RX_TX_INFO
     cprintf("%s rx idx: %d\n",net->net_name, nn);
-    int idx = net->rx_vr.used->ring[nn].id;
-    int rlen = net->rx_vr.used->ring[nn].len - 10;
-    cprintf("rlen: %d\n", rlen);
+#endif
+    uint32_t idx = net->rx_vr.used->ring[nn].id;
+    uint32_t rlen = net->rx_vr.used->ring[nn].len - 10;
     memcpy(buf, net->rx_pkt[idx].pkt, rlen);
-    for (int i = 0; i < 32; ++i) { cprintf("%02x%s", buf[i], ((i + 1) % 16 == 0) ? "\n" : " "); }
+#ifdef PRINT_VIRTIO_NET_RX_TX_INFO
+    cprintf("rlen: %d\n", rlen);
+    for (int i = 0; i < rlen; ++i) { cprintf("%02x%s", buf[i], ((i + 1) % 16 == 0) ? "\n" : " "); }
     cprintf("\n");
+#endif
     virtio_vring_add_avail(net->rx_vr.avail, idx, NET_QSIZE);
     virtio_mmio_set_notify(qnum, net->idx);
     release(&net->net_lock);
@@ -225,8 +236,11 @@ uint32_t virtio_net_tx(uint8_t *buf, uint32_t buf_len, char *net_name){
 
     idx[0] = net->tx_avail_idx++ % NET_QSIZE;
     idx[1] = net->tx_avail_idx++ % NET_QSIZE;
-
-    cprintf("%s tx idx: %d, %d\n", net_name, idx[0], idx[1]);
+#ifdef PRINT_VIRTIO_NET_RX_TX_INFO
+    cprintf("%s tx idx: %d, %d   tlen: %d\n", net_name, idx[0], idx[1], buf_len);
+    for (int i = 0; i < buf_len; ++i) { cprintf("%02x%s", buf[i], ((i + 1) % 16 == 0) ? "\n" : " "); }
+    cprintf("\n");
+#endif
     virtio_vring_fill_desc(net->tx_vr.desc + idx[0], (uint64_t)&net->tx_hdr[idx[0]],
                            sizeof(struct virtio_net_txhdr), VRING_DESC_F_NEXT, idx[1]);
     virtio_vring_fill_desc(net->tx_vr.desc + idx[1], (uint64_t)buf, buf_len, 0, 0);
@@ -247,15 +261,14 @@ void virtio_net_intr(int idx){
     if(net_init_done == false) return;
     struct virtio_net *net = find_net_by_index(idx);
     assert(net != nullptr);
-
-    uint8_t buf[VIRTIO_NET_PKT_LEN] = {0};
-
+    // uint8_t buf[VIRTIO_NET_PKT_LEN] = {0};
+    // memset(net->recv_buf, 0, net->mtu + 14);
     virtio_mmio_set_ack(idx);
     dsb();
-    while (net->rx_used_idx != net->rx_vr.used->idx) {
-        virtio_net_rx(buf, net);
-        dsb();
-    }
+    // while (net->rx_used_idx != net->rx_vr.used->idx) {
+    //     virtio_net_rx(net);
+    //     dsb();
+    // }
 }
 
 int virtio_net_close(char *netname) {
@@ -264,3 +277,33 @@ int virtio_net_close(char *netname) {
     virtio_mmio_reset_device(net->idx);
     return 0;
 }
+
+// int virtio_net_open(char *netname) {
+//     struct virtio_net *net = find_net_by_name(netname);
+//     if (!net) {
+//         cprintf("virtio_net_open: no such net device %s\n", netname);
+//         return -1;
+//     }
+//     uint32_t status = virtio_mmio_get_status(net->idx);
+//     if (status & VIRTIO_STAT_FAILED) {
+//         virtio_mmio_reset_device(net->idx);
+//         status = VIRTIO_STAT_ACKNOWLEDGE | VIRTIO_STAT_DRIVER;
+//         virtio_mmio_set_status(status, net->idx);
+//         uint64_t features = VIRTIO_NET_F_MTU | VIRTIO_NET_F_MAC | VIRTIO_NET_F_STATUS | VIRTIO_F_VERSION_1 |
+//                             VIRTIO_F_RING_RESET;
+//         virtio_mmio_set_guest_features(features, net->idx);
+//         status |= VIRTIO_STAT_FEATURES_OK;
+//         virtio_mmio_set_status(status, net->idx);
+//         uint32_t new_status = virtio_mmio_get_status(net->idx);
+//         if (!(new_status & VIRTIO_STAT_FEATURES_OK)) {
+//             cprintf("virtio_net_open: features not accepted by device\n");
+//             return -2;
+//         }
+//         status |= VIRTIO_STAT_DRIVER_OK;
+//         virtio_mmio_set_status(status, net->idx);
+//         dsb();
+//     }
+
+//     cprintf("virtio_net_open: device %s opened\n", netname);
+//     return 0;
+// }

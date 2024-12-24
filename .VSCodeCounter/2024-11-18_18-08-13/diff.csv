@@ -1,7 +1,0 @@
-"filename", "language", "C", "comment", "blank", "total"
-"c:\Users\45228\Desktop\share\ddos\code\kernel\fs\sfs\sfs_inode.c", "C", -4, 4, 0, 0
-"c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\inode.c", "C", 3, 0, 0, 3
-"c:\Users\45228\Desktop\share\ddos\code\kernel\fs\vfs\vfsfile.c", "C", -1, 2, 0, 1
-"c:\Users\45228\Desktop\share\ddos\code\user\libs\file.h", "C", 1, 0, 0, 1
-"c:\Users\45228\Desktop\share\ddos\code\user\test\usertests.c", "C", 208, 20, 9, 237
-"Total", "-", 207, 26, 9, 242

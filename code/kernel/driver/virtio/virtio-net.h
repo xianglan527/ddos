@@ -94,6 +94,9 @@ struct virtio_net_txhdr {
     // uint16_t padding_reserved; (Only if VIRTIO_NET_F_HASH_REPORT negotiated)
 } __attribute__((packed));
 
+#define VIRTIO_NET_MAC_SIZE 6
+
+typedef struct virtio_net Virtio_net;
 struct virtio_net {
     // disk command headers.
     // one-for-one with descriptors, for convenience.
@@ -102,24 +105,28 @@ struct virtio_net {
     struct vring rx_vr;
     struct vring tx_vr;
     uint32_t qsize;  // queue0 size
-    uint16_t rx_used_idx;
+    volatile uint16_t rx_used_idx;
     uint16_t rx_avail_idx;
     uint16_t tx_used_idx;
     uint16_t tx_avail_idx;
     int idx;
-    uint8_t mac[6];
+    uint8_t mac[VIRTIO_NET_MAC_SIZE];
     uint16_t mtu;
     char net_name[64];
     Spinlock net_lock;
-    List_entry net_list;
+    List_entry net_link;
+    uint8_t *recv_buf;
+    uint8_t *tran_buf;
 };
+
+#define le2virtio_net(le) to_struct((le), Virtio_net, net_link)
 
 int virtio_net_init(uint32_t base, int idx);
 int virtio_net_add(uint32_t base, char *name, int idx);
 void virtio_net_cfg(struct virtio_net *net);
 struct virtio_net *find_net_by_name(char *name);
 struct virtio_net *find_net_by_index(int idx);
-uint32_t virtio_net_rx(uint8_t *buf, struct virtio_net *net);
+uint32_t virtio_net_rx(Virtio_net *net);
 uint32_t virtio_net_tx(uint8_t *buf, uint32_t buf_len, char *net_name);
 void virtio_net_intr(int idx);
 int virtio_net_close(char *netname);
