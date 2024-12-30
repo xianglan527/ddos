@@ -5,6 +5,7 @@
 #include "loop.h"
 #include "ether.h"
 #include "nettool.h"
+#include "arp.h"
 
 int net_init(void){
     dbg_info(DBG_INIT, "init net...");
@@ -14,6 +15,7 @@ int net_init(void){
     netif_init();
     loop_init();
     ether_init();
+    arp_init();
     return NET_OK;
 }
 

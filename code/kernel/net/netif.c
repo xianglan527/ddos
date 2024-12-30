@@ -153,6 +153,7 @@ int netif_set_active(Netif *netif) {
     assert(netif->rx_mbox_id == NETIF_MBOX_ID_NULL);
     netif->rx_mbox_id = ipc_mbox_init(RX_TX_RX_MSG_CNT);
     netif->state = NETIF_ACTIVE;
+    unlock_netif(netif);
     if (netif->link_layer) {
         int ret = netif->link_layer->open(netif);
         if (ret < 0) {
@@ -161,7 +162,6 @@ int netif_set_active(Netif *netif) {
             return ret;
         }
     }
-    unlock_netif(netif);
     acquire(&netif_list_lock);
     if (!netif_default && (netif->type != NETIF_TYPE_LOOP)) { netif_default = netif; }
     release(&netif_list_lock);
@@ -354,7 +354,8 @@ Pktbuf *netif_get_in(Netif *netif, ulong tmo) {
 int netif_out(Netif *netif, Ipaddr *ipaddr, Pktbuf *buf) {
     int ret;
     if (netif->link_layer) {
-        ret = ether_raw_out(netif, NET_PROTOCOL_ARP, ether_broadcast_addr(), buf);
+        // ret = ether_raw_out(netif, NET_PROTOCOL_ARP, ether_broadcast_addr(), buf);
+        ret = netif->link_layer->out(netif, ipaddr, buf);
         if (ret < 0) {
             dbg_warning(DBG_NETIF, "netif link out error: %d", ret);
             return ret;

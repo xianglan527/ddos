@@ -70,6 +70,8 @@ struct netif {
 };
 #define le2netif(le) to_struct((le), Netif, netif_link)
 
+#define dump_ip(module, msg, ip)   {if (module >= DBG_LEVEL_INFO) dump_ip_buf(msg, (ip)->a_addr); }
+
 static void lock_netif(Netif *netif) { down(&netif->sem); }
 
 static void unlock_netif(Netif *netif) { up(&netif->sem); }

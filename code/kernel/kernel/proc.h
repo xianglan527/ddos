@@ -161,11 +161,27 @@ struct cpu {
 
 extern Cpu cpus[NCPU];
 
+#define TIMER_RELOAD (1 << 0)
+
+typedef struct timer Timer;
+typedef void (*Timer_func)(Timer *timer);
+
 typedef struct timer Timer;
 struct timer{
-    ulong expires;
-    Proc *proc;
+    enum{
+        TIMER_PROC,
+        TIMER_FUNC,
+    }timer_type;
+    volatile ulong expires;
+    union{
+        Proc *proc;
+        Timer_func func;
+    };
+    void *arg;
+    ulong reload;
+    uint32_t flags;
     List_entry timer_link;
+    // bool in_timer_func_list
 };
 
 #define le2timer(le, member)    to_struct((le), Timer, member)
@@ -199,6 +215,7 @@ void timer_start_init(void);
 void run_timer_list(void);
 void timer_dump(void);
 int do_sleep(ulong time);
+Timer *timer_func_add(Timer_func func, void *arg, ulong time, uint32_t flags);
 void may_killed(void);
 void do_exit_thread(int error_code);
 int do_mmap(uintptr_t *addr_store, size_t len, uint32_t mmap_flags);
@@ -206,6 +223,8 @@ int do_munmap(uintptr_t addr, size_t len);
 int do_shmem(uintptr_t *addr_store, size_t len, uint32_t mmap_flags);
 void set_proc_cpu(Proc *proc, Cpu *cpu);
 void clear_proc_setcpu(Proc *proc);
+void del_func_timer(Timer *timer);
+void exec_timer_func(void);
 void ipc_add_timer(Timer *timer);
 void ipc_del_timer(Timer *timer);
 Timer *ipc_timer_init(ulong timeout, ulong *saved_ticks, Timer *timer);

@@ -216,6 +216,7 @@ void daemon_proc(void *arg) {
         updata_cpu_rq_load();
         load_balance(3);
         clean_kernel_proc();
+        exec_timer_func();
         do_sleep(10);
         // task_delay(DELAY);
     }

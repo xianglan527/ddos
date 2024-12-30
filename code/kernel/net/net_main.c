@@ -5,6 +5,8 @@
 #include "pktbuf.h"
 #include "string.h"
 #include "printf.h"
+#include "proc.h"
+#include "stdio.h"
 
 extern Netif_ops netdev_ops;
 extern List_entry nets_list;
@@ -20,6 +22,8 @@ NetConfig net_configs[] = {
     {"net0", "192.168.74.3", "255.255.255.0", "192.168.74.1"},
     {"net1", "192.168.74.4", "255.255.255.0", "192.168.74.1"},
 };
+
+char *friend0_ip = "192.168.74.2";
 
 NetConfig *get_net_config(const char *net_name) {
     for (int i = 0; i < sizeof(net_configs) / sizeof(NetConfig); i++) {
@@ -46,10 +50,17 @@ int net_device_init(void) {
         ipaddr_from_str(&gw, config->gw);
         netif_set_addr(netif, &ip, &mask, &gw);
         netif_set_active(netif);
-        netif_set_active(netif);
         Pktbuf *buf = pktbuf_alloc(32);
         pktbuf_fill(buf, 0x53, 32);
-        netif_out(netif, nullptr, buf);
+
+        Ipaddr dest;
+        ipaddr_from_str(&dest, friend0_ip);
+        netif_out(netif, &dest, buf);
+
+        ipaddr_from_str(&dest, "192.168.74.255");
+        buf = pktbuf_alloc(32);
+        pktbuf_fill(buf, 0xA5, buf->total_size);
+        netif_out(netif, &dest, buf);
     }
     return NET_OK;
 }
@@ -140,7 +151,38 @@ void pktbuf_test(void) {
     pktbuf_free(buf);
 }
 
-void net_test() { pktbuf_test(); }
+void timer0_func(Timer *timer) {
+    static int count = 1;
+    cprintf("this is %s: %d\n", (char *)timer->arg, count++);
+}
+
+void timer1_func(Timer *timer) {
+    static int count = 1;
+    cprintf("this is %s: %d\n", (char *)timer->arg, count++);
+}
+
+void timer2_func(Timer *timer) {
+    static int count = 1;
+    cprintf("this is %s: %d\n", (char *)timer->arg, count++);
+}
+
+void timer3_func(Timer *timer) {
+    static int count = 1;
+    cprintf("this is %s: %d\n", (char *)timer->arg, count++);
+}
+
+void timer_func_test(){
+    Timer *t0 = timer_func_add(timer0_func, "t0", 200, 0);
+    Timer *t1 = timer_func_add(timer1_func, "t1", 500, TIMER_RELOAD);
+    Timer *t2 = timer_func_add(timer2_func, "t2", 500, TIMER_RELOAD);
+    Timer *t3 = timer_func_add(timer3_func, "t3", 1000, TIMER_RELOAD);
+    del_func_timer(t1);
+}
+
+void net_test() { 
+    pktbuf_test();
+    timer_func_test();
+}
 
 void net_main(void *arg) {
     net_init();

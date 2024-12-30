@@ -5,6 +5,7 @@
 #include "protocol.h"
 #include "stdio.h"
 #include "nettool.h"
+#include "arp.h"
 
 extern Spinlock print_struct_lock;
 
@@ -30,9 +31,11 @@ void ether_pkt_dump(char* title, Ether_pkt* pkt, size_t size) {
 #define ether_pkt_dump(title, pkt, size)
 #endif
 
-static int ether_open(Netif* netif) { return NET_OK; }
+static int ether_open(Netif* netif) { return arp_make_gratuitous(netif); }
 
-static void ether_close(Netif* netif) {}
+static void ether_close(Netif* netif) {
+    return arp_clear(netif);
+}
 
 static int is_pkt_ok(Ether_pkt* frame, size_t total_size) {
     if (total_size > (sizeof(Ether_hdr) + ETH_MTU)) {
@@ -56,11 +59,33 @@ static int ether_in(Netif* netif, Pktbuf* buf) {
         return ret;
     }
     ether_pkt_dump("ether in", pkt, buf->total_size);
-    pktbuf_free(buf);
+
+    switch (x_ntohs(pkt->hdr.protocol)) {
+        case NET_PROTOCOL_ARP: {
+            ret = pktbuf_remove_header(buf, sizeof(Ether_hdr));
+            if (ret < 0) {
+                dbg_error(DBG_ETHER, "remove ether header failed, packet size: %d", buf->total_size);
+                return -E_NET_SIZE;
+            }
+            return arp_in(netif, buf);
+        }
+        default: dbg_warning(DBG_ETHER, "unknown packet, ignore it."); return -E_NET_NOT_SUPPORT;
+    }
+
     return NET_OK; 
 }
 
-static int ether_out(Netif* netif, Ipaddr* dest, Pktbuf* buf) { return NET_OK; }
+static int ether_out(Netif* netif, Ipaddr* dest, Pktbuf* buf) { 
+   if (ipaddr_is_equal(&netif->ipaddr, dest)){
+       return ether_raw_out(netif, NET_PROTOCOL_IPv4, (uint8_t*)netif->hwaddr.addr, buf);
+   }
+   const uint8_t* hwaddr = arp_find(netif, dest);
+   if (hwaddr) {
+       return ether_raw_out(netif, NET_PROTOCOL_IPv4, hwaddr, buf);
+   }else{
+       return arp_resolve(netif, dest, buf);
+   }
+}
 
 int ether_init(void) {
     static Link_layer link_layer = {

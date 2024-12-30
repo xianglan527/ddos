@@ -28,9 +28,12 @@ struct pktbuf{
     Pktblk *cur_blk;  
     uint8_t *blk_offset;
     Spinlock pktblk_lock;  // read & write & seek lock
+    List_entry pktbuf_wait_link;  //wait arp request pkt
 };
 
 #define le2pktbuf(le) to_struct((le), Pktbuf, pktbuf_link)
+
+#define le2pktbuf_wait(le) to_struct((le), Pktbuf, pktbuf_wait_link)
 
 typedef struct pktbuf_head Pktbuf_head;
 struct pktbuf_head {
@@ -66,5 +69,4 @@ int pktbuf_read(Pktbuf *buf, uint8_t *dest, size_t size);
 int pktbuf_seek(Pktbuf *buf, off_t offset);
 int pktbuf_copy(Pktbuf *dest, Pktbuf *src, size_t size);
 int pktbuf_fill(Pktbuf *buf, uint8_t v, int size);
-
 #endif

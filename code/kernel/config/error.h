@@ -37,9 +37,12 @@
 #define E_NET_MBOX 31    // net error mbox
 #define E_NET_CONFIG 32     //net error config
 #define E_NET_SYS 33     // net error system
+#define E_NET_NONE 34    // net error no resources
+#define E_NET_NOT_SUPPORT 35    // net error not support
+#define E_NET_FULL 36   // net error not support
 //end of net error
 
 
 /* the maximum allowed */
-#define MAXERROR 33
+#define MAXERROR 36
 #endif 

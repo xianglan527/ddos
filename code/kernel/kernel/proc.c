@@ -24,6 +24,7 @@ Cpu cpus[NCPU];
 Proc *initproc;
 List_entry proc_list;
 static List_entry timer_list;
+static List_entry timer_func_list;
 List_entry proc_mm_list;
 
 #define HASH_SHIFT 10
@@ -46,6 +47,7 @@ struct bitmap *kernel_stack_bitmap = nullptr;
 // to prevent deadlocks,the locking order must be procs_lock--->process lock.
 Spinlock procs_lock;
 Spinlock timer_lock;
+Spinlock timer_func_lock;
 Spinlock print_struct_lock;
 Spinlock proc_mm_list_lock;
 
@@ -81,7 +83,9 @@ repeat:
 
 void timer_start_init(void) {
     list_init(&timer_list);
+    list_init(&timer_func_list);
     initlock(&timer_lock, "timer_lock");
+    initlock(&timer_func_lock, "timer_func_lock");
     timer_init_ok = true;
 }
 
@@ -1076,16 +1080,29 @@ out_unlock:
     return 0;
 }
 
-static inline Timer *timer_init(Timer *timer, Proc *proc, ulong expires) {
+static inline Timer *timer_proc_init(Timer *timer, Proc *proc, ulong expires) {
+    timer->timer_type = TIMER_PROC;
     timer->expires = expires;
     timer->proc = proc;
     list_init(&timer->timer_link);
     return timer;
 }
 
+static inline Timer *timer_func_init(Timer *timer, Timer_func func, void *arg, ulong expires,
+                                     uint32_t flags) {
+    timer->timer_type = TIMER_FUNC;
+    timer->expires = expires;
+    timer->func = func;
+    timer->arg = arg;
+    timer->expires = timer->reload = expires;
+    timer->flags = flags;
+    list_init(&timer->timer_link);
+    return timer;
+}
+
 static void add_timer(Timer *timer) {
     // acquire(&timer_lock);
-    assert(timer->expires > 0 && timer->proc != nullptr);
+    assert(timer->expires > 0);
     assert(list_empty(&timer->timer_link));
     List_entry *le = list_next(&timer_list);
     while (le != &timer_list) {
@@ -1102,7 +1119,6 @@ static void add_timer(Timer *timer) {
 }
 
 static void del_timer(Timer *timer) {
-    // acquire(&timer_lock);
     if (!list_empty(&timer->timer_link)) {
         if (timer->expires != 0) {
             List_entry *le = list_next(&timer->timer_link);
@@ -1111,101 +1127,163 @@ static void del_timer(Timer *timer) {
                 next->expires += timer->expires;
             }
         }
-        // cprintf("eeeeeeeeeeeee current pid is %d current cpu is %d\n", myproc()->pid, mycpu() - cpus);
         list_del_init(&timer->timer_link);
     }
-    // release(&timer_lock);
-    // timer_dump();
 }
 
 void timer_dump(void) {
-    acquire(&timer_lock);
+    int index = 0;
     List_entry *le = list_next(&timer_list);
-    if (le == &timer_list) {
-        release(&timer_lock);
-        return;
-    }
+    if (le == &timer_list) { return; }
+    acquire(&print_struct_lock);
     cprintf("\ntimer dump....................................\n\n");
     while (le != &timer_list) {
         Timer *timer = le2timer(le, timer_link);
-        cprintf("timer's proc pid is : %d  expires is %lu \n", timer->proc->pid, timer->expires);
+        if (timer->timer_type == TIMER_PROC) {
+            cprintf("%d timer's proc pid is : %d  expires is %lu \n", index++, timer->proc->pid,
+                    timer->expires);
+        } else {
+            assert(timer->timer_type == TIMER_FUNC);
+            cprintf("%d timer's func address is : %x  expires is %lu \t", index++, timer->func,
+                    timer->expires);
+            cprintf("is reload : %s  reload value : %lu\n", timer->flags & TIMER_RELOAD ? "true" : "false",
+                    timer->reload);
+        }
         le = list_next(le);
     }
     cprintf("\nend of timer dump.............................\n");
-    release(&timer_lock);
+    release(&print_struct_lock);
+}
+
+void timer_func_dump(void) {
+    int index = 0;
+    // acquire(&timer_lock);
+    List_entry *le = list_next(&timer_func_list);
+    if (le == &timer_func_list) { return; }
+    acquire(&print_struct_lock);
+    cprintf("\n......timer_func dump....................................\n\n");
+    while (le != &timer_func_list) {
+        Timer *timer = le2timer(le, timer_link);
+        assert(timer->timer_type == TIMER_FUNC);
+        cprintf("%d timer's func address is : %x  expires is %lu \t", index++, timer->func, timer->expires);
+        cprintf("is reload : %s  reload value : %lu\n", timer->flags & TIMER_RELOAD ? "true" : "false",
+                timer->reload);
+        le = list_next(le);
+    }
+    cprintf("\n......end of timer_func dump.............................\n");
+    release(&print_struct_lock);
 }
 
 void run_timer_list(void) {
     if (timer_init_ok == false) return;
-    // timer_dump();
-    // cprintf("00000000000  current cpu is %d\n", mycpu() - cpus);
+    List_entry free_list;
+    list_init(&free_list);
     acquire(&timer_lock);
-    // cprintf("111111111111  current cpu is %d\n",  mycpu() - cpus);
     List_entry *le = list_next(&timer_list);
     if (le != &timer_list) {
         Timer *timer = le2timer(le, timer_link);
-        assert(timer->expires > 0);
-        timer->expires--;
+        if (timer->expires > 0) { timer->expires--; }
         while (timer->expires == 0) {
             le = list_next(le);
-            Proc *proc = timer->proc;
-            // assert((proc->wait_state & WT_TIMER) == WT_TIMER);
-            if (proc->wait_state != 0) { assert(proc->wait_state & WT_INTERAUPTED); }
-            wakeup_proc(proc);
-            // cprintf("rrrrrrrrrrrrrrr proc pid is %d current cpu is %d\n", proc->pid, mycpu() - cpus);
-            list_del_init(&timer->timer_link);
-            // del_timer(timer);
+            if (timer->timer_type == TIMER_PROC) {
+                Proc *proc = timer->proc;
+                // assert((proc->wait_state & WT_TIMER) == WT_TIMER);
+                if (proc->wait_state != 0) { assert(proc->wait_state & WT_INTERAUPTED); }
+                wakeup_proc(proc);
+                list_del_init(&timer->timer_link);
+            } else {
+                assert(timer->timer_type == TIMER_FUNC);
+                list_del_init(&timer->timer_link);
+                list_add_after(&free_list, &timer->timer_link);
+            }
             if (le == &timer_list) { break; }
             timer = le2timer(le, timer_link);
         }
     }
-    // cprintf("2222222222222  current cpu is %d\n", mycpu() - cpus);
     release(&timer_lock);
+    acquire(&timer_func_lock);
+    while ((le = list_next(&free_list)) != &free_list) {
+        list_del(le);
+        list_add_after(&timer_func_list, le);
+    }
+    release(&timer_func_lock);
 }
 
 int do_sleep(ulong time) {
     if (time == 0) return 0;
     Proc *current = myproc();
     acquire(&timer_lock);
-    Timer __timer, *timer = timer_init(&__timer, current, time);
+    Timer __timer, *timer = timer_proc_init(&__timer, current, time);
     current->wait_state = WT_TIMER;
-    // cprintf("333333333333333 current pid is %d current cpu is %d\n", current->pid, mycpu() - cpus);
     add_timer(timer);
-    // cprintf("44444444444444 current pid is %d current cpu is %d\n", current->pid, mycpu() - cpus);
-    // timer_dump();
-    // acquire(&current->lock);
-    // cprintf("ddddddddddddddd current pid is %d current cpu is %d\n", current->pid, mycpu() - cpus);
     sleeping(current, &timer_lock);
-    // cprintf("ooooooooooooooo current pid is %d current cpu is %d\n", current->pid, mycpu() - cpus);
-    // release(&current->lock);
-    // cprintf("555555555555555 current pid is %d current cpu is %d\n", current->pid, mycpu() - cpus);
     del_timer(timer);
-    // cprintf("666666666666666 current pid is %d current cpu is %d\n", current->pid, mycpu() - cpus);
     release(&timer_lock);
-    // cprintf("777777777777777 current pid is %d current cpu is %d\n", current->pid, mycpu() - cpus);
     return 0;
 }
 
-void ipc_add_timer(Timer *timer) {
-    if (timer != nullptr) {
-        // acquire(&timer_lock);
-        add_timer(timer);
-        // release(&timer_lock);
+Timer *timer_func_add(Timer_func func, void *arg, ulong time, uint32_t flags) {
+    if (time == 0) {
+        warn("timer_func_add time should not equal 0");
+        return nullptr;
     }
+    Timer *__timer = kmalloc(sizeof(Timer));
+    assert(__timer != nullptr);
+    acquire(&timer_lock);
+    Timer *timer = timer_func_init(__timer, func, arg, time, flags);
+    add_timer(timer);
+    release(&timer_lock);
+    return timer;
+}
+
+void del_func_timer(Timer *timer) {
+    acquire(&timer_lock);
+    acquire(&timer_func_lock);
+    del_timer(timer);
+    release(&timer_func_lock);
+    release(&timer_lock);
+    assert(timer->timer_type == TIMER_FUNC);
+    kfree(timer);
+}
+
+void exec_timer_func(void) {
+    List_entry free_list, *le;
+    list_init(&free_list);
+    acquire(&timer_func_lock);
+    while ((le = list_next(&timer_func_list)) != &timer_func_list) {
+        list_del_init(le);
+        list_add_after(&free_list, le);
+    }
+    release(&timer_func_lock);
+    list_for_each(le, &free_list) {
+        Timer *timer = le2timer(le, timer_link);
+        assert(timer->timer_type == TIMER_FUNC && timer->expires == 0);
+        timer->func(timer);
+    }
+    acquire(&timer_lock);
+     while ((le = list_next(&free_list)) != &free_list){
+         Timer *timer = le2timer(le, timer_link);
+         list_del_init(le);
+         if (timer->flags & TIMER_RELOAD) {
+             timer->expires = timer->reload;
+             add_timer(timer);
+         }
+     }
+    release(&timer_lock);
+}
+
+void ipc_add_timer(Timer *timer) {
+    if (timer != nullptr) { add_timer(timer); }
 }
 
 void ipc_del_timer(Timer *timer) {
-    if (timer != nullptr) {
-        // acquire(&timer_lock);
-        del_timer(timer);
-        // release(&timer_lock);
-    }
+    if (timer != nullptr) { del_timer(timer); }
 }
 
 Timer *ipc_timer_init(ulong timeout, ulong *saved_ticks, Timer *timer) {
     if (timeout != 0) {
         *saved_ticks = ticks;
-        return timer_init(timer, myproc(), timeout);
+        return timer_proc_init(timer, myproc(), timeout);
     }
     return nullptr;
 }
