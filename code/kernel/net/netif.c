@@ -158,7 +158,6 @@ int netif_set_active(Netif *netif) {
         int ret = netif->link_layer->open(netif);
         if (ret < 0) {
             dbg_error(DBG_NETIF, "active error.");
-            unlock_netif(netif);
             return ret;
         }
     }
@@ -370,3 +369,5 @@ int netif_out(Netif *netif, Ipaddr *ipaddr, Pktbuf *buf) {
         return netif->ops->xmit(netif);
     }
 }
+
+Netif *netif_get_default(void) { return netif_default; }

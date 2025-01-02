@@ -57,3 +57,17 @@ int ipaddr_is_direct_broadcast(Ipaddr *ipaddr, Ipaddr *netmask){
 }
 
 int ipaddr_is_any(Ipaddr *ip) { return ip->q_addr == 0; }
+
+Ipaddr ipaddr_get_net(Ipaddr* ipaddr, Ipaddr* netmask) {
+    Ipaddr netid;
+    netid.q_addr = ipaddr->q_addr & netmask->q_addr;
+    return netid;
+}
+
+int ipaddr_is_match(Ipaddr* dest, Ipaddr* src, Ipaddr* netmask){
+    Ipaddr dest_netid = ipaddr_get_net(dest, netmask);
+    Ipaddr src_netid = ipaddr_get_net(src, netmask);
+    if (ipaddr_is_local_broadcast(dest)) { return 1; }
+    if (ipaddr_is_direct_broadcast(dest, netmask) && ipaddr_is_equal(&dest_netid, &src_netid)) { return 1; }
+    return ipaddr_is_equal(dest, src);
+}

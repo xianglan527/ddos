@@ -6,6 +6,7 @@
 #include "stdio.h"
 #include "nettool.h"
 #include "arp.h"
+#include "ipv4.h"
 
 extern Spinlock print_struct_lock;
 
@@ -68,6 +69,20 @@ static int ether_in(Netif* netif, Pktbuf* buf) {
                 return -E_NET_SIZE;
             }
             return arp_in(netif, buf);
+        }
+        case NET_PROTOCOL_IPv4: {
+            arp_update_from_ipbuf(netif, buf);
+            ret = pktbuf_remove_header(buf, sizeof(Ether_hdr));
+            if (ret < 0) {
+                dbg_error(DBG_ETHER, "remove ethernet header failed, packet size: %d", buf->total_size);
+                return -E_NET_SIZE;
+            }
+            ret = ipv4_in(netif, buf);
+            if (ret < 0) {
+                dbg_warning(DBG_ETHER, "process in buf failed. ret=%d", ret);
+                return ret;
+            }
+            break;
         }
         default: dbg_warning(DBG_ETHER, "unknown packet, ignore it."); return -E_NET_NOT_SUPPORT;
     }

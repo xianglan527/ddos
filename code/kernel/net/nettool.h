@@ -35,4 +35,5 @@ uint32_t swap_u32(uint32_t v);
 #define x_ntohl(v) (v)
 #endif
 int tools_init(void);
+uint16_t checksum16(void* buf, uint16_t len, uint32_t pre_sum, bool complement);
 #endif

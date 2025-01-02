@@ -94,4 +94,5 @@ int netif_put_in(Netif *netif, Pktbuf *pktbuf, ulong tmo);
 Pktbuf *netif_get_out(Netif *netif, ulong tmo);
 Pktbuf *netif_get_in(Netif *netif, ulong tmo);
 int netif_out(Netif *netif, Ipaddr *ipaddr, Pktbuf *buf);
+Netif *netif_get_default(void);
 #endif

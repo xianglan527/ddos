@@ -40,9 +40,12 @@
 #define E_NET_NONE 34    // net error no resources
 #define E_NET_NOT_SUPPORT 35    // net error not support
 #define E_NET_FULL 36   // net error not support
+#define E_NET_DATA 37   // net error data
+#define E_NET_MATCH 38   // net error match
+#define E_NET_CHECKSUM 39   // net error checksum
 //end of net error
 
 
 /* the maximum allowed */
-#define MAXERROR 36
+#define MAXERROR 39
 #endif 

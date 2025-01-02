@@ -7,6 +7,7 @@
 #include "error.h"
 #include "net_config.h"
 #include "string.h"
+#include "ipv4.h"
 
 Proc *net_work_thread = nullptr;
 int net_work_thread_mbox_id = -1;
@@ -45,7 +46,11 @@ static int do_netif_in(Exmsg *msg) {
                 dbg_warning(DBG_MSG, "netif in failed. err=%d", ret);
             }
         }else{
-            pktbuf_free(buf);
+            ret = ipv4_in(netif, buf);
+            if (ret < 0) {
+                pktbuf_free(buf);
+                dbg_warning(DBG_MSG, "netif in failed. err=%d", ret);
+            };
         }
     }
     return NET_OK;

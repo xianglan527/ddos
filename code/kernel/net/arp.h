@@ -2,15 +2,15 @@
 #define __NET_ARP_H__
 
 #include "error.h"
+#include "ether.h"
+#include "list.h"
 #include "net.h"
 #include "net_config.h"
 #include "netif.h"
 #include "pktbuf.h"
 #include "protocol.h"
-#include "types.h"
-#include "list.h"
-#include "ether.h"
 #include "spinlock.h"
+#include "types.h"
 
 #define ARP_HW_ETHER 0x1  // Ethernet type
 #define ARP_REQUEST 0x1   // ARP request packet
@@ -34,8 +34,8 @@ typedef struct arp_pkt {
 #pragma pack()
 
 typedef struct arp_entry Arp_entry;
-struct arp_entry{
-    uint8_t paddr[IPV4_ADDR_SIZE]; 
+struct arp_entry {
+    uint8_t paddr[IPV4_ADDR_SIZE];
     uint8_t haddr[ETH_HWA_SIZE];
     enum {
         NET_ARP_FREE = 0x1234,
@@ -43,18 +43,18 @@ struct arp_entry{
         NET_ARP_WAITING,
     } state;
     size_t tmo;
-    size_t retry;                
-    Netif* netif;    
-    List_entry arp_entry_link;  
+    size_t retry;
+    Netif* netif;
+    List_entry arp_entry_link;
     List_entry buf_list;
     Spinlock buf_list_lock;
 };
 
-typedef struct arp_entry_head{
+typedef struct arp_entry_head {
     Spinlock arp_entry_list_lock;
     size_t count;
     List_entry arp_entry_list;
-}Arp_entry_head;
+} Arp_entry_head;
 
 #define le2arp_entry(le) to_struct((le), Arp_entry, arp_entry_link)
 
@@ -66,4 +66,5 @@ int arp_make_reply(Netif* netif, Pktbuf* buf);
 int arp_resolve(Netif* netif, Ipaddr* ipaddr, Pktbuf* buf);
 void arp_clear(Netif* netif);
 uint8_t* arp_find(Netif* netif, Ipaddr* ip);
+void arp_update_from_ipbuf(Netif* netif, Pktbuf* pkt);
 #endif

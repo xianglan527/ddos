@@ -68,5 +68,6 @@ int pktbuf_write(Pktbuf *buf, uint8_t *src, size_t size);
 int pktbuf_read(Pktbuf *buf, uint8_t *dest, size_t size);
 int pktbuf_seek(Pktbuf *buf, off_t offset);
 int pktbuf_copy(Pktbuf *dest, Pktbuf *src, size_t size);
-int pktbuf_fill(Pktbuf *buf, uint8_t v, int size);
+int pktbuf_fill(Pktbuf *buf, uint8_t v, size_t size);
+uint16_t pktbuf_checksum16(Pktbuf *buf, size_t size, uint32_t pre_sum, bool complement);
 #endif

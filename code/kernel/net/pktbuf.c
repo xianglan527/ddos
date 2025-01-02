@@ -5,6 +5,7 @@
 #include "slab.h"
 #include "stdio.h"
 #include "string.h"
+#include "nettool.h"
 
 Pktbuf_head *pktbuf_head;
 extern Spinlock print_struct_lock;
@@ -464,7 +465,7 @@ int pktbuf_copy(Pktbuf *dest, Pktbuf *src, size_t size){
     return NET_OK;
 }
 
-int pktbuf_fill(Pktbuf *buf, uint8_t v, int size){
+int pktbuf_fill(Pktbuf *buf, uint8_t v, size_t size){
     if(!size){
         return -E_NET_PARAM;
     }
@@ -482,4 +483,32 @@ int pktbuf_fill(Pktbuf *buf, uint8_t v, int size){
     }
     release(&buf->pktblk_lock);
     return NET_OK;
+}
+
+static size_t curr_blk_remain(Pktbuf *buf) {
+    Pktblk *block = buf->cur_blk;
+    if (!block) { return 0; }
+    return (size_t)(buf->cur_blk->data + block->size - buf->blk_offset);
+}
+
+uint16_t pktbuf_checksum16(Pktbuf *buf, size_t size, uint32_t pre_sum, bool complement){
+    acquire(&buf->pktblk_lock);
+    assert(atomic_read(&buf->ref) != 0);
+    int remain_size = buf->total_size - buf->pos;
+    if (remain_size < size) {
+        dbg_warning(DBG_BUF, "size too big. sum size %d < remain size: %d", size, remain_size);
+        release(&buf->pktblk_lock);
+        return 0;
+    }
+    uint32_t sum = pre_sum;
+    while (size > 0) {
+        size_t blk_size = curr_blk_remain(buf);
+        size_t cur_size = (blk_size > size ? size : blk_size);
+        sum = checksum16(buf->blk_offset, cur_size, sum, 0);
+        assert(buf->blk_offset + cur_size <= buf->cur_blk->data + PKTBUF_BLK_SIZE);
+        move_forward_nolock(buf, cur_size);
+        size -= cur_size;
+    }
+    release(&buf->pktblk_lock);
+    return complement ? (uint16_t)~sum : (uint16_t)sum;
 }

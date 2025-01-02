@@ -1,9 +1,11 @@
 #include "arp.h"
-#include "nettool.h"
-#include "stdio.h"
+
 #include "assert.h"
-#include "slab.h"
+#include "ipv4.h"
+#include "nettool.h"
 #include "proc.h"
+#include "slab.h"
+#include "stdio.h"
 
 extern Spinlock print_struct_lock;
 Arp_entry_head arp_entry_head;
@@ -13,16 +15,15 @@ Timer* arp_cache_timer;
 
 #define to_scan_cnt(tmo) (tmo / ARP_TIMER_TMO)
 
-#if DBG_DISP_ENABLED(DBG_ARP)
-
 static void cache_free_nolock(Arp_entry* entry);
 
+#if DBG_DISP_ENABLED(DBG_ARP)
 static void __dump_arp_entry(int index, Arp_entry* entry) {
-    cprintf("%d: ", index); 
+    cprintf("%d: ", index);
     dump_ip_buf(" ip:", entry->paddr);
     dump_mac(" mac:", entry->haddr);
     cprintf(" tmo: %lu, retry: %lu, %s, buf: %lu\n", entry->tmo, entry->retry,
-                entry->state == NET_ARP_RESOLVED ? "stable" : "pending", list_count(&entry->buf_list));
+            entry->state == NET_ARP_RESOLVED ? "stable" : "pending", list_count(&entry->buf_list));
 }
 
 static void dump_arp_tbl(void) {
@@ -51,9 +52,7 @@ static void dump_arp_pkt(Arp_pkt* packet) {
     cprintf("plen:%x\n", packet->plen);
     cprintf("type:%04x  ", opcode);
     switch (opcode) {
-        case ARP_REQUEST:
-            cprintf("request\n");
-            break;
+        case ARP_REQUEST: cprintf("request\n"); break;
         case ARP_REPLY: cprintf("reply\n"); break;
         default: cprintf("unknown\n"); break;
     }
@@ -77,20 +76,18 @@ static void arp_cache_tmo(Timer* timer) {
     int changed_cnt = 0;
     List_entry* le;
     acquire(&arp_entry_head.arp_entry_list_lock);
-    if(list_empty(&arp_entry_head.arp_entry_list)){
+    if (list_empty(&arp_entry_head.arp_entry_list)) {
         release(&arp_entry_head.arp_entry_list_lock);
         return;
     }
     le = list_next(&arp_entry_head.arp_entry_list);
     while (le != &arp_entry_head.arp_entry_list) {
-        Arp_entry *entry = le2arp_entry(le);
+        Arp_entry* entry = le2arp_entry(le);
         le = list_next(le);
-        if(--entry->tmo > 0){
-            continue;
-        }
+        if (--entry->tmo > 0) { continue; }
         changed_cnt++;
-        switch(entry->state){
-            case NET_ARP_RESOLVED:{
+        switch (entry->state) {
+            case NET_ARP_RESOLVED: {
                 dbg_info(DBG_ARP, "stable to pending:");
                 // __dump_arp_entry(0, entry);
                 Ipaddr ipaddr;
@@ -135,7 +132,7 @@ static void arp_cache_tmo(Timer* timer) {
     }
 }
 
-int arp_init(void){
+int arp_init(void) {
     list_init(&arp_entry_head.arp_entry_list);
     initlock(&arp_entry_head.arp_entry_list_lock, "arp_entry_list_lock");
     arp_entry_head.count = 0;
@@ -173,9 +170,9 @@ static void cache_free_nolock(Arp_entry* entry) {
 
 static Arp_entry* cache_alloc_nolock(bool force) {
     List_entry* le;
-    // acquire(&arp_entry_head.arp_entry_list_lock);   
-    if(arp_entry_head.count == ARP_CACHE_SIZE){
-        if(force == false){
+    // acquire(&arp_entry_head.arp_entry_list_lock);
+    if (arp_entry_head.count == ARP_CACHE_SIZE) {
+        if (force == false) {
             // release(&arp_entry_head.arp_entry_list_lock);
             return nullptr;
         }
@@ -184,7 +181,7 @@ static Arp_entry* cache_alloc_nolock(bool force) {
         Arp_entry* entry = le2arp_entry(le);
         cache_free_nolock(entry);
     }
-    Arp_entry *entry = kmalloc(sizeof(Arp_entry));
+    Arp_entry* entry = kmalloc(sizeof(Arp_entry));
     assert(entry != nullptr);
     entry->state = NET_ARP_FREE;
     list_init(&entry->buf_list);
@@ -209,47 +206,44 @@ static int cache_send_all(Arp_entry* entry) {
         Pktbuf* buf = le2pktbuf_wait(le);
         list_del(le);
         int ret = ether_raw_out(entry->netif, NET_PROTOCOL_IPv4, entry->haddr, buf);
-        if (ret < 0) {
-            pktbuf_free(buf);
-        }
+        if (ret < 0) { pktbuf_free(buf); }
     }
     release(&entry->buf_list_lock);
     return NET_OK;
 }
 
 static Arp_entry* cache_find_nolock(uint8_t* ip) {
-    List_entry *le;
+    List_entry* le;
     list_for_each(le, &arp_entry_head.arp_entry_list) {
-         Arp_entry* entry = le2arp_entry(le);
-         if (memcmp(ip, entry->paddr, IPV4_ADDR_SIZE) == 0) {
-             if (list_next(&arp_entry_head.arp_entry_list) != &entry->arp_entry_link) {
-                 list_del(&entry->arp_entry_link);
-                 list_add_after(&arp_entry_head.arp_entry_list, &entry->arp_entry_link);
-             }
-             return entry;
-         }
+        Arp_entry* entry = le2arp_entry(le);
+        if (memcmp(ip, entry->paddr, IPV4_ADDR_SIZE) == 0) {
+            if (list_next(&arp_entry_head.arp_entry_list) != &entry->arp_entry_link) {
+                list_del(&entry->arp_entry_link);
+                list_add_after(&arp_entry_head.arp_entry_list, &entry->arp_entry_link);
+            }
+            return entry;
+        }
     }
     return nullptr;
 }
 
-static void cache_entry_set(Arp_entry* entry, uint8_t* hwaddr, uint8_t* proaddr, Netif* netif,
-                            int state) {
+static void cache_entry_set(Arp_entry* entry, uint8_t* hwaddr, uint8_t* proaddr, Netif* netif, int state) {
     memcpy(entry->haddr, hwaddr, ETH_HWA_SIZE);
     memcpy(entry->paddr, proaddr, IPV4_ADDR_SIZE);
     entry->state = state;
     entry->netif = netif;
     if (state == NET_ARP_RESOLVED) {
-        entry->tmo = to_scan_cnt(ARP_ENTRY_STABLE_TMO);  
+        entry->tmo = to_scan_cnt(ARP_ENTRY_STABLE_TMO);
     } else {
-        entry->tmo = to_scan_cnt(ARP_ENTRY_PENDING_TMO); 
+        entry->tmo = to_scan_cnt(ARP_ENTRY_PENDING_TMO);
     }
     entry->retry = ARP_ENTRY_RETRY_CNT;
 }
 
-static int cache_insert(Netif* netif, uint8_t* pro_addr, uint8_t* hw_addr, bool force){
+static int cache_insert(Netif* netif, uint8_t* pro_addr, uint8_t* hw_addr, bool force) {
     acquire(&arp_entry_head.arp_entry_list_lock);
     Arp_entry* entry = cache_find_nolock(pro_addr);
-    if(!entry){
+    if (!entry) {
         entry = cache_alloc_nolock(force);
         if (!entry) {
 #if DBG_DISP_ENABLED(DBG_ARP)
@@ -263,7 +257,7 @@ static int cache_insert(Netif* netif, uint8_t* pro_addr, uint8_t* hw_addr, bool 
 #if DBG_DISP_ENABLED(DBG_ARP)
         dump_ip_buf("insert an entry, sender ip:", pro_addr);
 #endif
-    }else{
+    } else {
 #if DBG_DISP_ENABLED(DBG_ARP)
         acquire(&print_struct_lock);
         dump_ip_buf("update an entry, sender ip:", pro_addr);
@@ -271,7 +265,7 @@ static int cache_insert(Netif* netif, uint8_t* pro_addr, uint8_t* hw_addr, bool 
         release(&print_struct_lock);
 #endif
         cache_entry_set(entry, hw_addr, pro_addr, netif, NET_ARP_RESOLVED);
-        if (list_next(&arp_entry_head.arp_entry_list) != &entry->arp_entry_link){
+        if (list_next(&arp_entry_head.arp_entry_list) != &entry->arp_entry_link) {
             list_del(&entry->arp_entry_link);
             list_add_after(&arp_entry_head.arp_entry_list, &entry->arp_entry_link);
         }
@@ -286,14 +280,14 @@ static int cache_insert(Netif* netif, uint8_t* pro_addr, uint8_t* hw_addr, bool 
     return NET_OK;
 }
 
-int arp_make_request(Netif* netif, Ipaddr* pro_addr){
+int arp_make_request(Netif* netif, Ipaddr* pro_addr) {
     Pktbuf* buf = pktbuf_alloc(sizeof(Arp_pkt));
     if (buf == NULL) {
         dump_ip(DBG_ARP, "allocate arp packet failed. ip:", pro_addr);
         return -E_NET_NONE;
     }
     pktbuf_set_cont(buf, sizeof(Arp_pkt));
-    Arp_pkt* arp_packet = (Arp_pkt *)pktbuf_data(buf);
+    Arp_pkt* arp_packet = (Arp_pkt*)pktbuf_data(buf);
     arp_packet->htype = x_htons(ARP_HW_ETHER);
     arp_packet->ptype = x_htons(NET_PROTOCOL_IPv4);
     arp_packet->hlen = ETH_HWA_SIZE;
@@ -309,9 +303,7 @@ int arp_make_request(Netif* netif, Ipaddr* pro_addr){
     return ret;
 }
 
-int arp_make_gratuitous(Netif* netif) { 
-    return arp_make_request(netif, &netif->ipaddr);
-}
+int arp_make_gratuitous(Netif* netif) { return arp_make_request(netif, &netif->ipaddr); }
 
 static int is_pkt_ok(Arp_pkt* arp_packet, uint16_t size, Netif* netif) {
     if (size < sizeof(Arp_pkt)) {
@@ -331,7 +323,7 @@ static int is_pkt_ok(Arp_pkt* arp_packet, uint16_t size, Netif* netif) {
     return NET_OK;
 }
 
-int arp_in(Netif* netif, Pktbuf* buf){
+int arp_in(Netif* netif, Pktbuf* buf) {
     dbg_info(DBG_ARP, "arp in");
     int ret = pktbuf_set_cont(buf, sizeof(Arp_pkt));
     if (ret < 0) { return ret; }
@@ -340,14 +332,14 @@ int arp_in(Netif* netif, Pktbuf* buf){
     if (is_pkt_ok(arp_packet, buf->total_size, netif) != NET_OK) { return ret; }
     Ipaddr target_ip;
     ipaddr_from_buf(&target_ip, arp_packet->target_paddr);
-    if (ipaddr_is_equal(&target_ip, &netif->ipaddr)){
+    if (ipaddr_is_equal(&target_ip, &netif->ipaddr)) {
         dbg_info(DBG_ARP, "received an arp for me, force update.");
         cache_insert(netif, arp_packet->send_paddr, arp_packet->send_haddr, 1);
         if (x_ntohs(arp_packet->opcode) == ARP_REQUEST) {
             dbg_info(DBG_ARP, "arp is request. try to send reply");
             return arp_make_reply(netif, buf);
         }
-    }else{
+    } else {
         dbg_info(DBG_ARP, "received an arp not for me, try to update.");
         cache_insert(netif, arp_packet->send_paddr, arp_packet->send_haddr, 0);
     }
@@ -356,8 +348,8 @@ int arp_in(Netif* netif, Pktbuf* buf){
     return NET_OK;
 }
 
-int arp_make_reply(Netif* netif, Pktbuf* buf){
-    Arp_pkt *arp_packet = (Arp_pkt *)pktbuf_data(buf);
+int arp_make_reply(Netif* netif, Pktbuf* buf) {
+    Arp_pkt* arp_packet = (Arp_pkt*)pktbuf_data(buf);
     arp_packet->opcode = x_htons(ARP_REPLY);
     memcpy(arp_packet->target_haddr, arp_packet->send_haddr, ETH_HWA_SIZE);
     memcpy(arp_packet->target_paddr, arp_packet->send_paddr, IPV4_ADDR_SIZE);
@@ -367,31 +359,31 @@ int arp_make_reply(Netif* netif, Pktbuf* buf){
     return ether_raw_out(netif, NET_PROTOCOL_ARP, arp_packet->target_haddr, buf);
 }
 
-int arp_resolve(Netif* netif, Ipaddr* ipaddr, Pktbuf* buf){
+int arp_resolve(Netif* netif, Ipaddr* ipaddr, Pktbuf* buf) {
     uint8_t pro_addr[IPV4_ADDR_SIZE];
     ipaddr_to_buf(ipaddr, pro_addr);
     acquire(&arp_entry_head.arp_entry_list_lock);
     Arp_entry* entry = cache_find_nolock(pro_addr);
-    if(entry){
-         dbg_info(DBG_ARP, "found an arp entry.");
-         if (entry->state == NET_ARP_RESOLVED) {
-             int ret = ether_raw_out(entry->netif, NET_PROTOCOL_IPv4, entry->haddr, buf);
-             return ret;
-         }
-         assert(entry->state == NET_ARP_WAITING);
-         acquire(&entry->buf_list_lock);
-         if(list_count(&entry->buf_list) <= ARP_MAX_PKT_WAIT){
-             dbg_info(DBG_ARP, "insert packet to arp entry");
-             list_add_before(&entry->buf_list, &buf->pktbuf_wait_link);
-         } else {
-             dbg_warning(DBG_ARP, "too many waiting. ignore it");
-             return -E_NET_FULL;
-         }
-         release(&entry->buf_list_lock);
-         release(&arp_entry_head.arp_entry_list_lock);
-         dump_arp_tbl();
-         return NET_OK;
-    }else{
+    if (entry) {
+        dbg_info(DBG_ARP, "found an arp entry.");
+        if (entry->state == NET_ARP_RESOLVED) {
+            int ret = ether_raw_out(entry->netif, NET_PROTOCOL_IPv4, entry->haddr, buf);
+            return ret;
+        }
+        assert(entry->state == NET_ARP_WAITING);
+        acquire(&entry->buf_list_lock);
+        if (list_count(&entry->buf_list) <= ARP_MAX_PKT_WAIT) {
+            dbg_info(DBG_ARP, "insert packet to arp entry");
+            list_add_before(&entry->buf_list, &buf->pktbuf_wait_link);
+        } else {
+            dbg_warning(DBG_ARP, "too many waiting. ignore it");
+            return -E_NET_FULL;
+        }
+        release(&entry->buf_list_lock);
+        release(&arp_entry_head.arp_entry_list_lock);
+        dump_arp_tbl();
+        return NET_OK;
+    } else {
         dump_ip(DBG_ARP, "make arp request, ip:", ipaddr);
         entry = cache_alloc_nolock(1);
         assert(entry != nullptr);
@@ -408,27 +400,49 @@ int arp_resolve(Netif* netif, Ipaddr* ipaddr, Pktbuf* buf){
     }
 }
 
-void arp_clear(Netif* netif){
+void arp_clear(Netif* netif) {
     List_entry* le;
     acquire(&arp_entry_head.arp_entry_list_lock);
     le = list_next(&arp_entry_head.arp_entry_list);
     while (le != &arp_entry_head.arp_entry_list) {
-        Arp_entry *entry = le2arp_entry(le);
+        Arp_entry* entry = le2arp_entry(le);
         le = list_next(le);
-        if(entry->netif == netif){
-            cache_free_nolock(entry);
-        }
+        if (entry->netif == netif) { cache_free_nolock(entry); }
     }
     release(&arp_entry_head.arp_entry_list_lock);
 }
 
-uint8_t* arp_find(Netif* netif, Ipaddr* ip){
+uint8_t* arp_find(Netif* netif, Ipaddr* ip) {
     if (ipaddr_is_local_broadcast(ip) || ipaddr_is_direct_broadcast(ip, &netif->netmask)) {
         return ether_broadcast_addr();
     }
     acquire(&arp_entry_head.arp_entry_list_lock);
-    Arp_entry *entry = cache_find_nolock(ip->a_addr);
+    Arp_entry* entry = cache_find_nolock(ip->a_addr);
     release(&arp_entry_head.arp_entry_list_lock);
     if (entry && (entry->state == NET_ARP_RESOLVED)) { return entry->haddr; }
     return nullptr;
+}
+
+void arp_update_from_ipbuf(Netif* netif, Pktbuf* pkt) {
+    int ret = pktbuf_set_cont(pkt, sizeof(Ipv4_hdr) + sizeof(Ether_hdr));
+    if (ret < 0) {
+        dbg_error(DBG_ARP, "adjust header failed. ret = %d", ret);
+        return;
+    }
+    Ether_hdr* eth_hdr = (Ether_hdr*)pktbuf_data(pkt);
+    Ipv4_hdr* ip_hdr = (Ipv4_hdr*)((uint8_t*)eth_hdr + sizeof(Ether_hdr));
+    if (ip_hdr->version != NET_VERSION_IPV4) {
+        dbg_warning(DBG_ARP, "not ipv4, skip");
+        return;
+    }
+    int total_size = x_ntohs(ip_hdr->total_len);
+    if ((total_size < sizeof(Ipv4_hdr)) || (pkt->total_size < total_size)) {
+        dbg_warning(DBG_IP, "ip packet too small %d!\n", total_size);
+        return;
+    }
+    Ipaddr dest_ip;
+    ipaddr_from_buf(&dest_ip, ip_hdr->dest_ip);
+    if (ipaddr_is_match(&netif->ipaddr, &dest_ip, &netif->netmask)) {
+        cache_insert(netif, ip_hdr->src_ip, eth_hdr->src, 0);
+    }
 }

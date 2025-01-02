@@ -6,6 +6,7 @@
 #include "ether.h"
 #include "nettool.h"
 #include "arp.h"
+#include "ipv4.h"
 
 int net_init(void){
     dbg_info(DBG_INIT, "init net...");
@@ -16,6 +17,7 @@ int net_init(void){
     loop_init();
     ether_init();
     arp_init();
+    ipv4_init();
     return NET_OK;
 }
 

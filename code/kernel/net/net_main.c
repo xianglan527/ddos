@@ -7,6 +7,7 @@
 #include "printf.h"
 #include "proc.h"
 #include "stdio.h"
+#include "ipv4.h"
 
 extern Netif_ops netdev_ops;
 extern List_entry nets_list;
@@ -57,10 +58,18 @@ int net_device_init(void) {
         ipaddr_from_str(&dest, friend0_ip);
         netif_out(netif, &dest, buf);
 
-        ipaddr_from_str(&dest, "192.168.74.255");
+        // ipaddr_from_str(&dest, "192.168.74.255");
+        // buf = pktbuf_alloc(32);
+        // pktbuf_fill(buf, 0xA5, buf->total_size);
+        // netif_out(netif, &dest, buf);
+
         buf = pktbuf_alloc(32);
         pktbuf_fill(buf, 0xA5, buf->total_size);
-        netif_out(netif, &dest, buf);
+
+        Ipaddr src;
+        ipaddr_from_str(&dest, friend0_ip);
+        ipaddr_from_str(&src, config->ip);
+        ipv4_out(0, &dest, &src, buf);
     }
     return NET_OK;
 }

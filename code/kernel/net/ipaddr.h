@@ -30,4 +30,6 @@ void ipaddr_from_buf(Ipaddr* dest, uint8_t* ip_buf);
 int ipaddr_is_local_broadcast(Ipaddr* ipaddr);
 int ipaddr_is_direct_broadcast(Ipaddr* ipaddr, Ipaddr* netmask);
 int ipaddr_is_any(Ipaddr *ip);
+Ipaddr ipaddr_get_net(Ipaddr* ipaddr, Ipaddr* netmask);
+int ipaddr_is_match(Ipaddr* dest, Ipaddr* src, Ipaddr* netmask);
 #endif
