@@ -215,6 +215,7 @@ uint32_t virtio_net_rx(Virtio_net *net) {
 #endif
     uint32_t idx = net->rx_vr.used->ring[nn].id;
     uint32_t rlen = net->rx_vr.used->ring[nn].len - 10;
+    assert(rlen <= net->mtu + 14);
     memcpy(buf, net->rx_pkt[idx].pkt, rlen);
 #ifdef PRINT_VIRTIO_NET_RX_TX_INFO
     cprintf("rlen: %d\n", rlen);

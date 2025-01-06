@@ -50,6 +50,7 @@ static void xmit_thread(void *arg) {
             Pktbuf *buf = netif_get_out(netif, 10);
             if (buf) {
                 size_t total_size = buf->total_size;
+                assert(total_size <= netif->net->mtu + 14);
                 memset(netif->net->tran_buf, 0, netif->net->mtu + 14);
                 // pktbuf_reset_acc(buf);
                 assert(pktbuf_read(buf, netif->net->tran_buf, buf->total_size) == NET_OK);

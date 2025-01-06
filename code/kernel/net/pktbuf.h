@@ -29,11 +29,14 @@ struct pktbuf{
     uint8_t *blk_offset;
     Spinlock pktblk_lock;  // read & write & seek lock
     List_entry pktbuf_wait_link;  //wait arp request pkt
+    List_entry ip_frag_link;      //ip_frag 
 };
 
 #define le2pktbuf(le) to_struct((le), Pktbuf, pktbuf_link)
 
 #define le2pktbuf_wait(le) to_struct((le), Pktbuf, pktbuf_wait_link)
+
+#define le2pktbuf_ip_frag(le) to_struct((le), Pktbuf, ip_frag_link)
 
 typedef struct pktbuf_head Pktbuf_head;
 struct pktbuf_head {

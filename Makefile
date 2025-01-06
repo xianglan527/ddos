@@ -82,11 +82,11 @@ QEMUOPTS += -device virtio-blk-device,drive=x1,bus=virtio-mmio-bus.2
 
 QEMUOPTS += -netdev tap,id=net0,ifname=tap0,script=no,downscript=no
 QEMUOPTS += -object filter-dump,id=net0,netdev=net0,file=$(KERNEL_PATH)/packets0.pcap
-QEMUOPTS += -device virtio-net-device,netdev=net0,mac=02:ca:fe:f0:0d:01,bus=virtio-mmio-bus.3
+QEMUOPTS += -device virtio-net-device,netdev=net0,mac=02:ca:fe:f0:0d:03,bus=virtio-mmio-bus.3
 
 QEMUOPTS += -netdev tap,id=net1,ifname=tap1,script=no,downscript=no
 QEMUOPTS += -object filter-dump,id=net1,netdev=net1,file=$(KERNEL_PATH)/packets1.pcap
-QEMUOPTS += -device virtio-net-device,netdev=net1,mac=02:ca:fe:f0:0d:02,bus=virtio-mmio-bus.4
+QEMUOPTS += -device virtio-net-device,netdev=net1,mac=02:ca:fe:f0:0d:04,bus=virtio-mmio-bus.4
 
 
 

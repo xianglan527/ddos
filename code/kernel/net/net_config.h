@@ -12,7 +12,7 @@
 #define DBG_ETHER DBG_LEVEL_ERROR
 #define DBG_TOOLS DBG_LEVEL_ERROR
 #define DBG_ARP DBG_LEVEL_ERROR
-#define DBG_IP DBG_LEVEL_ERROR
+#define DBG_IP DBG_LEVEL_INFO
 #define DBG_ICMP DBG_LEVEL_INFO
 
 #define NET_ENDIAN_LITTLE 1
@@ -32,4 +32,8 @@
 #define ARP_ENTRY_PENDING_TMO 3  // unit is 1000ticks
 #define ARP_ENTRY_RETRY_CNT 5 
 #define ARP_TIMER_TMO 1       //unit is 1000ticks
+#define IP_FRAGS_MAX_NR 20
+#define IP_FRAG_MAX_BUF_NR 20
+#define IP_FRAG_SCAN_PERIOD 1  // unit is 1000ticks
+#define IP_FRAG_TMO 5          // unit is 1000ticks
 #endif

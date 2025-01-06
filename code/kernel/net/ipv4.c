@@ -1,17 +1,24 @@
 #include "ipv4.h"
 
+#include "icmpv4.h"
 #include "nettool.h"
 #include "proc.h"
 #include "protocol.h"
+#include "slab.h"
 #include "stdio.h"
-#include "icmpv4.h"
 
 extern Spinlock print_struct_lock;
 
 static uint16_t packet_id = 0;
 
+Ip_frag_head ip_frag_head;
+
+Timer *frag_timer;
+
+static void frag_free_nolock(Ip_frag *frag);
+
 #if DBG_DISP_ENABLED(DBG_IP)
-static void dump_ip_packet(Ipv4_pkt *pkt) {
+    static void dump_ip_packet(Ipv4_pkt *pkt) {
     Ipv4_hdr *ip_hdr = (Ipv4_hdr *)&pkt->hdr;
     acquire(&print_struct_lock);
     cprintf("--------------- ip ------------------ \n");
@@ -19,6 +26,8 @@ static void dump_ip_packet(Ipv4_pkt *pkt) {
     cprintf("    Header len:%d bytes\n", ipv4_hdr_size(pkt));
     cprintf("    Totoal len: %d bytes\n", ip_hdr->total_len);
     cprintf("    Id:%d\n", ip_hdr->id);
+    cprintf("    Frag offset: 0x%04x\n", ip_hdr->offset);
+    cprintf("    More frag: %d\n", ip_hdr->more);
     cprintf("    TTL: %d\n", ip_hdr->ttl);
     cprintf("    Protocol: %d\n", ip_hdr->protocol);
     cprintf("    Header checksum: 0x%04x\n", ip_hdr->hdr_checksum);
@@ -29,13 +38,87 @@ static void dump_ip_packet(Ipv4_pkt *pkt) {
     cprintf("--------------- ip end ------------------ \n");
     release(&print_struct_lock);
 }
+
+static void dump_ip_frag_buf_list(Ip_frag *ip_frag) {
+    List_entry *le;
+    int index = 0;
+    acquire(&ip_frag->ip_frag_buf_list_lock);
+    list_for_each(le, &ip_frag->ip_frag_buf_list) {
+        Pktbuf *buf = le2pktbuf_ip_frag(le);
+        Ipv4_pkt *pkt = (Ipv4_pkt *)pktbuf_data(buf);
+        cprintf("\t\tB%d[%d - %d], ", index++, get_frag_start(pkt), get_frag_end(pkt) - 1);
+    }
+    release(&ip_frag->ip_frag_buf_list_lock);
+}
+
+static void dump_ip_frags(void) {
+    int index = 0;
+    acquire(&ip_frag_head.ip_frag_list_lock);
+    acquire(&print_struct_lock);
+    List_entry *le;
+    cprintf("\n------------- ip_frag list start ---------- \n");
+    list_for_each(le, &ip_frag_head.ip_frag_list) {
+        Ip_frag *frag = le2ip_frag(le);
+        cprintf("[%d]:\n", index++);
+        dump_ip_buf("\tip:", frag->ip.a_addr);
+        cprintf("\tid: %d\n", frag->id);
+        cprintf("\ttmo: %lu\n", frag->tmo);
+        cprintf("\tbufs: %lu\n", list_count(&frag->ip_frag_buf_list));
+        cprintf("\tbufs:\n");
+        dump_ip_frag_buf_list(frag);
+        cprintf("\n");
+    }
+    cprintf("\n------------- ip_frag list end ---------- \n");
+    release(&print_struct_lock);
+    release(&ip_frag_head.ip_frag_list_lock);
+}
+
 #else
 #define dump_ip_packet(pkt)
+#define dump_ip_frag_buf_list(ip_frag)
+#define dump_ip_frags()
 #endif
+
+static void frag_tmo(Timer *timer) {
+    int changed_cnt = 0;
+    List_entry* le;
+    acquire(&ip_frag_head.ip_frag_list_lock);
+    if (list_empty(&ip_frag_head.ip_frag_list)) {
+        release(&ip_frag_head.ip_frag_list_lock);
+        return;
+    }
+    le = list_next(&ip_frag_head.ip_frag_list);
+    while (le != &ip_frag_head.ip_frag_list){
+        Ip_frag *frag = le2ip_frag(le);
+        le = list_next(le);
+        if (--frag->tmo == 0) {
+            changed_cnt++;
+            frag_free_nolock(frag);
+        }
+    }
+    release(&ip_frag_head.ip_frag_list_lock);
+    if (changed_cnt) {
+        dbg_info(DBG_IP, "%d ip frag list changed.", changed_cnt);
+        dump_ip_frags();
+    }
+}
+
+static int frag_init(void) {
+    list_init(&ip_frag_head.ip_frag_list);
+    initlock(&ip_frag_head.ip_frag_list_lock, "ip_frag_list_lock");
+    ip_frag_head.count = 0;
+    frag_timer = timer_func_add(frag_tmo, "frag_timer", IP_FRAG_SCAN_PERIOD * 1000, TIMER_RELOAD);
+    assert(frag_timer != nullptr);
+    return NET_OK;
+}
 
 int ipv4_init(void) {
     dbg_info(DBG_IP, "init ip\n");
-
+    int ret = frag_init();
+    if (ret < 0) {
+        dbg_error(DBG_IP, "failed. ret = %d", ret);
+        return ret;
+    }
     dbg_info(DBG_IP, "done.");
     return NET_OK;
 }
@@ -50,6 +133,61 @@ static void iphdr_htons(Ipv4_pkt *pkt) {
     pkt->hdr.total_len = x_htons(pkt->hdr.total_len);
     pkt->hdr.id = x_htons(pkt->hdr.id);
     pkt->hdr.frag_all = x_ntohs(pkt->hdr.frag_all);
+}
+
+static void frag_free_buf_list_nolock(Ip_frag *frag) {
+    List_entry *le;
+    while ((le = list_next(&frag->ip_frag_buf_list)) != &frag->ip_frag_buf_list) {
+        list_del(le);
+        Pktbuf *buf = le2pktbuf_ip_frag(le);
+        pktbuf_free(buf);
+    }
+}
+
+static void frag_free_buf_list(Ip_frag *frag) {
+    acquire(&frag->ip_frag_buf_list_lock);
+    frag_free_buf_list_nolock(frag);
+    release(&frag->ip_frag_buf_list_lock);
+}
+
+static Ip_frag *frag_alloc_nolock(void) {
+    List_entry *le;
+    Ip_frag *frag = nullptr;
+    if (ip_frag_head.count == IP_FRAGS_MAX_NR) {
+        le = list_prev(&ip_frag_head.ip_frag_list);
+        frag = le2ip_frag(le);
+        frag_free_buf_list(frag);
+        list_del(le);
+        return frag;
+    }
+    frag = kmalloc(sizeof(Ip_frag));
+    assert(frag != nullptr);
+    list_init(&frag->ip_frag_buf_list);
+    initlock(&frag->ip_frag_buf_list_lock, "ip_frag_buf_list_lock");
+    list_add_after(&ip_frag_head.ip_frag_list, &frag->ip_frag_link);
+    ip_frag_head.count++;
+    return frag;
+}
+
+static Ip_frag *frag_alloc(void) {
+    Ip_frag *frag = nullptr;
+    acquire(&ip_frag_head.ip_frag_list_lock);
+    frag = frag_alloc_nolock();
+    release(&ip_frag_head.ip_frag_list_lock);
+    return frag;
+}
+
+static void frag_free_nolock(Ip_frag *frag) {
+    frag_free_buf_list(frag);
+    list_del(&frag->ip_frag_link);
+    ip_frag_head.count--;
+    kfree(frag);
+}
+
+static void frag_free(Ip_frag *frag) {
+    acquire(&ip_frag_head.ip_frag_list_lock);
+    frag_free_nolock(frag);
+    release(&ip_frag_head.ip_frag_list_lock);
 }
 
 static int is_pkt_ok(Ipv4_pkt *pkt, int size) {
@@ -68,7 +206,7 @@ static int is_pkt_ok(Ipv4_pkt *pkt, int size) {
         return -E_NET_SIZE;
     }
     if (pkt->hdr.hdr_checksum) {
-        uint16_t c = checksum16((uint16_t *)pkt, hdr_len, 0, 1);
+        uint16_t c = checksum16(0, (uint16_t *)pkt, hdr_len, 0, 1);
         if (c != 0) {
             dbg_warning(DBG_IP, "Bad checksum: %0x(correct is: %0x)\n", pkt->hdr.hdr_checksum, c);
             return -E_NET_DATA;
@@ -91,7 +229,7 @@ static int ip_normal_in(Netif *netif, Pktbuf *buf, Ipaddr *src, Ipaddr *dest) {
         }
         case NET_PROTOCOL_UDP:
             iphdr_htons(pkt);
-            icmpv4_out_unreach(src, &netif->ipaddr, ICMPv4_UNREACH_PORT, buf); 
+            icmpv4_out_unreach(src, &netif->ipaddr, ICMPv4_UNREACH_PORT, buf);
             break;
         case NET_PROTOCOL_TCP: break;
         default: dbg_warning(DBG_IP, "unknown protocol %d, drop it.\n", pkt->hdr.protocol); break;
@@ -99,7 +237,146 @@ static int ip_normal_in(Netif *netif, Pktbuf *buf, Ipaddr *src, Ipaddr *dest) {
     return -E_NET_MATCH;
 }
 
-int ipv4_in(Netif *netif, Pktbuf *buf){
+static Ip_frag *frag_find_nolock(Ipaddr *ip, uint16_t id) {
+    List_entry *le;
+    list_for_each(le, &ip_frag_head.ip_frag_list) {
+        Ip_frag *frag = le2ip_frag(le);
+        if (ipaddr_is_equal(ip, &frag->ip) && (id == frag->id)) {
+            if (list_next(&ip_frag_head.ip_frag_list) != &frag->ip_frag_link) {
+                list_del(&frag->ip_frag_link);
+                list_add_after(&ip_frag_head.ip_frag_list, &frag->ip_frag_link);
+            }
+            return frag;
+        }
+    }
+    return nullptr;
+}
+
+static void frag_add(Ip_frag *frag, Ipaddr *ip, uint16_t id) {
+    ipaddr_copy(&frag->ip, ip);
+    frag->tmo = IP_FRAG_TMO / IP_FRAG_SCAN_PERIOD;
+    frag->id = id;
+    // list_init(&frag->ip_frag_buf_list);
+    // list_add_after(&ip_frag_head.ip_frag_list, &frag->ip_frag_link);
+}
+
+static int frag_insert(Ip_frag *frag, Pktbuf *buf, Ipv4_pkt *pkt) {
+    int ret = NET_OK;
+    acquire(&frag->ip_frag_buf_list_lock);
+    if (list_count(&frag->ip_frag_buf_list) >= IP_FRAG_MAX_BUF_NR) {
+        dbg_warning(DBG_IP, "too many buf on frag. drop it.\n");
+        ret = -E_NET_FULL;
+    }
+    release(&frag->ip_frag_buf_list_lock);
+    if (ret != NET_OK) {
+        frag_free(frag);
+        return ret;
+    }
+    List_entry *le;
+    acquire(&frag->ip_frag_buf_list_lock);
+    list_for_each(le, &frag->ip_frag_buf_list) {
+        Pktbuf *cur_buf = le2pktbuf_ip_frag(le);
+        Ipv4_pkt *cur_pkt = (Ipv4_pkt *)pktbuf_data(cur_buf);
+        uint16_t cur_start = get_frag_start(cur_pkt);
+        if (get_frag_start(pkt) == cur_start) {
+            release(&frag->ip_frag_buf_list_lock);
+            return -E_NET_EXIST;
+        } else if (get_frag_end(pkt) <= cur_start) {
+            list_add_before(le, &buf->ip_frag_link);
+            release(&frag->ip_frag_buf_list_lock);
+            return NET_OK;
+        }
+    }
+    list_add(&frag->ip_frag_buf_list, &buf->ip_frag_link);
+    release(&frag->ip_frag_buf_list_lock);
+    return NET_OK;
+}
+
+static bool frag_is_all_arrived(Ip_frag *frag) {
+    size_t offset = 0;
+    Ipv4_pkt *pkt = nullptr;
+    List_entry *le;
+    acquire(&frag->ip_frag_buf_list_lock);
+    list_for_each(le, &frag->ip_frag_buf_list) {
+        Pktbuf *buf = le2pktbuf_ip_frag(le);
+        pkt = (Ipv4_pkt *)pktbuf_data(buf);
+        size_t cur_offset = get_frag_start(pkt);
+        if (cur_offset != offset) {
+            release(&frag->ip_frag_buf_list_lock);
+            return false;
+        }
+        offset += get_data_size(pkt);
+    }
+    release(&frag->ip_frag_buf_list_lock);
+    return pkt ? !pkt->hdr.more : false;
+}
+
+static Pktbuf *frag_join(Ip_frag *frag) {
+    List_entry *le;
+    Pktbuf *target = nullptr;
+    Pktbuf *cur_buf = nullptr;
+    acquire(&frag->ip_frag_buf_list_lock);
+    if (list_count(&frag->ip_frag_buf_list) == 0) {
+        release(&frag->ip_frag_buf_list_lock);
+        frag_free(frag);
+        dbg_warning(DBG_IP, "ip frag buf list is empty. \n");
+        return nullptr;
+    }else{
+        le = list_next(&frag->ip_frag_buf_list);
+        target = le2pktbuf_ip_frag(le);
+        while ((le = list_next(&target->ip_frag_link)) != &frag->ip_frag_buf_list) {
+            cur_buf =  le2pktbuf_ip_frag(le);
+            Ipv4_pkt *pkt = (Ipv4_pkt *)pktbuf_data(cur_buf);
+            pktbuf_remove_header(cur_buf, ipv4_hdr_size(pkt));
+            list_del(&cur_buf->ip_frag_link);
+            pktbuf_join(target, cur_buf);
+        }
+        release(&frag->ip_frag_buf_list_lock);
+        Pktbuf *ret_buf = pktbuf_alloc(target->total_size);
+        assert(ret_buf != nullptr);
+        pktbuf_reset_acc(target);
+        int ret = pktbuf_copy(ret_buf, target, target->total_size);
+        assert(ret == NET_OK);
+        frag_free(frag);
+        return ret_buf;
+    }
+}
+
+static int ip_frag_in(Netif *netif, Pktbuf *buf, Ipaddr *src, Ipaddr *dest) {
+    Ipv4_pkt *cur = (Ipv4_pkt *)pktbuf_data(buf);
+    // static int count = 0;
+    // if(count != 0){
+    //     return -E_NET;
+    // }
+    // count++;
+    acquire(&ip_frag_head.ip_frag_list_lock);
+    Ip_frag *frag = frag_find_nolock(src, cur->hdr.id);
+    if (!frag) {
+        frag = frag_alloc_nolock();
+        frag_add(frag, src, cur->hdr.id);
+    }
+    release(&ip_frag_head.ip_frag_list_lock);
+    int ret = frag_insert(frag, buf, cur);
+    if (ret < 0) {
+        dbg_warning(DBG_IP, "frag insert failed.");
+        return ret;
+    }
+    if (frag_is_all_arrived(frag)) {
+        Pktbuf *full_buf = frag_join(frag);
+        if (full_buf) {
+            int ret = ip_normal_in(netif, full_buf, src, dest);
+            if (ret < 0) {
+                dbg_warning(DBG_IP, "ip frag in error. ret=%d\n", ret);
+                pktbuf_free(full_buf); 
+                return NET_OK;
+            }
+        }
+    }
+    dump_ip_frags();
+    return NET_OK;
+}
+
+int ipv4_in(Netif *netif, Pktbuf *buf) {
     dbg_info(DBG_IP, "IP in!\n");
     int ret = pktbuf_set_cont(buf, sizeof(Ipv4_hdr));
     if (ret < 0) {
@@ -124,15 +401,81 @@ int ipv4_in(Netif *netif, Pktbuf *buf){
         dbg_warning(DBG_IP, "ipaddr not match\n");
         return -E_NET_MATCH;
     }
-    ret = ip_normal_in(netif, buf, &src_ip, &dest_ip);
+    if (pkt->hdr.offset || pkt->hdr.more) {
+        ret = ip_frag_in(netif, buf, &src_ip, &dest_ip);
+    } else {
+        ret = ip_normal_in(netif, buf, &src_ip, &dest_ip);
+    }
     return ret;
 }
+int ip_frag_out(uint8_t protocol, Ipaddr *dest, Ipaddr *src, Pktbuf *buf, Netif *netif) {
+    dbg_info(DBG_IP, "frag send an ip packet.\n");
+    pktbuf_reset_acc(buf);
+    size_t offset = 0;
+    size_t total = buf->total_size;
+    while (total){
+        size_t cur_size = total;
+        if (cur_size > netif->mtu - sizeof(Ipv4_hdr)) {
+            cur_size = netif->mtu - sizeof(Ipv4_hdr);
+        }
+        if (cur_size < total) { cur_size &= ~0x7; }
+        Pktbuf *dest_buf = pktbuf_alloc(cur_size + sizeof(Ipv4_hdr));
+        assert(dest_buf != nullptr);
+        Ipv4_pkt *pkt = (Ipv4_pkt *)pktbuf_data(dest_buf);
+        pkt->hdr.shdr_all = 0;  
+        pkt->hdr.version = NET_VERSION_IPV4;
+        set_header_size(pkt, sizeof(Ipv4_hdr));
+        pkt->hdr.total_len = dest_buf->total_size;
+        pkt->hdr.id = packet_id;  
+        pkt->hdr.frag_all = 0;   
+        pkt->hdr.ttl = NET_IP_DEF_TTL;
+        pkt->hdr.protocol = protocol;
+        pkt->hdr.hdr_checksum = 0;
+        ipaddr_to_buf(src, pkt->hdr.src_ip);
+        ipaddr_to_buf(dest, pkt->hdr.dest_ip);
+        pkt->hdr.offset = offset >> 3;      
+        pkt->hdr.more = total > cur_size;
+        pktbuf_seek(dest_buf, sizeof(Ipv4_hdr));
+        int ret = pktbuf_copy(dest_buf, buf, cur_size);
+        if (ret < 0) {
+            dbg_error(DBG_IP, "frag copy failed. error = %d.\n", ret);
+            pktbuf_free(dest_buf);
+            return ret;
+        }
+        iphdr_htons(pkt);
+        pktbuf_seek(dest_buf, 0);
+        pkt->hdr.hdr_checksum = pktbuf_checksum16(dest_buf, ipv4_hdr_size(pkt), 0, 1);
+        dump_ip_packet(pkt);
+        ret = netif_out(netif, dest, dest_buf);
+        if (ret < 0) {
+            dbg_warning(DBG_IP, "ip send retor. ret = %d\n", ret);
+            pktbuf_free(dest_buf);
+            return ret;
+        }
+        total -= cur_size;
+        offset += cur_size;
+    }
+    packet_id++;
+    pktbuf_free(buf);
+    return NET_OK;
+}
 
-int ipv4_out(uint8_t protocol, Ipaddr *dest, Ipaddr *src, Pktbuf *buf){
+
+int ipv4_out(uint8_t protocol, Ipaddr *dest, Ipaddr *src, Pktbuf *buf) {
     dbg_info(DBG_IP, "send an ip packet.\n");
-    int ret = pktbuf_add_header(buf, sizeof(Ipv4_hdr), 1);
+    int ret = NET_OK;
+    Netif *netif = netif_get_default();
+    if (netif->mtu && ((buf->total_size + sizeof(Ipv4_hdr)) > netif->mtu)) {
+        ret = ip_frag_out(protocol, dest, src, buf, netif);
+        if (ret < 0) {
+            dbg_warning(DBG_IP, "send ip frag packet failed. error = %d\n", ret);
+            return ret;
+        }
+        return NET_OK;
+    }
+    ret = pktbuf_add_header(buf, sizeof(Ipv4_hdr), 1);
     if (ret < 0) {
-        dbg_error(DBG_IP, "no enough space for ip header, curr size: %d\n", buf->total_size);
+        dbg_error(DBG_IP, "no enough space for ip header, cur size: %d\n", buf->total_size);
         return -E_NET_SIZE;
     }
     Ipv4_pkt *pkt = (Ipv4_pkt *)pktbuf_data(buf);
@@ -140,8 +483,8 @@ int ipv4_out(uint8_t protocol, Ipaddr *dest, Ipaddr *src, Pktbuf *buf){
     pkt->hdr.version = NET_VERSION_IPV4;
     set_header_size(pkt, sizeof(Ipv4_hdr));
     pkt->hdr.total_len = buf->total_size;
-    pkt->hdr.id = packet_id++;  
-    pkt->hdr.frag_all = 0;    
+    pkt->hdr.id = packet_id++;
+    pkt->hdr.frag_all = 0;
     pkt->hdr.ttl = NET_IP_DEF_TTL;
     pkt->hdr.protocol = protocol;
     pkt->hdr.hdr_checksum = 0;

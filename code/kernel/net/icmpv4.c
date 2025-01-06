@@ -113,8 +113,9 @@ int icmpv4_out_unreach(Ipaddr *dest_addr, Ipaddr *src, uint8_t code, Pktbuf *ip_
     pkt->hdr.checksum = 0;
     pkt->reverse = 0;
     pktbuf_reset_acc(ip_buf);
-    pktbuf_seek(new_buf, sizeof(Icmpv4_pkt) + 4); 
+    pktbuf_seek(new_buf, sizeof(Icmpv4_hdr) + 4); 
     ret = pktbuf_copy(new_buf, ip_buf, copy_size);
+    pktbuf_free(ip_buf);
     if (ret < 0) {
         dbg_error(DBG_ICMP, "copy ip buf failed. ret = %d", ret);
         pktbuf_free(new_buf);

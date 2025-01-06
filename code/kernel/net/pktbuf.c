@@ -501,13 +501,15 @@ uint16_t pktbuf_checksum16(Pktbuf *buf, size_t size, uint32_t pre_sum, bool comp
         return 0;
     }
     uint32_t sum = pre_sum;
+    uint32_t offset = 0;
     while (size > 0) {
         size_t blk_size = curr_blk_remain(buf);
         size_t cur_size = (blk_size > size ? size : blk_size);
-        sum = checksum16(buf->blk_offset, cur_size, sum, 0);
+        sum = checksum16(offset, buf->blk_offset, cur_size, sum, 0);
         assert(buf->blk_offset + cur_size <= buf->cur_blk->data + PKTBUF_BLK_SIZE);
         move_forward_nolock(buf, cur_size);
         size -= cur_size;
+        offset += cur_size;
     }
     release(&buf->pktblk_lock);
     return complement ? (uint16_t)~sum : (uint16_t)sum;

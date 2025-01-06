@@ -43,9 +43,10 @@
 #define E_NET_DATA 37   // net error data
 #define E_NET_MATCH 38   // net error match
 #define E_NET_CHECKSUM 39   // net error checksum
+#define E_NET_EXIST 40   // net error exist
 //end of net error
 
 
 /* the maximum allowed */
-#define MAXERROR 39
+#define MAXERROR 40
 #endif 

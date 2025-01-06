@@ -17,9 +17,15 @@ int tools_init(void) {
     return NET_OK;
 }
 
-uint16_t checksum16(void* buf, uint16_t len, uint32_t pre_sum, bool complement){
+uint16_t checksum16(uint32_t offset, void* buf, uint16_t len, uint32_t pre_sum, bool complement) {
     uint16_t* curr_buf = (uint16_t*)buf;
     uint32_t checksum = pre_sum;
+    if (offset & 0x1) {
+        uint8_t* buf = (uint8_t*)curr_buf;
+        checksum += *buf++ << 8;
+        curr_buf = (uint16_t*)buf;
+        len--;
+    }
     while (len > 1) {
         checksum += *curr_buf++;
         len -= 2;
