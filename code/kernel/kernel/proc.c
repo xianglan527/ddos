@@ -1273,11 +1273,19 @@ void exec_timer_func(void) {
 }
 
 void ipc_add_timer(Timer *timer) {
-    if (timer != nullptr) { add_timer(timer); }
+    if (timer != nullptr) {
+        acquire(&timer_lock);
+        add_timer(timer);
+        release(&timer_lock);
+    }
 }
 
 void ipc_del_timer(Timer *timer) {
-    if (timer != nullptr) { del_timer(timer); }
+    if (timer != nullptr) {
+        acquire(&timer_lock);
+        del_timer(timer);
+        release(&timer_lock);
+    }
 }
 
 Timer *ipc_timer_init(ulong timeout, ulong *saved_ticks, Timer *timer) {

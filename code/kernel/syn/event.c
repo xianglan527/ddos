@@ -16,25 +16,6 @@ void event_init(Event *event) {
     initlock(&event->event_lock, "event_lock");
 }
 
-static void sleeping_with_event(void *chan, Spinlock *lk, Event *event) {
-    Proc *p = myproc();
-    if (lk != &p->lock) {
-        acquire(&p->lock);
-        release(lk);
-        release(&event->event_lock);
-    }
-    p->chan = chan;
-    p->state = SLEEPING;
-    sched();
-    p->chan = nullptr;
-
-    if (p->kernel_proc && mycpu()->intena == 0) { mycpu()->intena = 1; }
-    if (lk != &p->lock) {
-        release(&p->lock);
-        acquire(&event->event_lock);
-        acquire(lk);
-    }
-}
 
 static uint32_t send_event(Proc *proc, Timer *timer) {
     Proc *current = myproc();
@@ -51,16 +32,15 @@ static uint32_t send_event(Proc *proc, Timer *timer) {
     }
 
     wait_current_set(wait_queue, wait, WT_EVENT_SEND);
-    acquire(&timer_lock);
+
     ipc_add_timer(timer);
     // cprintf(".....send11111 current id : %d proc id : %d event_num is  : %d\n", current->pid, proc->pid,
     //         current->event.event_num);
 
-    sleeping_with_event(current, &timer_lock, event);
     // cprintf(".....send22222 current id : %d proc id : %d event_num is  : %d\n", current->pid, proc->pid,
     //         current->event.event_num);
+    sleeping(current, &event->event_lock);
     ipc_del_timer(timer);
-    release(&timer_lock);
     wait_current_del(wait_queue, wait);
     release(&event->event_lock);
     if (wait->wakeup_flags != WT_EVENT_SEND) { return wait->wakeup_flags; }
@@ -95,13 +75,11 @@ static int recv_event(int *pid_store, int *event_num_store, Timer *timer) {
     acquire(&event->event_lock);
     if (wait_queue_empty(wait_queue)) {
         current->wait_state = WT_EVENT_RECV;
-        acquire(&timer_lock);
         ipc_add_timer(timer);
         // cprintf(".....recv11111 current id %d\n", current->pid);
-        sleeping_with_event(current, &timer_lock, event);
+        sleeping(current, &event->event_lock);
         // cprintf(".....recv22222 current id %d\n", current->pid);
         ipc_del_timer(timer);
-        release(&timer_lock);
     }
     int ret = -1;
     Wait *wait;

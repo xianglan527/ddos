@@ -46,4 +46,6 @@ int ipc_sem_post(sem_t sem_id);
 int ipc_sem_wait(sem_t sem_id, ulong timeout);
 int ipc_sem_free(sem_t sem_id);
 int ipc_sem_get_value(sem_t sem_id, int *value_store);
+int sem_up(Sem *sem, uint32_t wait_state);
+int sem_down(Sem *sem, uint32_t wait_state, ulong timeout);
 #endif

@@ -5,6 +5,8 @@
 #include "string.h"
 #include "types.h"
 
+#define NET_NEED_WAIT 1
+
 #define DBG_MSG DBG_LEVEL_ERROR
 #define DBG_BUF DBG_LEVEL_ERROR
 #define DBG_INIT DBG_LEVEL_ERROR
@@ -12,8 +14,10 @@
 #define DBG_ETHER DBG_LEVEL_ERROR
 #define DBG_TOOLS DBG_LEVEL_ERROR
 #define DBG_ARP DBG_LEVEL_ERROR
-#define DBG_IP DBG_LEVEL_INFO
-#define DBG_ICMP DBG_LEVEL_INFO
+#define DBG_IP DBG_LEVEL_ERROR
+#define DBG_ICMP DBG_LEVEL_ERROR
+#define DBG_SOCKET DBG_LEVEL_ERROR
+#define DBG_RAW DBG_LEVEL_INFO
 
 #define NET_ENDIAN_LITTLE 1
 
@@ -36,4 +40,9 @@
 #define IP_FRAG_MAX_BUF_NR 20
 #define IP_FRAG_SCAN_PERIOD 1  // unit is 1000ticks
 #define IP_FRAG_TMO 5          // unit is 1000ticks
+
+#define MAX_SOCKET_NUM 4096
+
+#define RAW_MAX_RECV 2000
+
 #endif

@@ -4,6 +4,7 @@
 #include "protocol.h"
 #include "stdio.h"
 #include "nettool.h"
+#include "raw.h"
 
 extern Spinlock print_struct_lock;
 
@@ -64,14 +65,9 @@ int icmpv4_in(Ipaddr *src_ip, Ipaddr *netif_ip, Pktbuf *buf) {
         dbg_error(DBG_ICMP, "set icmp cont failed");
         return ret;
     }
-    ip_pkt = (Ipv4_pkt *)pktbuf_data(buf);  
-    ret = pktbuf_remove_header(buf, iphdr_size);
-    if (ret < 0) {
-        dbg_error(DBG_IP, "remove ip header failed. ret = %d\n", ret);
-        return -E_NET_SIZE;
-    }
-    pktbuf_reset_acc(buf);
-    Icmpv4_pkt *icmp_pkt = (Icmpv4_pkt *)pktbuf_data(buf);
+    ip_pkt = (Ipv4_pkt *)pktbuf_data(buf);
+    Icmpv4_pkt *icmp_pkt = (Icmpv4_pkt *)(pktbuf_data(buf) + iphdr_size);
+    pktbuf_seek(buf, iphdr_size);
     if ((ret = is_pkt_ok(icmp_pkt, buf->total_size, buf)) != NET_OK) {
         dbg_warning(DBG_ICMP, "icmp pkt error.drop it. ret=%d", ret);
         return ret;
@@ -82,13 +78,20 @@ int icmpv4_in(Ipaddr *src_ip, Ipaddr *netif_ip, Pktbuf *buf) {
 #if DBG_DISP_ENABLED(DBG_ICMP)
             dump_ip(DBG_ICMP, "icmp request, ip:", src_ip);
 #endif
+            ret = pktbuf_remove_header(buf, iphdr_size);
+            if (ret < 0) {
+                dbg_error(DBG_IP, "remove ip header failed. ret = %d\n", ret);
+                return -E_NET_SIZE;
+            }
+            pktbuf_reset_acc(buf);
             return icmpv4_echo_reply(src_ip, netif_ip, buf);
         }
         default: {
-            pktbuf_free(buf);
-#if DBG_DISP_ENABLED(DBG_ICMP)
-            dump_ip(DBG_ICMP, "unknown type icmp packet, ip:", src_ip);
-#endif
+            ret = raw_in(buf);
+            if (ret < 0) {
+                dbg_warning(DBG_ICMP, "raw in failed.");
+                return ret;
+            }
             return NET_OK;
         }
     }

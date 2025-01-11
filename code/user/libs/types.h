@@ -37,4 +37,10 @@ typedef intptr_t off_t;
 
 typedef long sem_t;
 
+typedef long ssize_t;
+
+typedef int socklen_t;
+
+typedef uint64_t clock_t;
+
 #endif /* __CONFIG_TYPES_H__*/

@@ -1,32 +1,40 @@
 #include "exmsg.h"
-#include "net.h"
-#include "proc.h"
-#include "stdio.h"
-#include "mbox.h"
-#include "slab.h"
+
 #include "error.h"
-#include "net_config.h"
-#include "string.h"
 #include "ipv4.h"
+#include "mbox.h"
+#include "net.h"
+#include "net_config.h"
+#include "proc.h"
+#include "slab.h"
+#include "stdio.h"
+#include "string.h"
 
 Proc *net_work_thread = nullptr;
 int net_work_thread_mbox_id = -1;
+static int msg_i = 0;
 
-int exmsg_netif_in(Netif *netif){
-    static int i = 0;
+int test_func(Func_msg *msg) {
+    msg->err = 0x1234;
+    cprintf("hello, 1234: %x\n", *(int *)msg->param);
+    return NET_OK;
+}
+
+int exmsg_netif_in(Netif *netif) {
     Mboxbuf __buf, *buf = &__buf;
     buf->size = sizeof(Exmsg);
     buf->len = buf->size;
     buf->data = kmalloc(sizeof(Exmsg));
     Exmsg *msg = (Exmsg *)(buf->data);
-    msg->id = i++;
+    msg->id = msg_i++;
     msg->type = NET_EXMSG_NETIF_IN;
     msg->netif.netif = netif;
     assert(net_work_thread_mbox_id != -1);
     int ret = ipc_mbox_send(net_work_thread_mbox_id, buf, 10);
     assert(ret == 0 || ret == -E_TIMEOUT);
-    if(ret == -E_TIMEOUT){
+    if (ret == -E_TIMEOUT) {
         dbg_warning(DBG_MSG, "work thread mbox full");
+        kfree(buf->data);
         return ret;
     }
     kfree(buf->data);
@@ -39,13 +47,13 @@ static int do_netif_in(Exmsg *msg) {
     int ret;
     while ((buf = netif_get_in(netif, 10))) {
         dbg_info(DBG_MSG, "recv a packet");
-        if(netif->link_layer){
+        if (netif->link_layer) {
             ret = netif->link_layer->in(netif, buf);
-            if(ret < 0){
+            if (ret < 0) {
                 pktbuf_free(buf);
                 dbg_warning(DBG_MSG, "netif in failed. err=%d", ret);
             }
-        }else{
+        } else {
             ret = ipv4_in(netif, buf);
             if (ret < 0) {
                 pktbuf_free(buf);
@@ -61,16 +69,54 @@ int exmsg_init(void) {
     return NET_OK;
 }
 
-static void work_thread(void *arg){
+int exmsg_func_exec(Exmsg_func func, void *param) {
+    Func_msg func_msg;
+    func_msg.proc = myproc();
+    func_msg.func = func;
+    func_msg.param = param;
+    func_msg.err = NET_OK;
+    sem_init(&func_msg.wait_sem, 0);
+    Mboxbuf __buf, *buf = &__buf;
+    buf->size = sizeof(Exmsg);
+    buf->len = buf->size;
+    buf->data = kmalloc(sizeof(Exmsg));
+    Exmsg *msg = (Exmsg *)(buf->data);
+    msg->id = msg_i++;
+    msg->type = NET_EXMSG_FUN;
+    msg->func = &func_msg;
+    dbg_info(DBG_MSG, "1.begin call func: %p", func);
+    assert(net_work_thread_mbox_id != -1);
+    int ret = ipc_mbox_send(net_work_thread_mbox_id, buf, 10);
+    assert(ret == 0 || ret == -E_TIMEOUT);
+    if (ret == -E_TIMEOUT) {
+        dbg_warning(DBG_MSG, "work thread mbox full");
+        kfree(buf->data);
+        return ret;
+    }
+    down(&func_msg.wait_sem);
+    dbg_info(DBG_MSG, "4.end call func: %p", func);
+    kfree(buf->data);
+    return func_msg.err;
+}
+
+static int do_func(Func_msg *func_msg) {
+    dbg_info(DBG_MSG, "2.calling func");
+    func_msg->err = func_msg->func(func_msg);
+    up(&func_msg->wait_sem);
+    dbg_info(DBG_MSG, "3.func exec complete");
+    return NET_OK;
+}
+
+static void work_thread(void *arg) {
     cprintf("%s exmsg is running....\n", (char *)arg);
     Mboxbuf __buf, *buf = &__buf;
     buf->size = sizeof(Exmsg);
     buf->len = buf->size;
     buf->data = kmalloc(sizeof(Exmsg));
-    while(1){
+    while (1) {
         int ret = ipc_mbox_recv(net_work_thread_mbox_id, buf, 5);
         assert(ret == 0 || ret == -E_TIMEOUT);
-        if(ret == -E_TIMEOUT) {
+        if (ret == -E_TIMEOUT) {
             // do_sleep(50);
             continue;
         }
@@ -81,12 +127,17 @@ static void work_thread(void *arg){
             case NET_EXMSG_NETIF_IN:  // 网络接口消息
                 do_netif_in(msg);
                 break;
+            case NET_EXMSG_FUN: 
+                do_func(msg->func);
+                break;
+            default: break;
         }
         memset(buf->data, 0, buf->size);
     }
 }
 
-int exmsg_start(void){
+int exmsg_start(void) {
     net_work_thread = kernel_thread_init(work_thread, "work_thread");
     return NET_OK;
 }
+

@@ -6,6 +6,7 @@
 #include "protocol.h"
 #include "slab.h"
 #include "stdio.h"
+#include "raw.h"
 
 extern Spinlock print_struct_lock;
 
@@ -31,9 +32,9 @@ static void frag_free_nolock(Ip_frag *frag);
     cprintf("    TTL: %d\n", ip_hdr->ttl);
     cprintf("    Protocol: %d\n", ip_hdr->protocol);
     cprintf("    Header checksum: 0x%04x\n", ip_hdr->hdr_checksum);
-    dump_ip_buf("    src ip:", ip_hdr->dest_ip);
+    dump_ip_buf("    src ip:", ip_hdr->src_ip);
     cprintf("\n");
-    dump_ip_buf("    dest ip:", ip_hdr->src_ip);
+    dump_ip_buf("    dest ip:", ip_hdr->dest_ip);
     cprintf("\n");
     cprintf("--------------- ip end ------------------ \n");
     release(&print_struct_lock);
@@ -232,7 +233,12 @@ static int ip_normal_in(Netif *netif, Pktbuf *buf, Ipaddr *src, Ipaddr *dest) {
             icmpv4_out_unreach(src, &netif->ipaddr, ICMPv4_UNREACH_PORT, buf);
             break;
         case NET_PROTOCOL_TCP: break;
-        default: dbg_warning(DBG_IP, "unknown protocol %d, drop it.\n", pkt->hdr.protocol); break;
+        default: {
+            dbg_warning(DBG_IP, "unknown protocol %d, drop it.\n", pkt->hdr.protocol);
+            int ret = raw_in(buf);
+            if (ret < 0) { dbg_warning(DBG_IP, "raw in error. ret = %d\n", ret); }
+            return ret;
+        }
     }
     return -E_NET_MATCH;
 }
@@ -482,7 +488,7 @@ int ipv4_out(uint8_t protocol, Ipaddr *dest, Ipaddr *src, Pktbuf *buf) {
     pkt->hdr.shdr_all = 0;
     pkt->hdr.version = NET_VERSION_IPV4;
     set_header_size(pkt, sizeof(Ipv4_hdr));
-    pkt->hdr.total_len = buf->total_size;
+    pkt->hdr.total_len = (uint16_t)buf->total_size;
     pkt->hdr.id = packet_id++;
     pkt->hdr.frag_all = 0;
     pkt->hdr.ttl = NET_IP_DEF_TTL;

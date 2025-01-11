@@ -138,6 +138,10 @@ static inline int proc_vruntime_compare_value(Rb_node *node1, void *value) {
 
 #define WT_PKTBUF (0x00000400 | WT_INTERAUPTED)
 
+#define WT_SOCK_READ (0x00000400 | WT_INTERAUPTED)
+#define WT_SOCK_WRITE (0x00000401 | WT_INTERAUPTED)
+#define WT_SOCK_CONN (0x00000402 | WT_INTERAUPTED)
+#define WT_SOCK_ALL (WT_SOCK_READ | WT_SOCK_WRITE | WT_SOCK_CONN)
 
 #define le2proc(le, member) to_struct((le), Proc, member);
 

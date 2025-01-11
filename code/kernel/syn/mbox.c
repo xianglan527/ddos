@@ -150,25 +150,6 @@ failed:
     return nullptr;
 }
 
-static void sleeping_with_mbox(void *chan, Spinlock *lk, Msg_mbox *mbox) {
-    Proc *p = myproc();
-    if (lk != &p->lock) {
-        acquire(&p->lock);
-        release(lk);
-        release(&mbox->msg_mbox_lock);
-    }
-    p->chan = chan;
-    p->state = SLEEPING;
-    sched();
-    p->chan = nullptr;
-
-    if (p->kernel_proc && mycpu()->intena == 0) { mycpu()->intena = 1; }
-    if (lk != &p->lock) {
-        release(&p->lock);
-        acquire(&mbox->msg_mbox_lock);
-        acquire(lk);
-    }
-}
 
 static uint32_t send_msg(Msg_mbox *mbox, Msg_msg *msg, Timer *timer) {
     uint32_t ret;
@@ -180,11 +161,9 @@ static uint32_t send_msg(Msg_mbox *mbox, Msg_msg *msg, Timer *timer) {
     while (mbox->max_slots <= mbox->slots) {
         assert(mbox->state == OPENED);
         wait_current_set(&mbox->senders, wait, WT_MBOX_SEND);
-        acquire(&timer_lock);
         ipc_add_timer(timer);
-        sleeping_with_mbox(current, &timer_lock, mbox);
+        sleeping(current, &mbox->msg_mbox_lock);
         ipc_del_timer(timer);
-        release(&timer_lock);
         wait_current_del(&mbox->senders, wait);
         if (mbox->state != OPENED || wait->wakeup_flags != WT_MBOX_SEND) {
             assert(wait->wakeup_flags == WT_INTERAUPTED);
@@ -266,11 +245,9 @@ static int recv_msg(Msg_mbox *mbox, size_t max_bytes, Msg_msg **msg_store, Timer
     while (mbox->slots == 0) {
         assert(mbox->state == OPENED);
         wait_current_set(&mbox->receivers, wait, WT_MBOX_RECV);
-        acquire(&timer_lock);
         ipc_add_timer(timer);
-        sleeping_with_mbox(current, &timer_lock, mbox);
+        sleeping(current, &mbox->msg_mbox_lock);
         ipc_del_timer(timer);
-        release(&timer_lock);
         wait_current_del(&mbox->receivers, wait);
         if (mbox->state != OPENED || wait->wakeup_flags != WT_MBOX_RECV) {
             // assert(wait->wakeup_flags == WT_INTERAUPTED);

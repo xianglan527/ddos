@@ -36,25 +36,12 @@ static void __up(Sem *sem, uint32_t wait_state) {
     release(&sem->sem_lock);
 }
 
-static void sleeping_with_sem(void *chan, Spinlock *lk, Sem *sem){
-    Proc *p = myproc();
-    if (lk != &p->lock) {
-        acquire(&p->lock);
-        release(lk);
-        release(&sem->sem_lock);
-
-    }
-    p->chan = chan;
-    p->state = SLEEPING;
-    sched();
-    p->chan = nullptr;
-
-    if (p->kernel_proc && mycpu()->intena == 0) { mycpu()->intena = 1; }
-    if (lk != &p->lock) {
-        release(&p->lock);
-        acquire(&sem->sem_lock);
-        acquire(lk);
-    }
+static void __up_without_value(Sem *sem, uint32_t wait_state){
+    assert(sem->valid);
+    Wait *wait;
+    acquire(&sem->sem_lock);
+    if (!wait_queue_empty(&sem->wait_queue)) { wakeup_first(&sem->wait_queue, wait_state, 1); }
+    release(&sem->sem_lock);
 }
 
 static uint32_t __down(Sem *sem, uint32_t wait_state, Timer *timer) {
@@ -68,12 +55,26 @@ static uint32_t __down(Sem *sem, uint32_t wait_state, Timer *timer) {
     }
     Wait __wait, *wait = &__wait;
     wait_current_set(&sem->wait_queue, wait, wait_state);
-    acquire(&timer_lock);
     ipc_add_timer(timer);
     assert(current != nullptr);
-    sleeping_with_sem(current, &timer_lock, sem);
+    sleeping(current, &sem->sem_lock);
     ipc_del_timer(timer);
-    release(&timer_lock);
+    wait_current_del(&sem->wait_queue, wait);
+    release(&sem->sem_lock);
+    if (wait->wakeup_flags != wait_state) { return wait->wakeup_flags; }
+    return 0;
+}
+
+static uint32_t __down_without_value(Sem *sem, uint32_t wait_state, Timer *timer) {
+    assert(sem->valid);
+    Proc *current = myproc();
+    acquire(&sem->sem_lock);
+    Wait __wait, *wait = &__wait;
+    wait_current_set(&sem->wait_queue, wait, wait_state);
+    ipc_add_timer(timer);
+    assert(current != nullptr);
+    sleeping(current, &sem->sem_lock);
+    ipc_del_timer(timer);
     wait_current_del(&sem->wait_queue, wait);
     release(&sem->sem_lock);
     if (wait->wakeup_flags != wait_state) { return wait->wakeup_flags; }
@@ -103,12 +104,26 @@ static int usem_up(Sem *sem){
     return 0;
 }
 
+int sem_up(Sem *sem, uint32_t wait_state) {
+    __up_without_value(sem, wait_state);
+    return 0;
+}
+
 static int usem_down(Sem *sem, ulong timeout){
     ulong saved_ticks;
     Timer __timer, *timer = ipc_timer_init(timeout, &saved_ticks, &__timer);
     uint32_t flags;
     if((flags = __down(sem, WT_USEM, timer)) == 0)
         return 0;
+    assert(flags == WT_INTERAUPTED);
+    return ipc_check_timeout(timeout, saved_ticks);
+}
+
+int sem_down(Sem *sem, uint32_t wait_state, ulong timeout) {
+    ulong saved_ticks;
+    Timer __timer, *timer = ipc_timer_init(timeout, &saved_ticks, &__timer);
+    uint32_t flags;
+    if ((flags = __down_without_value(sem, wait_state, timer)) == 0) return 0;
     assert(flags == WT_INTERAUPTED);
     return ipc_check_timeout(timeout, saved_ticks);
 }

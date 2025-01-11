@@ -44,6 +44,12 @@ typedef intptr_t off_t;
 
 typedef uintptr_t sem_t;
 
+typedef long ssize_t;
+
+typedef int socklen_t;
+
+typedef uint64_t clock_t;
+
 #define ROUNDDOWN(a, n)                \
     ({                                 \
         size_t __a = (size_t)(a);      \
