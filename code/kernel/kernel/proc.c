@@ -1102,7 +1102,7 @@ static inline Timer *timer_func_init(Timer *timer, Timer_func func, void *arg, u
 
 static void add_timer(Timer *timer) {
     // acquire(&timer_lock);
-    assert(timer->expires > 0);
+    assert(timer->expires >= 0);
     assert(list_empty(&timer->timer_link));
     List_entry *le = list_next(&timer_list);
     while (le != &timer_list) {
@@ -1111,7 +1111,12 @@ static void add_timer(Timer *timer) {
             next->expires -= timer->expires;
             break;
         }
-        timer->expires -= next->expires;
+        if(timer->expires < next->expires){
+            timer->expires = 0;
+        }
+        else{
+            timer->expires -= next->expires;
+        }
         le = list_next(le);
     }
     list_add_before(le, &timer->timer_link);

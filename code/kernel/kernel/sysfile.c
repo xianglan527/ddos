@@ -221,7 +221,7 @@ uint64_t sys_mbox_send(void) {
     arg_addr(1, &buf);
     long timeout;
     arg_long(2, &timeout);
-    return ipc_mbox_send(id, (Mboxbuf *)buf, (ulong)timeout);
+    return ipc_mbox_send(id, (Mboxbuf *)buf, timeout);
 }
 
 uint64_t sys_mbox_recv(void) {
@@ -231,7 +231,7 @@ uint64_t sys_mbox_recv(void) {
     arg_addr(1, &buf);
     long timeout;
     arg_long(2, &timeout);
-    return ipc_mbox_recv(id, (Mboxbuf *)buf, (ulong)timeout);
+    return ipc_mbox_recv(id, (Mboxbuf *)buf, timeout);
 }
 
 uint64_t sys_mbox_free(void) {

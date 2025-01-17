@@ -12,7 +12,7 @@ static void loop_close(Netif* netif) {}
 static int loop_xmit(Netif* netif) {
     Pktbuf* pktbuf = netif_get_out(netif, 10);
     if(pktbuf){
-        int ret = netif_put_in(netif, pktbuf, 10);
+        int ret = netif_put_in(netif, pktbuf, -1);
         if(ret < 0){
             pktbuf_free(pktbuf);
             return ret;

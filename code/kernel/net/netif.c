@@ -1,16 +1,17 @@
 #include "netif.h"
 
 #include "assert.h"
+#include "ether.h"
 #include "exmsg.h"
+#include "ipv4.h"
 #include "mbox.h"
 #include "net.h"
+#include "proc.h"
+#include "protocol.h"
 #include "slab.h"
 #include "spinlock.h"
 #include "stdio.h"
 #include "string.h"
-#include "proc.h"
-#include "protocol.h"
-#include "ether.h"
 
 List_entry netif_list;
 Spinlock netif_list_lock;
@@ -77,7 +78,7 @@ int netif_init(void) {
     return NET_OK;
 }
 
-int netif_register_layer(int type, Link_layer *layer){
+int netif_register_layer(int type, Link_layer *layer) {
     if ((type < 0) || (type >= NETIF_TYPE_SIZE)) {
         dbg_error(DBG_NETIF, "type error: %d", type);
         return -E_NET_PARAM;
@@ -141,6 +142,21 @@ int netif_set_hwaddr(Netif *netif, uint8_t *hwaddr, int len) {
     unlock_netif(netif);
     return NET_OK;
 }
+
+static void netif_set_default_nolock(Netif *netif) {
+    if (!ipaddr_is_any(&netif->gateway)) {
+        if (netif_default) { rt_remove(ipaddr_get_any(), ipaddr_get_any()); }
+        rt_add(ipaddr_get_any(), ipaddr_get_any(), &netif->gateway, netif);
+    }
+    netif_default = netif;
+}
+
+void netif_set_default(Netif *netif) {
+    acquire(&netif_list_lock);
+    netif_set_default_nolock(netif);
+    release(&netif_list_lock);
+}
+
 int netif_set_active(Netif *netif) {
     lock_netif(netif);
     if (netif->state != NETIF_OPENED) {
@@ -161,8 +177,12 @@ int netif_set_active(Netif *netif) {
             return ret;
         }
     }
+    Ipaddr ip = ipaddr_get_net(&netif->ipaddr, &netif->netmask);
+    rt_add(&ip, &netif->netmask, ipaddr_get_any(), netif);
+    ipaddr_set_all_1(&ip);
+    rt_add(&netif->ipaddr, &ip, ipaddr_get_any(), netif);
     acquire(&netif_list_lock);
-    if (!netif_default && (netif->type != NETIF_TYPE_LOOP)) { netif_default = netif; }
+    if (!netif_default && (netif->type != NETIF_TYPE_LOOP)) { netif_set_default_nolock(netif); }
     release(&netif_list_lock);
     // netif_list_dump();
     return NET_OK;
@@ -194,17 +214,17 @@ int netif_set_inactive(Netif *netif, bool force) {
     netif->state = NETIF_OPENED;
     if (netif->link_layer) { netif->link_layer->close(netif); }
     unlock_netif(netif);
+    Ipaddr ip = ipaddr_get_net(&netif->ipaddr, &netif->netmask);
+    rt_remove(&ip, &netif->netmask);
+    rt_remove(&netif->ipaddr, &netif->netmask);
     acquire(&netif_list_lock);
-    if (netif_default == netif) { netif_default = nullptr; }
+    if (netif_default == netif) {
+        netif_default = nullptr;
+        rt_remove(ipaddr_get_any(), ipaddr_get_any());
+    }
     release(&netif_list_lock);
     // netif_list_dump();
     return NET_OK;
-}
-
-void netif_set_default(Netif *netif) {
-    acquire(&netif_list_lock);
-    netif_default = netif;
-    release(&netif_list_lock);
 }
 
 int netif_close(Netif *netif) {
@@ -225,7 +245,7 @@ int netif_close(Netif *netif) {
     return NET_OK;
 }
 
-int netif_put_out(Netif *netif, Pktbuf *pktbuf, ulong tmo) {
+int netif_put_out(Netif *netif, Pktbuf *pktbuf, long tmo) {
     lock_netif(netif);
     if (netif->state != NETIF_ACTIVE) {
         dbg_error(DBG_NETIF, "netif is not actived");
@@ -239,14 +259,14 @@ int netif_put_out(Netif *netif, Pktbuf *pktbuf, ulong tmo) {
     buf->data = kmalloc(sizeof(Pktbuf *));
     memcpy(buf->data, &pktbuf, sizeof(void *));
     int ret = ipc_mbox_send(netif->tx_mbox_id, buf, tmo);
-    assert(ret == 0 || ret == -E_TIMEOUT || ret == -1);
-    if (ret == -E_TIMEOUT) {
+    assert(ret == 0 || ret == -E_TIMEOUT || ret == -1 || ret == -E_MBX_FULL);
+    if (ret == -E_TIMEOUT || ret == -E_MBX_FULL) {
         dbg_warning(DBG_NETIF, "%s tx mbox full", netif->netif_name);
         unlock_netif(netif);
         return ret;
     }
     if (ret == -1) {
-        dbg_warning(DBG_NETIF, "%s inactive", netif->netif_name);
+        dbg_error(DBG_NETIF, "%s tx mbox failed", netif->netif_name);
         unlock_netif(netif);
         return ret;
     }
@@ -255,7 +275,7 @@ int netif_put_out(Netif *netif, Pktbuf *pktbuf, ulong tmo) {
     return NET_OK;
 }
 
-int netif_put_in(Netif *netif, Pktbuf *pktbuf, ulong tmo) {
+int netif_put_in(Netif *netif, Pktbuf *pktbuf, long tmo) {
     lock_netif(netif);
     if (netif->state != NETIF_ACTIVE) {
         dbg_error(DBG_NETIF, "netif is not actived");
@@ -269,24 +289,33 @@ int netif_put_in(Netif *netif, Pktbuf *pktbuf, ulong tmo) {
     buf->data = kmalloc(sizeof(Pktbuf *));
     memcpy(buf->data, &pktbuf, sizeof(void *));
     int ret = ipc_mbox_send(netif->rx_mbox_id, buf, tmo);
-    assert(ret == 0 || ret == -E_TIMEOUT || ret == -1);
-    if (ret == -E_TIMEOUT) {
+    assert(ret == 0 || ret == -E_TIMEOUT || ret == -1 || ret == -E_MBX_FULL);
+    if (ret == -E_TIMEOUT || ret == -E_MBX_FULL) {
         dbg_warning(DBG_NETIF, "%s rx mbox full", netif->netif_name);
         unlock_netif(netif);
         return ret;
     }
     if (ret == -1) {
-        dbg_warning(DBG_NETIF, "%s inactive", netif->netif_name);
+        dbg_error(DBG_NETIF, "%s rx mbox failed", netif->netif_name);
         unlock_netif(netif);
         return ret;
     }
     kfree(buf->data);
     unlock_netif(netif);
-    return exmsg_netif_in(netif);
-    // return NET_OK;
+
+    Msg_mbox *mbox;
+    size_t rx_mbox_slot;
+    assert((mbox = get_mbox(netif->rx_mbox_id)) != nullptr);
+    acquire(&mbox->msg_mbox_lock);
+    rx_mbox_slot = mbox->slots;
+    release(&mbox->msg_mbox_lock);
+    if (rx_mbox_slot == 1) { 
+        exmsg_netif_in(netif); 
+    }
+    return NET_OK;
 }
 
-Pktbuf *netif_get_out(Netif *netif, ulong tmo) {
+Pktbuf *netif_get_out(Netif *netif, long tmo) {
     lock_netif(netif);
     if (netif->state != NETIF_ACTIVE) {
         dbg_error(DBG_NETIF, "netif is not actived");
@@ -299,14 +328,14 @@ Pktbuf *netif_get_out(Netif *netif, ulong tmo) {
     buf->len = buf->size;
     buf->data = kmalloc(sizeof(Pktbuf *));
     int ret = ipc_mbox_recv(netif->tx_mbox_id, buf, tmo);
-    assert(ret == 0 || ret == -E_TIMEOUT || ret == -1);
-    if (ret == -E_TIMEOUT) {
-        // dbg_warning(DBG_NETIF, "%s tx mbox empty", netif->netif_name);
+    assert(ret == 0 || ret == -E_TIMEOUT || ret == -1 || ret == -E_MBX_EMPTY);
+    if (ret == -E_TIMEOUT || ret == -E_MBX_EMPTY) {
+        dbg_warning(DBG_NETIF, "%s tx mbox empty", netif->netif_name);
         unlock_netif(netif);
         return nullptr;
     }
     if (ret == -1) {
-        dbg_warning(DBG_NETIF, "%s inactive", netif->netif_name);
+        dbg_error(DBG_NETIF, "%s tx mbox failed", netif->netif_name);
         unlock_netif(netif);
         return nullptr;
     }
@@ -318,7 +347,7 @@ Pktbuf *netif_get_out(Netif *netif, ulong tmo) {
     return pktbuf;
 }
 
-Pktbuf *netif_get_in(Netif *netif, ulong tmo) {
+Pktbuf *netif_get_in(Netif *netif, long tmo) {
     lock_netif(netif);
     if (netif->state != NETIF_ACTIVE) {
         dbg_error(DBG_NETIF, "netif is not actived");
@@ -330,15 +359,15 @@ Pktbuf *netif_get_in(Netif *netif, ulong tmo) {
     buf->size = sizeof(Pktbuf *);
     buf->len = buf->size;
     buf->data = kmalloc(sizeof(Pktbuf *));
-    int ret = ipc_mbox_recv(netif->rx_mbox_id, buf, tmo);
-    assert(ret == 0 || ret == -E_TIMEOUT || ret == -1);
-    if (ret == -E_TIMEOUT) {
-        // dbg_warning(DBG_NETIF, "%s rx mbox empty", netif->netif_name);
+    int ret = ipc_mbox_recv(netif->rx_mbox_id, buf, -1);
+    assert(ret == 0 || ret == -E_TIMEOUT || ret == -1 || ret == -E_MBX_EMPTY);
+    if (ret == -E_TIMEOUT || ret == -E_MBX_EMPTY) {
+        dbg_warning(DBG_NETIF, "%s rx mbox empty", netif->netif_name);
         unlock_netif(netif);
         return nullptr;
     }
     if (ret == -1) {
-        dbg_warning(DBG_NETIF, "%s inactive", netif->netif_name);
+        dbg_error(DBG_NETIF, "%s rx mbox failed", netif->netif_name);
         unlock_netif(netif);
         return nullptr;
     }
@@ -360,8 +389,8 @@ int netif_out(Netif *netif, Ipaddr *ipaddr, Pktbuf *buf) {
             return ret;
         }
         return NET_OK;
-    }else{
-        ret = netif_put_out(netif, buf, 10);
+    } else {
+        ret = netif_put_out(netif, buf, -1);
         if (ret != 0) {
             dbg_warning(DBG_NETIF, "send to netif queue failed. err: %d", ret);
             return ret;

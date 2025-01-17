@@ -4,9 +4,9 @@
 #include "nettool.h"
 #include "proc.h"
 #include "protocol.h"
+#include "raw.h"
 #include "slab.h"
 #include "stdio.h"
-#include "raw.h"
 
 extern Spinlock print_struct_lock;
 
@@ -16,10 +16,13 @@ Ip_frag_head ip_frag_head;
 
 Timer *frag_timer;
 
+List_entry rt_list;
+Spinlock rt_list_lock;
+
 static void frag_free_nolock(Ip_frag *frag);
 
 #if DBG_DISP_ENABLED(DBG_IP)
-    static void dump_ip_packet(Ipv4_pkt *pkt) {
+static void dump_ip_packet(Ipv4_pkt *pkt) {
     Ipv4_hdr *ip_hdr = (Ipv4_hdr *)&pkt->hdr;
     acquire(&print_struct_lock);
     cprintf("--------------- ip ------------------ \n");
@@ -80,16 +83,43 @@ static void dump_ip_frags(void) {
 #define dump_ip_frags()
 #endif
 
+#if DBG_DISP_ENABLED(DBG_IP)
+void dump_rt_nlist(void) {
+    acquire(&rt_list_lock);
+    acquire(&print_struct_lock);
+    cprintf("\n------------- dump route table start ---------- \n");
+    int index = 0;
+    List_entry *le;
+    list_for_each(le, &rt_list) {
+        Rentry *rentry = le2rentry(le);
+        cprintf("%d: ", index++);
+        dump_ip(DBG_IP, "net:", &rentry->net);
+        cprintf("\t");
+        dump_ip(DBG_IP, "mask:", &rentry->mask);
+        cprintf("\t");
+        dump_ip(DBG_IP, "next_hop:", &rentry->next_hop);
+        cprintf("\t");
+        cprintf("netif name: %s", rentry->netif->netif_name);
+        cprintf("\n");
+    }
+    cprintf("------------- dump route table end ---------- \n");
+    release(&print_struct_lock);
+    release(&rt_list_lock);
+}
+#else
+#define dump_rt_nlist()
+#endif
+
 static void frag_tmo(Timer *timer) {
     int changed_cnt = 0;
-    List_entry* le;
+    List_entry *le;
     acquire(&ip_frag_head.ip_frag_list_lock);
     if (list_empty(&ip_frag_head.ip_frag_list)) {
         release(&ip_frag_head.ip_frag_list_lock);
         return;
     }
     le = list_next(&ip_frag_head.ip_frag_list);
-    while (le != &ip_frag_head.ip_frag_list){
+    while (le != &ip_frag_head.ip_frag_list) {
         Ip_frag *frag = le2ip_frag(le);
         le = list_next(le);
         if (--frag->tmo == 0) {
@@ -120,6 +150,7 @@ int ipv4_init(void) {
         dbg_error(DBG_IP, "failed. ret = %d", ret);
         return ret;
     }
+    rts_init();
     dbg_info(DBG_IP, "done.");
     return NET_OK;
 }
@@ -327,11 +358,11 @@ static Pktbuf *frag_join(Ip_frag *frag) {
         frag_free(frag);
         dbg_warning(DBG_IP, "ip frag buf list is empty. \n");
         return nullptr;
-    }else{
+    } else {
         le = list_next(&frag->ip_frag_buf_list);
         target = le2pktbuf_ip_frag(le);
         while ((le = list_next(&target->ip_frag_link)) != &frag->ip_frag_buf_list) {
-            cur_buf =  le2pktbuf_ip_frag(le);
+            cur_buf = le2pktbuf_ip_frag(le);
             Ipv4_pkt *pkt = (Ipv4_pkt *)pktbuf_data(cur_buf);
             pktbuf_remove_header(cur_buf, ipv4_hdr_size(pkt));
             list_del(&cur_buf->ip_frag_link);
@@ -373,7 +404,7 @@ static int ip_frag_in(Netif *netif, Pktbuf *buf, Ipaddr *src, Ipaddr *dest) {
             int ret = ip_normal_in(netif, full_buf, src, dest);
             if (ret < 0) {
                 dbg_warning(DBG_IP, "ip frag in error. ret=%d\n", ret);
-                pktbuf_free(full_buf); 
+                pktbuf_free(full_buf);
                 return NET_OK;
             }
         }
@@ -414,32 +445,36 @@ int ipv4_in(Netif *netif, Pktbuf *buf) {
     }
     return ret;
 }
-int ip_frag_out(uint8_t protocol, Ipaddr *dest, Ipaddr *src, Pktbuf *buf, Netif *netif) {
+
+int ip_frag_out(uint8_t protocol, Ipaddr *dest, Ipaddr *src, Pktbuf *buf, Ipaddr *next, Netif *netif) {
     dbg_info(DBG_IP, "frag send an ip packet.\n");
     pktbuf_reset_acc(buf);
     size_t offset = 0;
     size_t total = buf->total_size;
-    while (total){
+    while (total) {
         size_t cur_size = total;
-        if (cur_size > netif->mtu - sizeof(Ipv4_hdr)) {
-            cur_size = netif->mtu - sizeof(Ipv4_hdr);
-        }
+        if (cur_size > netif->mtu - sizeof(Ipv4_hdr)) { cur_size = netif->mtu - sizeof(Ipv4_hdr); }
         if (cur_size < total) { cur_size &= ~0x7; }
         Pktbuf *dest_buf = pktbuf_alloc(cur_size + sizeof(Ipv4_hdr));
         assert(dest_buf != nullptr);
         Ipv4_pkt *pkt = (Ipv4_pkt *)pktbuf_data(dest_buf);
-        pkt->hdr.shdr_all = 0;  
+        pkt->hdr.shdr_all = 0;
         pkt->hdr.version = NET_VERSION_IPV4;
         set_header_size(pkt, sizeof(Ipv4_hdr));
         pkt->hdr.total_len = dest_buf->total_size;
-        pkt->hdr.id = packet_id;  
-        pkt->hdr.frag_all = 0;   
+        pkt->hdr.id = packet_id;
+        pkt->hdr.frag_all = 0;
         pkt->hdr.ttl = NET_IP_DEF_TTL;
         pkt->hdr.protocol = protocol;
         pkt->hdr.hdr_checksum = 0;
-        ipaddr_to_buf(src, pkt->hdr.src_ip);
+        // ipaddr_to_buf(src, pkt->hdr.src_ip);
+        if (!src || ipaddr_is_any(src)) {
+            ipaddr_to_buf(&netif->ipaddr, pkt->hdr.src_ip);
+        } else {
+            ipaddr_to_buf(src, pkt->hdr.src_ip);
+        }
         ipaddr_to_buf(dest, pkt->hdr.dest_ip);
-        pkt->hdr.offset = offset >> 3;      
+        pkt->hdr.offset = offset >> 3;
         pkt->hdr.more = total > cur_size;
         pktbuf_seek(dest_buf, sizeof(Ipv4_hdr));
         int ret = pktbuf_copy(dest_buf, buf, cur_size);
@@ -452,7 +487,7 @@ int ip_frag_out(uint8_t protocol, Ipaddr *dest, Ipaddr *src, Pktbuf *buf, Netif 
         pktbuf_seek(dest_buf, 0);
         pkt->hdr.hdr_checksum = pktbuf_checksum16(dest_buf, ipv4_hdr_size(pkt), 0, 1);
         dump_ip_packet(pkt);
-        ret = netif_out(netif, dest, dest_buf);
+        ret = netif_out(netif, next, dest_buf);
         if (ret < 0) {
             dbg_warning(DBG_IP, "ip send retor. ret = %d\n", ret);
             pktbuf_free(dest_buf);
@@ -466,13 +501,26 @@ int ip_frag_out(uint8_t protocol, Ipaddr *dest, Ipaddr *src, Pktbuf *buf, Netif 
     return NET_OK;
 }
 
-
 int ipv4_out(uint8_t protocol, Ipaddr *dest, Ipaddr *src, Pktbuf *buf) {
     dbg_info(DBG_IP, "send an ip packet.\n");
     int ret = NET_OK;
-    Netif *netif = netif_get_default();
+
+    Rentry *rt = rt_find(dest);
+    if (rt == nullptr) {
+        dbg_error(DBG_IP, "send failed. no route.");
+        return -E_NET_MATCH;
+    }
+    Ipaddr next_hop;
+    if (ipaddr_is_any(&rt->next_hop)) {
+        ipaddr_copy(&next_hop, dest);
+    } else {
+        ipaddr_copy(&next_hop, &rt->next_hop);
+    }
+
+    // Netif *netif = netif_get_default();
+    Netif *netif = rt->netif;
     if (netif->mtu && ((buf->total_size + sizeof(Ipv4_hdr)) > netif->mtu)) {
-        ret = ip_frag_out(protocol, dest, src, buf, netif);
+        ret = ip_frag_out(protocol, dest, src, buf, &next_hop, netif);
         if (ret < 0) {
             dbg_warning(DBG_IP, "send ip frag packet failed. error = %d\n", ret);
             return ret;
@@ -494,17 +542,100 @@ int ipv4_out(uint8_t protocol, Ipaddr *dest, Ipaddr *src, Pktbuf *buf) {
     pkt->hdr.ttl = NET_IP_DEF_TTL;
     pkt->hdr.protocol = protocol;
     pkt->hdr.hdr_checksum = 0;
-    ipaddr_to_buf(src, pkt->hdr.src_ip);
+    // ipaddr_to_buf(src, pkt->hdr.src_ip);
+    if (!src || ipaddr_is_any(src)) {
+        ipaddr_to_buf(&netif->ipaddr, pkt->hdr.src_ip);
+    } else {
+        ipaddr_to_buf(src, pkt->hdr.src_ip);
+    }
     ipaddr_to_buf(dest, pkt->hdr.dest_ip);
     iphdr_htons(pkt);
     pktbuf_reset_acc(buf);
     pkt->hdr.hdr_checksum = pktbuf_checksum16(buf, ipv4_hdr_size(pkt), 0, 1);
     dump_ip_packet(pkt);
-    ret = netif_out(netif_get_default(), dest, buf);
+    ret = netif_out(netif, &next_hop, buf);
     if (ret < 0) {
         dbg_warning(DBG_IP, "send ip packet failed. error = %d\n", ret);
         return ret;
     }
-
     return NET_OK;
+}
+
+void rts_init(void) {
+    list_init(&rt_list);
+    initlock(&rt_list_lock, "rt_list_lock");
+}
+
+static bool rt_has_exist(Ipaddr *net, Ipaddr *mask) {
+    bool has_exist = false;
+    acquire(&rt_list_lock);
+    List_entry *le;
+    list_for_each(le, &rt_list) {
+        Rentry *rentry = le2rentry(le);
+        if (ipaddr_is_equal(&rentry->net, net) && ipaddr_is_equal(&rentry->mask, mask)) {
+            has_exist = true;
+            break;
+        }
+    }
+    release(&rt_list_lock);
+    return has_exist;
+}
+
+void rt_add(Ipaddr *net, Ipaddr *mask, Ipaddr *next_hop, Netif *netif) {
+    if (rt_has_exist(net, mask)) {
+        dbg_warning(DBG_IP, "The RT entry has existed.");
+        return;
+    }
+    Rentry *rentry = (Rentry *)kmalloc(sizeof(Rentry));
+    assert(rentry != nullptr);
+    ipaddr_copy(&rentry->net, net);
+    ipaddr_copy(&rentry->mask, mask);
+    ipaddr_copy(&rentry->next_hop, next_hop);
+    rentry->netif = netif;
+    rentry->mask_1_cnt = ipaddr_1_cnt(mask);
+    acquire(&rt_list_lock);
+    if (list_count(&rt_list) == IP_RTABLE_SIZE) {
+        dbg_warning(DBG_IP, "The RT entry is full, and remove the last entry from the linked list.");
+        assert(!list_empty(&rt_list));
+        list_del(rt_list.prev);
+        kfree(le2rentry(rt_list.prev));
+    }
+    list_add_after(&rt_list, &rentry->rentry_link);
+    release(&rt_list_lock);
+    dump_rt_nlist();
+}
+
+void rt_remove(Ipaddr *net, Ipaddr *mask) {
+    acquire(&rt_list_lock);
+    List_entry *le;
+    while ((le = list_next(&rt_list)) != &rt_list) {
+        Rentry *rentry = le2rentry(le);
+        if (ipaddr_is_equal(&rentry->net, net) && ipaddr_is_equal(&rentry->mask, mask)) {
+            acquire(&print_struct_lock);
+            dbg_info(DBG_IP, "remove a route info:");
+            dump_ip(DBG_IP, "net:", net);
+            dump_ip(DBG_IP, "mask:", mask);
+            cprintf("\n");
+            release(&print_struct_lock);
+            list_del(le);
+            kfree(rentry);
+            break;
+        }
+    }
+    release(&rt_list_lock);
+    dump_rt_nlist();
+}
+
+Rentry *rt_find(Ipaddr *ip){
+    Rentry *find_rentry = nullptr;
+    acquire(&rt_list_lock);
+    List_entry *le;
+    list_for_each(le, &rt_list) {
+        Rentry *rentry = le2rentry(le);
+        Ipaddr net = ipaddr_get_net(ip, &rentry->mask);
+        if (!ipaddr_is_equal(&net, &rentry->net)) { continue; }
+        if (!find_rentry || (find_rentry->mask_1_cnt < rentry->mask_1_cnt)) { find_rentry = rentry; }
+    }
+    release(&rt_list_lock);
+    return find_rentry;
 }

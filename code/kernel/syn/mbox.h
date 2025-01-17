@@ -50,9 +50,10 @@ struct msg_mbox{
 #define MAX_MSG_DATELEN (512 - sizeof(Msg_msg))
 
 void mbox_init(void);
+Msg_mbox *get_mbox(int id);
 int ipc_mbox_init(size_t max_slots);
-int ipc_mbox_send(int id, Mboxbuf *buf, ulong timeout);
-int ipc_mbox_recv(int id, Mboxbuf *buf, ulong timeout);
+int ipc_mbox_send(int id, Mboxbuf *buf, long timeout);
+int ipc_mbox_recv(int id, Mboxbuf *buf, long timeout);
 int ipc_mbox_free(int id);
 int ipc_mbox_info(int id, Mboxinfo *info);
 void mbox_cleanup(void);

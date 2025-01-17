@@ -89,10 +89,10 @@ void netif_set_default(Netif *netif);
 int netif_close(Netif *netif);
 int netif_register_layer(int type, Link_layer *layer);
 
-int netif_put_out(Netif *netif, Pktbuf *buf, ulong tmo);
-int netif_put_in(Netif *netif, Pktbuf *pktbuf, ulong tmo);
-Pktbuf *netif_get_out(Netif *netif, ulong tmo);
-Pktbuf *netif_get_in(Netif *netif, ulong tmo);
+int netif_put_out(Netif *netif, Pktbuf *buf, long tmo);
+int netif_put_in(Netif *netif, Pktbuf *pktbuf, long tmo);
+Pktbuf *netif_get_out(Netif *netif, long tmo);
+Pktbuf *netif_get_in(Netif *netif, long tmo);
 int netif_out(Netif *netif, Ipaddr *ipaddr, Pktbuf *buf);
 Netif *netif_get_default(void);
 #endif

@@ -88,7 +88,7 @@ static int raw_sendto(Socket* socket, void* buf, size_t len, int flags, Sockaddr
         dbg_error(DBG_RAW, "copy data error");
         goto end_sendto;
     }
-    ret = ipv4_out(socket->protocol, &dest_ip, &netif_get_default()->ipaddr, pktbuf);
+    ret = ipv4_out(socket->protocol, &dest_ip, &socket->local_ip, pktbuf);
     if (ret < 0) {
         dbg_error(DBG_RAW, "send error");
         goto end_sendto;

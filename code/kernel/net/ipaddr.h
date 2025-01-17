@@ -32,4 +32,6 @@ int ipaddr_is_direct_broadcast(Ipaddr* ipaddr, Ipaddr* netmask);
 int ipaddr_is_any(Ipaddr *ip);
 Ipaddr ipaddr_get_net(Ipaddr* ipaddr, Ipaddr* netmask);
 int ipaddr_is_match(Ipaddr* dest, Ipaddr* src, Ipaddr* netmask);
+void ipaddr_set_all_1(Ipaddr* ip);
+int ipaddr_1_cnt(Ipaddr *ip);
 #endif

@@ -27,6 +27,7 @@ int virtio_net_init(uint32_t base, int idx) {
         list_init(&nets_list);
         ret = virtio_net_add(base, "net0", idx);
         net_device_num++;
+        // net_init_done = true;
         return ret;
     } else if (net_device_num == 1) {
         ret = virtio_net_add(base, "net1", idx);

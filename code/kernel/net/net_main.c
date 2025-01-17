@@ -24,38 +24,49 @@ typedef struct {
     char *gw;
 } NetConfig;
 
-NetConfig net_configs[] = {
-    {"net0", "192.168.74.3", "255.255.255.0", "192.168.74.1"},
-    {"net1", "192.168.74.4", "255.255.255.0", "192.168.74.1"},
-};
+char *br0_ip = BR0_IP;
+char *br0_gw = BR0_GATEWAY;
+char *br0_netmask = BR0_NETMASK;
 
-char *friend0_ip = "192.168.74.2";
+char *friend0_ip = BR0_IP;
 
-NetConfig *get_net_config(const char *net_name) {
-    for (int i = 0; i < sizeof(net_configs) / sizeof(NetConfig); i++) {
-        if (net_configs[i].name && strcmp(net_configs[i].name, net_name) == 0) { return &net_configs[i]; }
-    }
-    return nullptr;
-}
+// NetConfig net_configs[] = {
+//     {"net0", "192.168.74.3", "255.255.255.0", "192.168.74.1"},
+//     {"net1", "192.168.74.4", "255.255.255.0", "192.168.74.1"},
+// };
+
+// NetConfig *get_net_config(const char *net_name) {
+//     for (int i = 0; i < sizeof(net_configs) / sizeof(NetConfig); i++) {
+//         if (net_configs[i].name && strcmp(net_configs[i].name, net_name) == 0) { return &net_configs[i]; }
+//     }
+//     return nullptr;
+// }
 
 int net_device_init(void) {
     List_entry *le;
+    int index = 3;
     list_for_each(le, &nets_list) {
         Virtio_net *net = le2virtio_net(le);
         Netif *netif = netif_open(nullptr, &netdev_ops, net);
         assert(netif != nullptr);
         snprintf(netif->netif_name, sizeof(netif->netif_name), "%sif", net->net_name);
-        NetConfig *config = get_net_config(net->net_name);
-        if (config == nullptr) {
-            warn("No configuration found for %s\n", net->net_name);
-            return -E_NET_CONFIG;
-        }
+        // NetConfig *config = get_net_config(net->net_name);
+        // if (config == nullptr) {
+        //     warn("No configuration found for %s\n", net->net_name);
+        //     return -E_NET_CONFIG;
+        // }
         Ipaddr ip, mask, gw;
-        ipaddr_from_str(&ip, config->ip);
-        ipaddr_from_str(&mask, config->mask);
-        ipaddr_from_str(&gw, config->gw);
+        ipaddr_from_str(&ip, br0_gw);
+        // ipaddr_from_str(&ip, br0_ip);
+        ipaddr_from_str(&mask, br0_netmask);
+        // ipaddr_from_str(&gw, br0_gw);
+        ipaddr_from_str(&gw, br0_ip);
+        // ipaddr_from_str(&gw, br0_gw);
+        ip.a_addr[IPV4_ADDR_SIZE - 1] += index++;
+        // ipaddr_from_str(&ip, br0_ip);
         netif_set_addr(netif, &ip, &mask, &gw);
         netif_set_active(netif);
+        netif_list_dump();
         Pktbuf *buf = pktbuf_alloc(32);
         pktbuf_fill(buf, 0x53, 32);
 
@@ -392,7 +403,10 @@ void ping_run(Ping *ping, char *dest, size_t count, size_t size, size_t interval
 }
 
 void socket_raw_test(){
-    char *dest = "192.168.74.2";
+    // char *dest = "192.168.0.1";
+    // char *dest = friend0_ip;
+    // char *dest = br0_gw;
+    char *dest = "8.8.8.8";
     size_t count = 4;     // Default count
     size_t size = 56;     // Default data size
     size_t interval = 500;  // Default interval
@@ -415,6 +429,12 @@ void net_test() {
 }
 
 void net_main(void *arg) {
+    cprintf("br0 IP: %s\n", br0_ip);
+    cprintf("br0 Gateway: %s\n", br0_gw);
+    cprintf("br0 netmask: %s\n", br0_netmask);
+    assert(memcmp(br0_ip, "0.0.0.0", sizeof("0.0.0.0")) != 0);
+    assert(memcmp(br0_gw, "0.0.0.0", sizeof("0.0.0.0")) != 0);
+    assert(memcmp(br0_netmask, "0.0.0.0", sizeof("0.0.0.0")) != 0);
     net_init();
     net_device_init();
     net_start();

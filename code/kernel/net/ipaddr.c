@@ -71,3 +71,15 @@ int ipaddr_is_match(Ipaddr* dest, Ipaddr* src, Ipaddr* netmask){
     if (ipaddr_is_direct_broadcast(dest, netmask) && ipaddr_is_equal(&dest_netid, &src_netid)) { return 1; }
     return ipaddr_is_equal(dest, src);
 }
+
+void ipaddr_set_all_1(Ipaddr *ip) { ip->q_addr = 0xFFFFFFFF; }
+
+int ipaddr_1_cnt(Ipaddr *ip) {
+    int cnt = 0;
+    uint32_t addr = ip->q_addr;
+    while (addr) {
+        if (addr & 0x1) { cnt++; }
+        addr >>= 1;
+    }
+    return cnt;
+}

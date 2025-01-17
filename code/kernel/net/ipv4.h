@@ -79,6 +79,17 @@ typedef struct ip_frag_head {
     List_entry ip_frag_list;
 } Ip_frag_head;
 
+typedef struct rentry {
+    Ipaddr net;      
+    Ipaddr mask;     
+    int mask_1_cnt; 
+    Ipaddr next_hop;    
+    Netif *netif;     
+    List_entry rentry_link;  
+} Rentry;
+
+#define le2rentry(le) to_struct((le), Rentry, rentry_link)
+
 static inline size_t ipv4_hdr_size(Ipv4_pkt *pkt) { return pkt->hdr.shdr * 4; }
 
 static inline void set_header_size(Ipv4_pkt *pkt, size_t size) { pkt->hdr.shdr = (uint16_t)(size / 4); }
@@ -92,4 +103,8 @@ static inline uint16_t get_frag_end(Ipv4_pkt *pkt) { return get_frag_start(pkt) 
 int ipv4_init(void);
 int ipv4_in(Netif *netif, Pktbuf *buf);
 int ipv4_out(uint8_t protocol, Ipaddr *dest, Ipaddr *src, Pktbuf *buf);
+void rts_init(void);
+void rt_add(Ipaddr *net, Ipaddr *mask, Ipaddr *next_hop, Netif *netif);
+void rt_remove(Ipaddr *net, Ipaddr *mask);
+Rentry *rt_find(Ipaddr *ip);
 #endif

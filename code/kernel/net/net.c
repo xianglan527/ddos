@@ -18,13 +18,13 @@ int net_init(void){
     exmsg_init();
     pktbuf_init();
     netif_init();
-    loop_init();
     ether_init();
     arp_init();
     ipv4_init();
     icmpv4_init();
     sockets_init();
     raws_init();
+    loop_init();
     return NET_OK;
 }
 

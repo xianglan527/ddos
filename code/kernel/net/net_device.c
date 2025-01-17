@@ -22,8 +22,8 @@ static void recv_thread(void *arg) {
                 Pktbuf *buf = pktbuf_alloc(rlen);
                 assert(buf != nullptr);
                 pktbuf_write(buf, netif->net->recv_buf, rlen);
-                int ret = netif_put_in(netif, buf, 10);
-                if (ret == -E_TIMEOUT) {
+                int ret = netif_put_in(netif, buf, -1);
+                if (ret == -E_MBX_FULL) {
                     pktbuf_free(buf);
                     do_sleep(50);
                     continue;
@@ -47,7 +47,7 @@ static void xmit_thread(void *arg) {
     while (1) {
         if (netif->state == NETIF_ACTIVE) {
             assert(netif->net != nullptr);
-            Pktbuf *buf = netif_get_out(netif, 10);
+            Pktbuf *buf = netif_get_out(netif, -1);
             if (buf) {
                 size_t total_size = buf->total_size;
                 assert(total_size <= netif->net->mtu + 14);

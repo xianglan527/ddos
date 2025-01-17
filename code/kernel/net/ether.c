@@ -150,9 +150,9 @@ int ether_raw_out(Netif* netif, Protocol protocol, const uint8_t* dest, Pktbuf* 
     pkt->hdr.protocol = x_htons(protocol);
     ether_pkt_dump("ether out", pkt, size);
     if (memcmp(netif->hwaddr.addr, dest, ETH_HWA_SIZE) == 0) {
-       return netif_put_in(netif, buf, 10);
+       return netif_put_in(netif, buf, -1);
     } else{
-        ret = netif_put_out(netif, buf, 10);
+        ret = netif_put_out(netif, buf, -1);
         if (ret < 0) {
             dbg_warning(DBG_ETHER, "put pkt out failed: %d", ret);
             return ret;

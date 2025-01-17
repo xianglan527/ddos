@@ -27,27 +27,28 @@
 #define E_EXISTS 23       // File/Directory Already Exists
 #define E_NOTEMPTY 24     // Directory is Not Empty
 #define E_LOOP 25         // file is a symlink
-#define E_OPEN 26        // file not open
+#define E_OPEN 26         // file not open
+#define E_MBX_FULL 27     // mbox full
+#define E_MBX_EMPTY 28    // mbox empty
 
 //  net error
-#define E_NET 27    //general net error
-#define E_NET_SIZE 28 //net error size
-#define E_NET_PARAM 29    //net error parameter
-#define E_NET_STATE 30    //net error state
-#define E_NET_MBOX 31    // net error mbox
-#define E_NET_CONFIG 32     //net error config
-#define E_NET_SYS 33     // net error system
-#define E_NET_NONE 34    // net error no resources
-#define E_NET_NOT_SUPPORT 35    // net error not support
-#define E_NET_FULL 36   // net error not support
-#define E_NET_DATA 37   // net error data
-#define E_NET_MATCH 38   // net error match
-#define E_NET_CHECKSUM 39   // net error checksum
-#define E_NET_EXIST 40   // net error exist
-#define E_NET_CONNECTED 41   // net error connected
-//end of net error
-
+#define E_NET 29              // general net error
+#define E_NET_SIZE 30         // net error size
+#define E_NET_PARAM 31        // net error parameter
+#define E_NET_STATE 32        // net error state
+#define E_NET_MBOX 33         // net error mbox
+#define E_NET_CONFIG 34       // net error config
+#define E_NET_SYS 35          // net error system
+#define E_NET_NONE 36         // net error no resources
+#define E_NET_NOT_SUPPORT 37  // net error not support
+#define E_NET_FULL 38         // net error full
+#define E_NET_DATA 39         // net error data
+#define E_NET_MATCH 40        // net error match
+#define E_NET_CHECKSUM 41     // net error checksum
+#define E_NET_EXIST 42        // net error exist
+#define E_NET_CONNECTED 43    // net error connected
+// end of net error
 
 /* the maximum allowed */
-#define MAXERROR 41
-#endif 
+#define MAXERROR 43
+#endif

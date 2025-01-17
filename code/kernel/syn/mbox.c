@@ -22,7 +22,7 @@ void mbox_init(void) {
     assert(MBOX_P_PAGE != 0);
 }
 
-static Msg_mbox *get_mbox(int id) {
+Msg_mbox *get_mbox(int id) {
     if (id >= 0 && id < MAX_MBOX_NUM) {
         int i = id / MBOX_P_PAGE, j = id % MBOX_P_PAGE;
         if (mbox_map[i] != nullptr) {
@@ -151,8 +151,8 @@ failed:
 }
 
 
-static uint32_t send_msg(Msg_mbox *mbox, Msg_msg *msg, Timer *timer) {
-    uint32_t ret;
+static int send_msg_wait(Msg_mbox *mbox, Msg_msg *msg, Timer *timer) {
+    int ret;
     Proc *current = myproc();
     assert(current != nullptr);
     acquire(&mbox->msg_mbox_lock);
@@ -184,8 +184,45 @@ out:
     return ret;
 }
 
-int ipc_mbox_send(int id, Mboxbuf *buf, ulong timeout) {
+static int send_msg_no_wait(Msg_mbox *mbox, Msg_msg *msg) {
+    uint32_t ret;
+    acquire(&mbox->msg_mbox_lock);
+    if (mbox->max_slots <= mbox->slots) {
+        release(&mbox->msg_mbox_lock);
+        return -E_MBX_FULL;
+    }
+    mbox->inuse++;
+    assert(mbox->state == OPENED && mbox->max_slots > mbox->slots);
+    ret = 0;
+    add_msg(mbox, msg, 1);
+    mbox->inuse--;
+    release(&mbox->msg_mbox_lock);
+    return ret;
+}
+
+static bool mbox_slot_isempty(int id) {
+    Msg_mbox *mbox;
+    bool ret = false;
+    assert((mbox = get_mbox(id)) != nullptr);
+    acquire(&mbox->msg_mbox_lock);
+    if (mbox->slots == 0) { ret = true; }
+    release(&mbox->msg_mbox_lock);
+    return ret;
+}
+
+static bool mbox_slot_isfull(int id) {
+    Msg_mbox *mbox;
+    bool ret = false;
+    assert((mbox = get_mbox(id)) != nullptr);
+    acquire(&mbox->msg_mbox_lock);
+    if (mbox->slots == mbox->max_slots) { ret = true; }
+    release(&mbox->msg_mbox_lock);
+    return ret;
+}
+
+int ipc_mbox_send(int id, Mboxbuf *buf, long timeout) {
     if (get_mbox(id) == nullptr) { return -E_INVAL; }
+    if (timeout < 0 && mbox_slot_isfull(id)) { return -E_MBX_FULL; }
     Proc *current = myproc();
     Msg_msg *msg;
     Msg_mbox *mbox;
@@ -208,13 +245,18 @@ int ipc_mbox_send(int id, Mboxbuf *buf, ulong timeout) {
     kfree(local_data);
     mbox = get_mbox(id);
     if (ret == 0) {
-        ulong saved_ticks;
-        Timer __timer, *timer = ipc_timer_init(timeout, &saved_ticks, &__timer);
-        uint32_t flags;
-        if ((flags = send_msg(mbox, msg, timer)) == 0) { return 0; }
-        assert(flags == WT_INTERAUPTED);
-        ret = ipc_check_timeout(timeout, saved_ticks);
-        free_msg(msg);
+        if(timeout >= 0){
+            ulong saved_ticks;
+            Timer __timer, *timer = ipc_timer_init((ulong)timeout, &saved_ticks, &__timer);
+            if ((ret = send_msg_wait(mbox, msg, timer)) == 0) { return 0; }
+            assert(ret == WT_INTERAUPTED);
+            ret = ipc_check_timeout((ulong)timeout, saved_ticks);
+            free_msg(msg);
+        }else{
+            if((ret = send_msg_no_wait(mbox, msg)) != 0){
+                free_msg(msg);
+            }
+        }
     }
     return ret;
 }
@@ -235,7 +277,7 @@ static void store_msg(Msg_msg *msg, void *dst) {
     }
 }
 
-static int recv_msg(Msg_mbox *mbox, size_t max_bytes, Msg_msg **msg_store, Timer *timer) {
+static int recv_msg_wait(Msg_mbox *mbox, size_t max_bytes, Msg_msg **msg_store, Timer *timer) {
     uint32_t ret;
     Proc *current = myproc();
     assert(current != nullptr);
@@ -270,8 +312,31 @@ out:
     return ret;
 }
 
-int ipc_mbox_recv(int id, Mboxbuf *buf, ulong timeout) {
+static int recv_msg_no_wait(Msg_mbox *mbox, size_t max_bytes, Msg_msg **msg_store) {
+    uint32_t ret;
+    acquire(&mbox->msg_mbox_lock);
+    if (mbox->slots == 0) {
+        release(&mbox->msg_mbox_lock);
+        return -E_MBX_EMPTY;
+    }
+    mbox->inuse++;
+    Wait __wait, *wait = &__wait;
+    assert(mbox->state == OPENED && mbox->slots > 0);
+    assert(!list_empty(&mbox->msg_link));
+    if ((ret = pick_msg(mbox, max_bytes, msg_store)) != 0) {
+        wakeup_first(&mbox->receivers, WT_MBOX_RECV, 1);
+    }
+    mbox->inuse--;
+    if (mbox->state != OPENED) {
+        if (mbox->inuse == 0 && mbox->state == CLOSING) { mbox_free(mbox); }
+    }
+    release(&mbox->msg_mbox_lock);
+    return ret;
+}
+
+int ipc_mbox_recv(int id, Mboxbuf *buf, long timeout) {
     if (get_mbox(id) == nullptr) { return -E_INVAL; }
+    if (timeout < 0 && mbox_slot_isempty(id)) {return -E_MBX_EMPTY;}
     Proc *current = myproc();
     Msg_msg *msg;
     Msg_mbox *mbox;
@@ -288,10 +353,16 @@ int ipc_mbox_recv(int id, Mboxbuf *buf, ulong timeout) {
     unlock_mm(mm);
     mbox = get_mbox(id);
     ulong saved_ticks;
-    Timer __timer, *timer = ipc_timer_init(timeout, &saved_ticks, &__timer);
-    if ((ret = recv_msg(mbox, size, &msg, timer)) != 0) {
-        if (ret == WT_INTERAUPTED) { return ipc_check_timeout(timeout, saved_ticks); }
-        return ret;
+    if(timeout >= 0){
+        Timer __timer, *timer = ipc_timer_init((ulong)timeout, &saved_ticks, &__timer);
+        if ((ret = recv_msg_wait(mbox, size, &msg, timer)) != 0) {
+            if (ret == WT_INTERAUPTED) { return ipc_check_timeout((ulong)timeout, saved_ticks); }
+            return ret;
+        }
+    }else{
+        if((ret = recv_msg_no_wait(mbox, size, &msg)) != 0){
+            return ret;
+        }
     }
     lock_mm(mm);
     {
