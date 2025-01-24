@@ -47,8 +47,10 @@
 #define E_NET_CHECKSUM 41     // net error checksum
 #define E_NET_EXIST 42        // net error exist
 #define E_NET_CONNECTED 43    // net error connected
+#define E_NET_UNREACH 44    // net port unreach
+#define E_NET_BIND 45    // net port bind
 // end of net error
 
 /* the maximum allowed */
-#define MAXERROR 43
+#define MAXERROR 45
 #endif

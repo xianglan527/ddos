@@ -1,10 +1,14 @@
 #include "sock.h"
 
+#include "socket.h"
+#include "ipv4.h"
+
 static Socket *socket_map[MAX_SOCKET_PAGES];
 static List_entry free_socket_list;
 static Spinlock sockets_lock;
 
 extern int raw_init(Socket *socket, int family, int protocol);
+extern int udp_init(Socket *socket, int family, int protocol);
 
 int sockets_init(void) {
     for (int i = 0; i < MAX_SOCKET_PAGES; i++) { socket_map[i] = nullptr; }
@@ -118,14 +122,22 @@ void socket_cleanup(void) {
 }
 
 int sock_create_req_in(Func_msg *api_msg) {
-    Socket_info sock_tbl[] = {[SOCK_RAW] = {
-                                  .protocol = 0,
-                                  .init = raw_init,
-                              }};
+    Socket_info sock_tbl[] = {
+        [SOCK_RAW] =
+            {
+                .protocol = 0,
+                .init = raw_init,
+            },
+        [SOCK_UDP] =
+            {
+                .protocol = IPPROTO_UDP,
+                .init = udp_init,
+            },
+    };
     Sock_req *req = (Sock_req *)api_msg->param;
     Sock_create *param = &req->create;
     int ret = socket_alloc();
-    if(ret < 0){
+    if (ret < 0) {
         dbg_error(DBG_SOCKET, "no socket");
         return ret;
     }
@@ -148,7 +160,7 @@ int sock_create_req_in(Func_msg *api_msg) {
     return NET_OK;
 }
 
-int socket_init(Socket *socket, int family, int protocol, Sock_ops *ops){
+int socket_init(Socket *socket, int family, int protocol, Sock_ops *ops) {
     socket->protocol = protocol;
     socket->ops = ops;
     socket->family = family;
@@ -176,7 +188,7 @@ int sock_sendto_req_in(Func_msg *api_msg) {
         return -E_NET_NOT_SUPPORT;
     }
     int ret = s->ops->sendto(s, data->buf, data->len, data->flags, data->addr, *data->addr_len,
-                                      &req->data.comp_len);
+                             &req->data.comp_len);
     if (ret == NET_NEED_WAIT) {
         assert(s->snd_wait.sem.valid == true);
         sock_wait_add(&s->snd_wait, s->snd_tmo, req);
@@ -198,7 +210,7 @@ int sock_recvfrom_req_in(Func_msg *api_msg) {
     }
     int ret = s->ops->recvfrom(s, data->buf, data->len, data->flags, data->addr, data->addr_len,
                                &req->data.comp_len);
-    if(ret == NET_NEED_WAIT){
+    if (ret == NET_NEED_WAIT) {
         assert(s->rcv_wait.sem.valid == true);
         sock_wait_add(&s->rcv_wait, s->rcv_tmo, req);
     }
@@ -272,7 +284,7 @@ int sock_setopt(Socket *socket, int level, int optname, char *optval, int optlen
     return -E_NET_PARAM;
 }
 
-int sock_setsockopt_req_in(Func_msg * api_msg) {
+int sock_setsockopt_req_in(Func_msg *api_msg) {
     Sock_req *req = (Sock_req *)api_msg->param;
     Socket *s = get_socket(req->sockfd);
     if (!s) {
@@ -293,4 +305,116 @@ int sock_close_req_in(Func_msg *api_msg) {
     int err = s->ops->close(s);
     socket_close(s->id);
     return err;
+}
+
+int sock_connect(Socket *socket, Sockaddr *addr, socklen_t len) {
+    Sockaddr_in *remote = (Sockaddr_in *)addr;
+    ipaddr_from_buf(&socket->remote_ip, remote->sin_addr.addr_array);
+    socket->remote_port = x_ntohs(remote->sin_port);
+    return NET_OK;
+}
+
+int sock_connect_req_in(Func_msg *api_msg) {
+    Sock_req *req = (Sock_req *)api_msg->param;
+    Socket *s = get_socket(req->sockfd);
+    if (!s) {
+        dbg_error(DBG_SOCKET, "param error: socket = %d.", s);
+        return -E_NET_PARAM;
+    }
+    Sock_conn *conn = (Sock_conn *)&req->conn;
+    int ret = s->ops->connect(s, conn->addr, conn->len);
+    if (ret == NET_NEED_WAIT) {
+        assert(s->rcv_wait.sem.valid == true);
+        sock_wait_add(&s->conn_wait, s->rcv_tmo, req);
+    }
+    return ret;
+}
+
+int sock_send_req_in(Func_msg *api_msg) {
+    Sock_req *req = (Sock_req *)api_msg->param;
+    Socket *s = get_socket(req->sockfd);
+    if (!s) {
+        dbg_error(DBG_SOCKET, "param error: socket = %d.", s);
+        return -E_NET_PARAM;
+    }
+    Sock_data *data = (Sock_data *)&req->data;
+    if (!s->ops->send) {
+        dbg_error(DBG_SOCKET, "this function is not implemented");
+        return -E_NET_NOT_SUPPORT;
+    }
+    int ret = s->ops->send(s, data->buf, data->len, data->flags, &req->data.comp_len);
+    if (ret == NET_NEED_WAIT) {
+        assert(s->snd_wait.sem.valid == true);
+        sock_wait_add(&s->snd_wait, s->snd_tmo, req);
+    }
+    return ret;
+}
+
+int sock_send(Socket *socket, void *buf, size_t len, int flags, ssize_t *result_len) {
+    if (ipaddr_is_any(&socket->remote_ip)) {
+        dbg_error(DBG_RAW, "dest ip is empty.");
+        return -E_NET_PARAM;
+    }
+    Sockaddr_in dest;
+    dest.sin_family = socket->family;
+    dest.sin_port = x_htons(socket->remote_port);
+    ipaddr_to_buf(&socket->remote_ip, (uint8_t *)&dest.sin_addr);
+    return socket->ops->sendto(socket, buf, len, flags, (Sockaddr *)&dest, sizeof(dest), result_len);
+}
+
+int sock_recv(Socket *socket, void *buf, size_t len, int flags, ssize_t *result_len) {
+    if (ipaddr_is_any(&socket->remote_ip)) {
+        dbg_error(DBG_RAW, "dest ip is empty.");
+        return -E_NET_PARAM;
+    }
+    Sockaddr src;
+    socklen_t addr_len;
+    return socket->ops->recvfrom(socket, buf, len, flags, &src, &addr_len, result_len);
+}
+
+int sock_recv_req_in(Func_msg *api_msg) {
+    Sock_req *req = (Sock_req *)api_msg->param;
+    Socket *s = get_socket(req->sockfd);
+    if (!s) {
+        dbg_error(DBG_SOCKET, "param error: socket = %d.", s);
+        return -E_NET_PARAM;
+    }
+    Sock_data *data = (Sock_data *)&req->data;
+    if (!s->ops->recvfrom) {
+        dbg_error(DBG_SOCKET, "this function is not implemented");
+        return -E_NET_NOT_SUPPORT;
+    }
+    int ret = s->ops->recv(s, data->buf, data->len, data->flags, &req->data.comp_len);
+    if (ret == NET_NEED_WAIT) {
+        assert(s->rcv_wait.sem.valid == true);
+        sock_wait_add(&s->rcv_wait, s->rcv_tmo, req);
+    }
+    return ret;
+}
+
+int sock_bind_req_in(Func_msg *api_msg) {
+    Sock_req *req = (Sock_req *)api_msg->param;
+    Socket *s = get_socket(req->sockfd);
+    if (!s) {
+        dbg_error(DBG_SOCKET, "param error: socket = %d.", s);
+        return -E_NET_PARAM;
+    }
+    Sock_bind *bind = (Sock_bind *)&req->bind;
+    return s->ops->bind(s, bind->addr, bind->len);
+}
+
+int sock_bind(Socket *socket, Sockaddr *addr, socklen_t len) {
+    Ipaddr local_ip;
+    Sockaddr_in *local = (Sockaddr_in *)addr;
+    ipaddr_from_buf(&local_ip, local->sin_addr.addr_array);
+    if (!ipaddr_is_any(&local_ip)) {
+        Rentry *rt = rt_find(&local_ip);
+        if (!rt ||!ipaddr_is_equal(&rt->netif->ipaddr, &local_ip)) {
+            dbg_error(DBG_SOCKET, "addr error");
+            return -E_NET_PARAM;
+        }
+    }
+    ipaddr_copy(&socket->local_ip, &local_ip);
+    socket->local_port = x_ntohs(local->sin_port);
+    return NET_OK;
 }

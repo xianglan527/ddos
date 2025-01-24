@@ -14,12 +14,6 @@ Proc *net_work_thread = nullptr;
 int net_work_thread_mbox_id = -1;
 static int msg_i = 0;
 
-int test_func(Func_msg *msg) {
-    msg->err = 0x1234;
-    cprintf("hello, 1234: %x\n", *(int *)msg->param);
-    return NET_OK;
-}
-
 int exmsg_netif_in(Netif *netif) {
     Mboxbuf __buf, *buf = &__buf;
     buf->size = sizeof(Exmsg);
@@ -52,6 +46,7 @@ static int do_netif_in(Exmsg *msg) {
     int ret;
     while ((buf = netif_get_in(netif, -1))) {
         dbg_info(DBG_MSG, "recv a packet");
+        // cprintf("xxxxxxxxxxxx\n");
         if (netif->link_layer) {
             ret = netif->link_layer->in(netif, buf);
             if (ret < 0) {

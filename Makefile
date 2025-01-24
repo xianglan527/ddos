@@ -64,6 +64,7 @@ endif
 DEFS += -DCPUS=$(CPUS)
 
 BR_IF = br0
+# BR_IF = ens33
 
 # 延迟变量赋值，使用递归展开
 TAP0_MAC = $(shell ip link show tap0 | awk '/ether/ {print $$2}')

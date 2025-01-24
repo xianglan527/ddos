@@ -12,6 +12,7 @@
 #include "socket.h"
 #include "stdio.h"
 #include "net_api.h"
+#include "stdio.h"
 
 extern Netif_ops netdev_ops;
 extern List_entry nets_list;
@@ -86,6 +87,7 @@ int net_device_init(void) {
         // ipaddr_from_str(&dest, friend0_ip);
         // ipaddr_from_str(&src, config->ip);
         // ipv4_out(0, &dest, &src, buf);
+        break;
     }
     return NET_OK;
 }
@@ -299,9 +301,9 @@ void ping_run(Ping *ping, char *dest, size_t count, size_t size, size_t interval
     inet_ntop(AF_INET, &addr.sin_addr, buf, sizeof(buf));
     cprintf("Trying to ping %s [%s]\n", dest, buf);
 
-// #define USE_CONNECT
+#define USE_CONNECT
 #ifdef USE_CONNECT
-    connect(sk, (const struct sockaddr *)&addr, sizeof(struct sockaddr_in));
+    connect(sk, (struct sockaddr *)&addr, sizeof(struct sockaddr_in));
 #endif
 
     struct timeval tmo;
@@ -334,7 +336,7 @@ void ping_run(Ping *ping, char *dest, size_t count, size_t size, size_t interval
 
         // Send
 #ifdef USE_CONNECT
-        ssize_t send_len = send(sk, (const char *)&ping->req, total_size, 0);
+        ssize_t send_len = send(sk, (char *)&ping->req, total_size, 0);
 #else
         ssize_t send_len =
             sendto(sk, (char *)&ping->req, total_size, 0, (struct sockaddr *)&addr, sizeof(addr));
@@ -419,13 +421,130 @@ void socket_raw_test(){
     ping_run(&ping, dest, count, size, interval);
     return;
 }
+/////////////////////////////////////////////////////////////
+
+void udp_echo_server_start(void *arg) {
+    int port = *(int *)arg;
+    int s = socket(AF_INET, SOCK_DGRAM, 0);
+    if (s < 0) {
+        cprintf("socket creation failed");
+        return;
+    }
+    struct sockaddr_in local_addr;
+    memset(&local_addr, 0, sizeof(local_addr));
+    local_addr.sin_family = AF_INET;
+    // local_addr.sin_addr.s_addr = inet_addr("192.168.8.4");
+    local_addr.sin_port = htons(port);  
+    if (bind(s, (struct sockaddr *)&local_addr, sizeof(local_addr)) < 0) {
+        cprintf("bind error");
+        closesocket(s); 
+        return;
+    }
+    while (1) {
+        struct sockaddr_in client_addr;
+        char buf[256];
+        socklen_t addr_len = sizeof(client_addr);
+        ssize_t size = recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr *)&client_addr, &addr_len);
+        if (size < 0) {
+            cprintf("recvfrom error");
+            break;  
+        }
+        cprintf("UDP echo server: connected IP: %s, Port: %d\n", inet_ntoa(client_addr.sin_addr),
+               ntohs(client_addr.sin_port));
+
+        if (strncmp(buf, "quit", 4) == 0) { break; }
+        size = sendto(s, buf, size, 0, (struct sockaddr *)&client_addr, addr_len);
+        if (size < 0) {
+            cprintf("sendto error");
+            break;  
+        }
+    }
+    closesocket(s);
+    return;
+}
+
+void udp_echo_server(){
+    static int default_port = 5050;
+    kernel_thread_init(udp_echo_server_start, &default_port);
+}
+
+int udp_echo_client_start(char *ip, int port) {
+    cprintf("udp echo client, ip: %s, port: %d\n", ip, port);
+    cprintf("Enter quit to exit\n");
+    int s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (s < 0) {
+        cprintf("open socket error\n");
+        return -1;
+    }
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr(ip);
+    server_addr.sin_port = htons(port);
+    connect(s, (struct sockaddr *)&server_addr, sizeof(server_addr));
+    cprintf(">>");
+    char buf[128];
+    while (getstring(buf, sizeof(buf)) != 0) {
+        // cprintf("11111111111\n");
+        if (strncmp(buf, "quit", 4) == 0) { break; }
+        size_t total_len = strlen(buf);
+        ssize_t size = send(s, buf, total_len, 0);
+        // ssize_t size = sendto(s, buf, total_len, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+        if (size < 0) {
+            cprintf("send error\n");
+            closesocket(s);
+            return -1;
+        }
+        memset(buf, 0, sizeof(buf));
+        // struct sockaddr_in remote_addr;
+        // socklen_t addr_len = sizeof(remote_addr);
+        // cprintf("2222222222\n");
+        // size = recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr *)&remote_addr, &addr_len);
+        size = recv(s, buf, sizeof(buf), 0);
+        if (size < 0) {
+            cprintf("recv error\n");
+            closesocket(s);
+            return -1;
+        }
+        buf[sizeof(buf) - 1] = '\0';  // 确保字符串以 '\0' 结束
+        cprintf("%s", buf);
+        cprintf(">>\n");
+        // cprintf("33333333333\n");
+    }
+    closesocket(s);
+    return 0;
+}
+
+// 主函数
+int udp_echo_client() {
+    char* ip = "127.0.0.1";
+//    char *ip = "192.168.8.27";
+    int port = 5050;
+    return udp_echo_client_start(ip, port);
+}
+
+void udp_echo_test(){
+    udp_echo_server();
+    udp_echo_client();
+}
+//////////////////////////////////////////////////////////////
+int test_func_arg = 0x1234;
+int test_func(Func_msg *msg) {
+    msg->err = 0x1234;
+    cprintf("hello, 1234: %x\n", *(int *)msg->param);
+    return NET_OK;
+}
+
+void exmsg_func_test() { exmsg_func_exec(test_func, (void *)&test_func_arg); }
 
 //////////////////////////////////////////////////////////////
 
 void net_test() { 
     // pktbuf_test();
     // timer_func_test();
+    //  exmsg_func_test();
     socket_raw_test();
+    // udp_echo_test();
 }
 
 void net_main(void *arg) {
@@ -444,7 +563,5 @@ void net_main(void *arg) {
 #ifdef PRINT_NET_TEST
     net_test();
 #endif
-    int test_func_arg = 0x1234;
-    exmsg_func_exec(test_func, (void *)&test_func_arg);
     while (1);
 }

@@ -8,16 +8,19 @@
 #include "net_config.h"
 #include "nettool.h"
 #include "raw.h"
+#include "sem.h"
 #include "spinlock.h"
 #include "types.h"
+#include "udp.h"
 #include "wait.h"
-#include "sem.h"
 
 #define AF_INET 0
 
 // #define SOCK_RAW 1
 
 #define IPPROTO_ICMP 1
+
+#define IPPROTO_UDP 17
 
 #define INADDR_ANY 0
 
@@ -26,16 +29,18 @@
 #define SO_RCVTIMEO 1
 #define SO_SNDTIMEO 2
 
+#define NET_PORT_EMPTY  0
+
 typedef struct sockaddr Sockaddr;
 
 typedef struct sock_wait {
-    int ret; 
-    // int waiting;    
+    int ret;
+    // int waiting;
     Sem sem;
     uint32_t wait_state;
 } Sock_wait;
 
-static inline size_t sock_wait_count(Sock_wait *wait){
+static inline size_t sock_wait_count(Sock_wait* wait) {
     acquire(&wait->sem.sem_lock);
     size_t count = list_count(&wait->sem.wait_queue.wait_head);
     release(&wait->sem.sem_lock);
@@ -51,17 +56,23 @@ typedef struct sock_ops {
     int (*recvfrom)(Socket* socket, void* buf, size_t len, int flags, Sockaddr* src, socklen_t* addr_len,
                     ssize_t* result_len);
     int (*setopt)(Socket* socket, int level, int optname, char* optval, int optlen);
+    int (*connect)(Socket* socket, Sockaddr* addr, socklen_t len);
     void (*destroy)(Socket* socket);
+    int (*send)(Socket* socket, void* buf, size_t len, int flags, ssize_t* result_len);
+    int (*recv)(Socket* socket, void* buf, size_t len, int flags, ssize_t* result_len);
+    int (*bind)(Socket* socket, Sockaddr* addr, socklen_t len);
 } Sock_ops;
 
 typedef enum socket_type {
     SOCK_NONE = 0,
     SOCK_RAW,
+    SOCK_UDP,
 } Socket_type;
 
 typedef struct socket {
     union {
         Raw __raw_info;
+        Udp __udp_info;
     } sk_info;
     int id;
     enum {
@@ -140,14 +151,26 @@ typedef struct sock_opt {
     int optlen;
 } Sock_opt;
 
+typedef struct sock_conn {
+    Sockaddr* addr;
+    socklen_t len;
+} Sock_conn;
+
+typedef struct sock_bind {
+    Sockaddr* addr;
+    socklen_t len;
+} Sock_bind;
+
 typedef struct sock_req {
-    Sock_wait *wait;
+    Sock_wait* wait;
     ulong wait_tmo;
     int sockfd;
     union {
         Sock_create create;
         Sock_data data;
         Sock_opt opt;
+        Sock_conn conn;
+        Sock_bind bind;
     };
 } Sock_req;
 
@@ -174,7 +197,15 @@ void sock_wait_add(Sock_wait* wait, ulong tmo, Sock_req* req);
 int sock_wait_enter(Sock_wait* wait, ulong tmo);
 void sock_wait_leave(Sock_wait* wait, int ret);
 void sock_wakeup(Socket* socket, uint32_t type, int ret);
-int sock_setopt(Socket *socket, int level, int optname, char *optval, int optlen);
+int sock_setopt(Socket* socket, int level, int optname, char* optval, int optlen);
 int sock_setsockopt_req_in(Func_msg* api_msg);
 int sock_close_req_in(Func_msg* api_msg);
+int sock_connect_req_in(Func_msg* api_msg);
+int sock_connect(Socket* socket, Sockaddr* addr, socklen_t len);
+int sock_send_req_in(Func_msg* api_msg);
+int sock_send(Socket* socket, void* buf, size_t len, int flags, ssize_t* result_len);
+int sock_recv_req_in(Func_msg* api_msg);
+int sock_recv(Socket* socket, void* buf, size_t len, int flags, ssize_t* result_len);
+int sock_bind_req_in(Func_msg* api_msg);
+int sock_bind(Socket* socket, Sockaddr* addr, socklen_t len);
 #endif

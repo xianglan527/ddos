@@ -359,7 +359,7 @@ Pktbuf *netif_get_in(Netif *netif, long tmo) {
     buf->size = sizeof(Pktbuf *);
     buf->len = buf->size;
     buf->data = kmalloc(sizeof(Pktbuf *));
-    int ret = ipc_mbox_recv(netif->rx_mbox_id, buf, -1);
+    int ret = ipc_mbox_recv(netif->rx_mbox_id, buf, tmo);
     assert(ret == 0 || ret == -E_TIMEOUT || ret == -1 || ret == -E_MBX_EMPTY);
     if (ret == -E_TIMEOUT || ret == -E_MBX_EMPTY) {
         dbg_warning(DBG_NETIF, "%s rx mbox empty", netif->netif_name);

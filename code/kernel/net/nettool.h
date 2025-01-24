@@ -5,6 +5,7 @@
 #include "ipaddr.h"
 #include "net_config.h"
 #include "types.h"
+#include "pktbuf.h"
 
 static inline uint16_t swap_u16(uint16_t v) {
     uint16_t r = ((v & 0xFF) << 8) | ((v >> 8) & 0xFF);
@@ -36,4 +37,5 @@ uint32_t swap_u32(uint32_t v);
 #endif
 int tools_init(void);
 uint16_t checksum16(uint32_t offset, void* buf, uint16_t len, uint32_t pre_sum, bool complement);
+uint16_t checksum_peso(uint8_t* src_ip, uint8_t* dest_ip, uint8_t protocol, Pktbuf* buf);
 #endif

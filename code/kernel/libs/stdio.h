@@ -9,4 +9,5 @@ void cputchar(int c);
 int cputs(const char *str);
 int getchar(void);
 void printf_init(void);
+int getstring(char *buf, size_t len);
 #endif

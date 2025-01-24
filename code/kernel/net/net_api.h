@@ -7,6 +7,8 @@
 #include "types.h"
 #include "socket.h"
 
+#define SOCK_DGRAM SOCK_UDP
+
 #define htons(v) x_htons(v)
 #define ntohs(v) x_ntohs(v)
 #define htonl(v) x_htonl(v)

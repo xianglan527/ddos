@@ -5,6 +5,8 @@
 #include "uart.h"
 #include "proc.h"
 #include "sysdef.h"
+
+int dev_stdin_read(char *buf, size_t len, bool inkernel);
 struct {
     Spinlock lock;
     int locking;
@@ -58,4 +60,8 @@ int getchar(void) {
 void printf_init(void) {
     initlock(&pr.lock, "pr");
     pr.locking = 1;
+}
+
+int getstring(char *buf, size_t len){
+    return dev_stdin_read(buf, len, true);
 }

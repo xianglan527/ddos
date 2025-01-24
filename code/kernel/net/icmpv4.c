@@ -126,7 +126,7 @@ int icmpv4_out_unreach(Ipaddr *dest_addr, Ipaddr *src, uint8_t code, Pktbuf *ip_
     }
     ret = icmpv4_out(dest_addr, src, new_buf);
     if (ret < 0) {
-        dbg_error(DBG_ICMP, "send icmp unreach failed.");
+        dbg_error(DBG_ICMP, "send icmp unreach failed ret is %d", ret);
         pktbuf_free(new_buf);
         return ret;
     }

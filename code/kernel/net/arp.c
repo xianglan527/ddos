@@ -368,6 +368,7 @@ int arp_resolve(Netif* netif, Ipaddr* ipaddr, Pktbuf* buf) {
         dbg_info(DBG_ARP, "found an arp entry.");
         if (entry->state == NET_ARP_RESOLVED) {
             int ret = ether_raw_out(entry->netif, NET_PROTOCOL_IPv4, entry->haddr, buf);
+            release(&arp_entry_head.arp_entry_list_lock);
             return ret;
         }
         assert(entry->state == NET_ARP_WAITING);
@@ -377,6 +378,8 @@ int arp_resolve(Netif* netif, Ipaddr* ipaddr, Pktbuf* buf) {
             list_add_before(&entry->buf_list, &buf->pktbuf_wait_link);
         } else {
             dbg_warning(DBG_ARP, "too many waiting. ignore it");
+            release(&entry->buf_list_lock);
+            release(&arp_entry_head.arp_entry_list_lock);
             return -E_NET_FULL;
         }
         release(&entry->buf_list_lock);

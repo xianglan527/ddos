@@ -84,7 +84,7 @@ void user_task() {
 extern void net_main(void *arg);
 
 void os_main(void) {
-    user_init(user_task);
+    // user_init(user_task);
     kernel_thread_init(net_main, "net_main");
     kernel_thread_init(daemon_proc, "daemon_proc");
 }

@@ -7,6 +7,7 @@
 #include "raw.h"
 #include "slab.h"
 #include "stdio.h"
+#include "udp.h"
 
 extern Spinlock print_struct_lock;
 
@@ -259,10 +260,18 @@ static int ip_normal_in(Netif *netif, Pktbuf *buf, Ipaddr *src, Ipaddr *dest) {
             }
             return NET_OK;
         }
-        case NET_PROTOCOL_UDP:
-            iphdr_htons(pkt);
-            icmpv4_out_unreach(src, &netif->ipaddr, ICMPv4_UNREACH_PORT, buf);
-            break;
+        case NET_PROTOCOL_UDP: {
+            int ret = udp_in(buf, src, dest);
+            if (ret < 0) {
+                dbg_warning(DBG_IP, "udp in error. ret = %d\n", ret);
+                if (ret == -E_NET_UNREACH) {
+                    iphdr_htons(pkt);
+                    icmpv4_out_unreach(src, &netif->ipaddr, ICMPv4_UNREACH_PORT, buf);
+                }
+                return ret;
+            }
+            return NET_OK;
+        }
         case NET_PROTOCOL_TCP: break;
         default: {
             dbg_warning(DBG_IP, "unknown protocol %d, drop it.\n", pkt->hdr.protocol);
@@ -415,6 +424,7 @@ static int ip_frag_in(Netif *netif, Pktbuf *buf, Ipaddr *src, Ipaddr *dest) {
 
 int ipv4_in(Netif *netif, Pktbuf *buf) {
     dbg_info(DBG_IP, "IP in!\n");
+    // if (strncmp(netif->netif_name, "net0if", 6) == 0) cprintf("xxxxxxxxxxxxxxx\n");
     int ret = pktbuf_set_cont(buf, sizeof(Ipv4_hdr));
     if (ret < 0) {
         dbg_error(DBG_IP, "adjust header failed. ret=%d\n", ret);
@@ -422,7 +432,7 @@ int ipv4_in(Netif *netif, Pktbuf *buf) {
     }
     Ipv4_pkt *pkt = (Ipv4_pkt *)pktbuf_data(buf);
     if (is_pkt_ok(pkt, buf->total_size) != NET_OK) {
-        dbg_warning(DBG_IP, "packet is broken. drop it.\n");
+        dbg_error(DBG_IP, "packet is broken. drop it.\n");
         return ret;
     }
     iphdr_ntohs(pkt);
@@ -434,6 +444,12 @@ int ipv4_in(Netif *netif, Pktbuf *buf) {
     Ipaddr dest_ip, src_ip;
     ipaddr_from_buf(&dest_ip, pkt->hdr.dest_ip);
     ipaddr_from_buf(&src_ip, pkt->hdr.src_ip);
+    // dump_ip_buf("src ip:", src_ip.a_addr);
+    // Ipaddr ip;
+    // ipaddr_from_str(&ip, "192.168.8.27");
+    // if (ipaddr_is_equal(&src_ip, &ip)) { 
+    //     cprintf("yyyyyyyyyyyy\n"); 
+    // }
     if (!ipaddr_is_match(&dest_ip, &netif->ipaddr, &netif->netmask)) {
         dbg_warning(DBG_IP, "ipaddr not match\n");
         return -E_NET_MATCH;
@@ -626,7 +642,7 @@ void rt_remove(Ipaddr *net, Ipaddr *mask) {
     dump_rt_nlist();
 }
 
-Rentry *rt_find(Ipaddr *ip){
+Rentry *rt_find(Ipaddr *ip) {
     Rentry *find_rentry = nullptr;
     acquire(&rt_list_lock);
     List_entry *le;

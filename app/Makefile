@@ -8,7 +8,8 @@ APP_SRCS_PATH =
 APP_INCLUDE   =
 
 include ping/Makefile
-# include ftp/Makefile
+include udp_echo_client/Makefile
+include udp_echo_server/Makefile
 
 APP_SRCS := $(foreach dir, $(APP_SRCS_PATH), $(wildcard $(dir)/*.c))
 

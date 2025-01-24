@@ -15,9 +15,11 @@ static int raw_sendto(Socket* socket, void* buf, size_t len, int flags, Sockaddr
 static int raw_recvfrom(Socket* socket, void* buf, size_t len, int flags, Sockaddr* src, socklen_t* addr_len,
                         ssize_t* result_len);
 static int raw_close(Socket* socket);
+static int raw_connect(Socket* socket, Sockaddr* addr, socklen_t len);
+static int raw_bind(Socket* socket, Sockaddr* addr, socklen_t len);
 
 #if DBG_DISP_ENABLED(DBG_RAW)
-static void display_raw_list(void) {
+    static void display_raw_list(void) {
     int idx = 0;
     List_entry* le;
     acquire(&print_struct_lock);
@@ -44,6 +46,10 @@ int raw_init(Socket* socket, int family, int protocol) {
         .recvfrom = raw_recvfrom,
         .setopt = sock_setopt,
         .close = raw_close,
+        .connect = raw_connect,
+        .bind = raw_bind,
+        .send = sock_send,  
+        .recv = sock_recv,
     };
     // socket->sk_type = SOCK_RAW;
     Raw* raw = skop_info(socket, raw);
@@ -178,4 +184,16 @@ static int raw_close(Socket* socket) {
     release(&raw_list_lock);
     display_raw_list();
     return NET_OK;
+}
+
+static int raw_connect(Socket* socket, Sockaddr* addr, socklen_t len) {
+    sock_connect(socket, addr, len);
+    display_raw_list();
+    return NET_OK;
+}
+
+static int raw_bind(Socket* socket, Sockaddr* addr, socklen_t len) {
+    int ret = sock_bind(socket, addr, len);
+    display_raw_list();
+    return ret;
 }

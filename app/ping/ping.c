@@ -172,7 +172,7 @@ int main(int argc, char* argv[]) {
     size_t size = 56;     // Default data size
     size_t interval = 1;  // Default interval
 
-    if(argv > 1) {dest = "127.0.0.1";}
+    if(argc > 1) {dest = "127.0.0.1";}
     if (argc > 2) { count = (size_t)atoi(argv[2]); }
     if (argc > 3) { size = (size_t)atoi(argv[3]); }
     if (argc > 4) { interval = (size_t)atoi(argv[4]); }

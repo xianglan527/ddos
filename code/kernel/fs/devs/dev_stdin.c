@@ -70,7 +70,7 @@ void dev_stdin_write(char c){
     release(&stdin_str.lock);
 }
 
-static int dev_stdin_read(char *buf, size_t len){
+int dev_stdin_read(char *buf, size_t len, bool inkernel){
     long ret = 0;
     char c;
     acquire(&stdin_str.lock);
@@ -79,7 +79,9 @@ static int dev_stdin_read(char *buf, size_t len){
             if (stdin_str.rpos < stdin_str.wpos) {
                 c = stdin_str.buf[stdin_str.rpos % STDIN_BUFSIZE];
                 if(c == '\n'){
-                    if(ret == 0){
+                    if(!inkernel){
+                        if (ret == 0) { stdin_str.rpos++; }
+                    }else{
                         stdin_str.rpos++;
                     }
                     *buf = 0;
@@ -105,7 +107,7 @@ static int dev_stdin_read(char *buf, size_t len){
 int stdin_getchar(void) {
     char c;
     int ret;
-    ret = dev_stdin_read(&c, 1);
+    ret = dev_stdin_read(&c, 1, true);
     return ret;
 }
 
@@ -124,7 +126,7 @@ stdin_close(Device *dev) {
 static int stdin_io(Device *dev, Iobuf *iob, bool write){
     if(!write){
         long ret;
-        if((ret = dev_stdin_read(iob->io_base, iob->io_resid)) > 0){
+        if((ret = dev_stdin_read(iob->io_base, iob->io_resid, false)) > 0){
             iob->io_resid -= ret;
         }
         return 0;
