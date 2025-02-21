@@ -196,7 +196,6 @@ static void commit(void) {
 
 void log_write(Disk_buf *buf) {
     if (log.lh.log_num >= log_size - 1) { panic("too big a transaction"); }
-    if (!(log.outstanding >= 1)) { int pp = 3; }
     assert(log.outstanding >= 1);
     acquire(&log.log_lock);
     int i;

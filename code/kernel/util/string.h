@@ -20,4 +20,5 @@ long strtol(const char *s, char **endptr, int base);
 char *strdup(const char *src);
 char *strcat(char *dst, const char *src);
 char *stradd(const char *src1, const char *src2);
+int stricmp(char *p, char *q);
 #endif

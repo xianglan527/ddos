@@ -25,6 +25,7 @@
 #include "virtio-net.h"
 #include "pktbuf.h"
 #include "sock.h"
+#include "tcp.h"
 // #include "swapfs.h"
 
 static void virtio_mmio_rng_test(void) {
@@ -219,6 +220,9 @@ void daemon_proc(void *arg) {
         load_balance(3);
         clean_kernel_proc();
         exec_timer_func();
+#if NET_ABLE
+        do_clean_tcp_list();
+#endif
         do_sleep(10);
         // task_delay(DELAY);
     }

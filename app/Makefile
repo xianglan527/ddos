@@ -10,6 +10,8 @@ APP_INCLUDE   =
 include ping/Makefile
 include udp_echo_client/Makefile
 include udp_echo_server/Makefile
+include tcp_echo_client/Makefile
+include tcp_echo_server/Makefile
 
 APP_SRCS := $(foreach dir, $(APP_SRCS_PATH), $(wildcard $(dir)/*.c))
 

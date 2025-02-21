@@ -5,7 +5,11 @@
 #include "string.h"
 #include "types.h"
 
+#define NET_OK 0
+
 #define NET_NEED_WAIT 1
+
+#define NET_OK_CLOSE_WAIT 2
 
 #define DBG_MSG DBG_LEVEL_ERROR
 #define DBG_BUF DBG_LEVEL_ERROR
@@ -19,6 +23,11 @@
 #define DBG_SOCKET DBG_LEVEL_ERROR
 #define DBG_RAW DBG_LEVEL_ERROR
 #define DBG_UDP DBG_LEVEL_ERROR
+// #define DBG_TCP DBG_LEVEL_WARNING
+#define DBG_TCP DBG_LEVEL_ERROR
+// #define DBG_TCP DBG_LEVEL_INFO
+#define DBG_DNS DBG_LEVEL_ERROR
+// #define DBG_DNS DBG_LEVEL_INFO
 
 #define NET_ENDIAN_LITTLE 1
 
@@ -32,13 +41,13 @@
 #define NETIF_NAME_SIZE 64
 
 #define ARP_CACHE_SIZE 100
-#define ARP_MAX_PKT_WAIT 20
+#define ARP_MAX_PKT_WAIT 200
 #define ARP_ENTRY_STABLE_TMO 200  // unit is 1000ticks
 #define ARP_ENTRY_PENDING_TMO 3  // unit is 1000ticks
 #define ARP_ENTRY_RETRY_CNT 5 
 #define ARP_TIMER_TMO 1       //unit is 1000ticks
 #define IP_FRAGS_MAX_NR 20
-#define IP_FRAG_MAX_BUF_NR 20
+#define IP_FRAG_MAX_BUF_NR 200
 #define IP_FRAG_SCAN_PERIOD 1  // unit is 1000ticks
 #define IP_FRAG_TMO 5          // unit is 1000ticks
 
@@ -48,6 +57,31 @@
 
 #define UDP_MAX_RECV 2000
 
+#define TCP_MAX_RECV 2000
+
 #define IP_RTABLE_SIZE 32
 
+#define TCP_SBUF_SIZE 4096
+#define TCP_RBUF_SIZE 4096
+
+#define TCP_DEFAULT_MSS 536
+
+#define TCP_KEEPALIVE_TIME (2 * 60 * 60) 
+#define TCP_KEEPALIVE_PROBES 10     
+#define TCP_KEEPALIVE_INTVL 5
+
+#define NET_CLOSE_MAX_TMO 5000
+#define TCP_TMO_MSL 8000
+#define TCP_INIT_RTO 1000
+#define TCP_RTO_MAX 8000
+#define TCP_INT_RETRIES 5
+
+#define DNS_DOMAIN_NAME_MAX 64
+#define DNS_WORKING_BUF_SIZE 512
+#define DNS_PORT_DEFAULT 53
+#define DNS_REQ_TMO 5000
+#define DNS_ENTRY_SIZE 100
+#define DNS_UPDATE_PERIOID 1000
+#define DNS_QUERY_RETRY_TMO 5 
+#define DNS_QUERY_RETRY_CNT 5
 #endif

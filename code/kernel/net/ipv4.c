@@ -8,6 +8,7 @@
 #include "slab.h"
 #include "stdio.h"
 #include "udp.h"
+#include "tcp_in.h"
 
 extern Spinlock print_struct_lock;
 
@@ -272,7 +273,15 @@ static int ip_normal_in(Netif *netif, Pktbuf *buf, Ipaddr *src, Ipaddr *dest) {
             }
             return NET_OK;
         }
-        case NET_PROTOCOL_TCP: break;
+        case NET_PROTOCOL_TCP: {
+            pktbuf_remove_header(buf, ipv4_hdr_size(pkt));
+            int ret = tcp_in(buf, src, dest);
+            if (ret < 0) {
+                dbg_warning(DBG_IP, "udp in error. ret = %d\n", ret);
+                return ret;
+            }
+            return NET_OK;
+        }
         default: {
             dbg_warning(DBG_IP, "unknown protocol %d, drop it.\n", pkt->hdr.protocol);
             int ret = raw_in(buf);

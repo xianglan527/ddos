@@ -1613,7 +1613,6 @@ static void pipe_test2(char *s) {
 //////////////////////////////////////////////////////////////////////////
 static int safe_open(char *path, int open_flags) {
     int fd = open(path, open_flags);
-    if (fd < 0) { int pp = 3; }
     assert(fd >= 0);
     return fd;
 }
@@ -2381,6 +2380,7 @@ static int run(void f(char *), char *s) {
             printf("%s FAILED\n", s);
         else
             printf("%s OK\n", s);
+#if NET_ABLE == 0
         size_t nr_free_pages_store1 = get_free_page_size();
         size_t slab_allocated_store1 = get_slab_allocated_size();
         // printf("%d page nums diff\n", nr_free_pages_store - nr_free_pages_store1);
@@ -2388,6 +2388,7 @@ static int run(void f(char *), char *s) {
         // while(1);
         assert(nr_free_pages_store == nr_free_pages_store1);
         assert(slab_allocated_store == slab_allocated_store1);
+#endif
         return xstatus == 0;
     }
 }

@@ -13,21 +13,31 @@
 #include "types.h"
 #include "udp.h"
 #include "wait.h"
+#include "tcp.h"
+#include "protocol.h"
 
 #define AF_INET 0
 
 // #define SOCK_RAW 1
 
-#define IPPROTO_ICMP 1
+#define IPPROTO_ICMP NET_PROTOCOL_ICMPv4
 
-#define IPPROTO_UDP 17
+#define IPPROTO_UDP NET_PROTOCOL_UDP
+
+#define IPPROTO_TCP NET_PROTOCOL_TCP
 
 #define INADDR_ANY 0
 
 #define SOL_SOCKET 0
 
+#define SOL_TCP 1
+
 #define SO_RCVTIMEO 1
 #define SO_SNDTIMEO 2
+#define SO_KEEPALIVE 3
+#define TCP_KEEPIDLE 4
+#define TCP_KEEPINTVL 5
+#define TCP_KEEPCNT 6
 
 #define NET_PORT_EMPTY  0
 
@@ -61,18 +71,22 @@ typedef struct sock_ops {
     int (*send)(Socket* socket, void* buf, size_t len, int flags, ssize_t* result_len);
     int (*recv)(Socket* socket, void* buf, size_t len, int flags, ssize_t* result_len);
     int (*bind)(Socket* socket, Sockaddr* addr, socklen_t len);
+    int (*listen)(Socket* socket, int backlog);
+    int (*accept)(Socket* socket, Sockaddr* addr, socklen_t* len, Socket** client);
 } Sock_ops;
 
 typedef enum socket_type {
     SOCK_NONE = 0,
     SOCK_RAW,
     SOCK_UDP,
+    SOCK_TCP,
 } Socket_type;
 
 typedef struct socket {
     union {
         Raw __raw_info;
         Udp __udp_info;
+        Tcp __tcp_info;
     } sk_info;
     int id;
     enum {
@@ -90,11 +104,14 @@ typedef struct socket {
     int ret;
     int rcv_tmo;
     int snd_tmo;
+    int close_tmo;
+    int conn_tmo;
     List_entry socket_link;
-    Spinlock socket_lock;
+    // Spinlock socket_lock;
     Sock_wait snd_wait;
     Sock_wait rcv_wait;
     Sock_wait conn_wait;
+    Sock_wait close_wait;
     // List_entry socket_link;
 } Socket;
 
@@ -161,6 +178,16 @@ typedef struct sock_bind {
     socklen_t len;
 } Sock_bind;
 
+typedef struct sock_listen {
+    int backlog;
+} Sock_listen;
+
+typedef struct sock_accept {
+    Sockaddr* addr;
+    socklen_t* len;
+    int client_fd;
+} Sock_accept;
+
 typedef struct sock_req {
     Sock_wait* wait;
     ulong wait_tmo;
@@ -171,6 +198,8 @@ typedef struct sock_req {
         Sock_opt opt;
         Sock_conn conn;
         Sock_bind bind;
+        Sock_listen listen;
+        Sock_accept accept;
     };
 } Sock_req;
 
@@ -185,7 +214,11 @@ typedef struct timeval {
     int tv_usec;
 } Timeval;
 
+// int socket_alloc(void);
 int sockets_init(void);
+Socket *new_socket(void);
+int socket_close(int id);
+Socket *get_socket(int id);
 void socket_cleanup(void);
 int sock_create_req_in(Func_msg* api_msg);
 int socket_init(Socket* socket, int family, int protocol, Sock_ops* ops);
@@ -208,4 +241,7 @@ int sock_recv_req_in(Func_msg* api_msg);
 int sock_recv(Socket* socket, void* buf, size_t len, int flags, ssize_t* result_len);
 int sock_bind_req_in(Func_msg* api_msg);
 int sock_bind(Socket* socket, Sockaddr* addr, socklen_t len);
+int sock_listen_req_in(Func_msg* api_msg);
+int sock_accept_req_in(Func_msg* api_msg);
+int sock_destroy_req_in(Func_msg* api_msg);
 #endif

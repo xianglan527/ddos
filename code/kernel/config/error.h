@@ -49,8 +49,11 @@
 #define E_NET_CONNECTED 43    // net error connected
 #define E_NET_UNREACH 44    // net port unreach
 #define E_NET_BIND 45    // net port bind
+#define E_NET_RESET 46    // net RESET
+#define E_NET_CLOSE 47    // net close
+#define E_NET_TMO 48    // net timeout
 // end of net error
 
 /* the maximum allowed */
-#define MAXERROR 45
+#define MAXERROR 48
 #endif

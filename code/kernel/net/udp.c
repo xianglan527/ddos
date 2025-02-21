@@ -1,5 +1,6 @@
 #include "udp.h"
 
+#include "dns.h"
 #include "ipv4.h"
 #include "nettool.h"
 #include "protocol.h"
@@ -11,9 +12,9 @@ static List_entry udp_list;
 Spinlock udp_list_lock;
 extern Spinlock print_struct_lock;
 
-static int udp_sendto(Socket* socket, void* buf, size_t len, int flags, Sockaddr* dest, socklen_t dest_len,
+int udp_sendto(Socket* socket, void* buf, size_t len, int flags, Sockaddr* dest, socklen_t dest_len,
                       ssize_t* result_len);
-static int udp_recvfrom(Socket* socket, void* buf, size_t len, int flags, Sockaddr* src, socklen_t* addr_len,
+int udp_recvfrom(Socket* socket, void* buf, size_t len, int flags, Sockaddr* src, socklen_t* addr_len,
                         ssize_t* result_len);
 static int udp_close(Socket* socket);
 static int udp_connect(Socket* socket, Sockaddr* addr, socklen_t len);
@@ -115,7 +116,7 @@ int udp_init(Socket* socket, int family, int protocol) {
     return NET_OK;
 }
 
-static int udp_sendto(Socket* socket, void* buf, size_t len, int flags, Sockaddr* dest, socklen_t dest_len,
+int udp_sendto(Socket* socket, void* buf, size_t len, int flags, Sockaddr* dest, socklen_t dest_len,
                       ssize_t* result_len) {
     Ipaddr dest_ip;
     Sockaddr_in* addr = (Sockaddr_in*)dest;
@@ -148,7 +149,7 @@ static int udp_sendto(Socket* socket, void* buf, size_t len, int flags, Sockaddr
         dbg_error(DBG_UDP, "send error");
         goto end_sendto;
     }
-    *result_len = (ssize_t)len;
+    if (result_len) { *result_len = (ssize_t)len; }
     return NET_OK;
 end_sendto:
     pktbuf_free(pktbuf);
@@ -270,7 +271,11 @@ int udp_in(Pktbuf* buf, Ipaddr* src_ip, Ipaddr* dest_ip) {
     if (list_count(&udp->recv_pkt_list) < UDP_MAX_RECV) {
         list_add(&udp->recv_pkt_list, &buf->sock_recv_link);
         Socket* socket = info2sk(udp, udp);
-        sock_wakeup(socket, WT_SOCK_READ, NET_OK);
+        if(dns_is_arrive(udp)){
+            dns_in();
+        }else{
+            sock_wakeup(socket, WT_SOCK_READ, NET_OK);
+        }
     } else {
         dbg_warning(DBG_UDP, "queue full, drop pkt");
         pktbuf_free(buf);
@@ -278,7 +283,7 @@ int udp_in(Pktbuf* buf, Ipaddr* src_ip, Ipaddr* dest_ip) {
     return NET_OK;
 }
 
-static int udp_recvfrom(Socket* socket, void* buf, size_t len, int flags, Sockaddr* src, socklen_t* addr_len,
+int udp_recvfrom(Socket* socket, void* buf, size_t len, int flags, Sockaddr* src, socklen_t* addr_len,
                         ssize_t* result_len) {
     Udp* udp = skop_info(socket, udp);
     if (list_empty(&udp->recv_pkt_list)) {

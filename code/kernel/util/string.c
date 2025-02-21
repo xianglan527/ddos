@@ -164,3 +164,14 @@ char *stradd(const char *src1, const char *src2){
     }
     return ret;
 }
+
+int stricmp(char *p, char *q) {
+    while (*p && *q) {
+        char c1 = (*p >= 'A' && *p <= 'Z') ? *p + 32 : *p;  
+        char c2 = (*q >= 'A' && *q <= 'Z') ? *q + 32 : *q; 
+        if (c1 != c2) return c1 - c2;                  
+        p++;
+        q++;
+    }
+    return (uchar)*p - (uchar)*q;
+}

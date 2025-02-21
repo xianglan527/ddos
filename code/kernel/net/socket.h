@@ -39,6 +39,23 @@ typedef struct sockaddr_in {
 
 #pragma pack()
 
+typedef struct hostent {
+    char* h_name;     
+    char** h_aliases;   
+    int h_addrtype;      
+    int h_length;       
+    char** h_addr_list;  
+}Hostent;
+
+#define h_addr h_addr_list[0]
+
+typedef uint32_t in_addr_t;
+typedef struct hostent_extra {
+    in_addr_t* addr_tbl[2];  
+    in_addr_t addr;          
+    char name[1];            
+} Hostent_extra;
+
 int socket(int family, int type, int protocol);
 ssize_t sendto(int sockfd, void* buf, size_t len, int flags, Sockaddr* dest, socklen_t dest_len);
 ssize_t recvfrom(int sockfd, void* buf, size_t len, int flags, Sockaddr* dest, socklen_t* dest_len);
@@ -48,4 +65,7 @@ int connect(int sid, Sockaddr *addr, socklen_t len);
 ssize_t send(int sockfd, void* buf, size_t len, int flags);
 ssize_t recv(int sockfd, void* buf, size_t len, int flags);
 int bind(int sid, Sockaddr* addr, socklen_t len);
+int accept(int sockfd, Sockaddr* addr, socklen_t* len);
+int listen(int sockfd, int backlog);
+int gethostbyname_r(char* name, Hostent* ret, char* buf, size_t buflen, Hostent** result, int* h_errnop);
 #endif

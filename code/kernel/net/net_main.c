@@ -1,18 +1,16 @@
 #include "assert.h"
 #include "debug.h"
+#include "exmsg.h"
+#include "ipv4.h"
 #include "net.h"
+#include "net_api.h"
 #include "net_device.h"
 #include "pktbuf.h"
-#include "string.h"
 #include "printf.h"
 #include "proc.h"
-#include "stdio.h"
-#include "ipv4.h"
-#include "exmsg.h"
 #include "socket.h"
 #include "stdio.h"
-#include "net_api.h"
-#include "stdio.h"
+#include "string.h"
 
 extern Netif_ops netdev_ops;
 extern List_entry nets_list;
@@ -198,7 +196,7 @@ void timer3_func(Timer *timer) {
     cprintf("this is %s: %d\n", (char *)timer->arg, count++);
 }
 
-void timer_func_test(){
+void timer_func_test() {
     Timer *t0 = timer_func_add(timer0_func, "t0", 200, 0);
     Timer *t1 = timer_func_add(timer1_func, "t1", 500, TIMER_RELOAD);
     Timer *t2 = timer_func_add(timer2_func, "t2", 500, TIMER_RELOAD);
@@ -207,7 +205,7 @@ void timer_func_test(){
 }
 
 //////////////////////////////////////////////////////////////
-#define PING_BUFFER_SIZE 4096  
+#define PING_BUFFER_SIZE 4096
 #define PING_DEFAULT_ID 0x200
 
 #pragma pack(1)
@@ -284,7 +282,12 @@ static uint16_t checksum(void *buf, uint16_t len) {
 void ping_run(Ping *ping, char *dest, size_t count, size_t size, size_t interval) {
     static uint16_t start_id = PING_DEFAULT_ID;  // Record an initial ID, continuously increment
     char buf[512];
-
+    Hostent hent, *result;
+    int err;
+    if (gethostbyname_r(dest, &hent, buf, sizeof(buf), &result, &err) < 0) {
+        cprintf("resolve name %s failed\n", dest);
+        return;
+    }
     int sk = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
     if (sk < 0) {
         cprintf("Socket creation error, please run as root.\n");
@@ -295,7 +298,7 @@ void ping_run(Ping *ping, char *dest, size_t count, size_t size, size_t interval
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_port = 0;
-    addr.sin_addr.s_addr = inet_addr(dest);
+    addr.sin_addr.s_addr = *(uint32_t *)hent.h_addr_list[0];  // inet_addr(dest);
 
     // Print target information
     inet_ntop(AF_INET, &addr.sin_addr, buf, sizeof(buf));
@@ -387,7 +390,7 @@ void ping_run(Ping *ping, char *dest, size_t count, size_t size, size_t interval
                 cprintf("Reply from %s: bytes = %d", inet_ntoa(addr.sin_addr), send_size);
             } else {
                 cprintf("Reply from %s: bytes = %d (sent = %d)", inet_ntoa(addr.sin_addr), recv_size,
-                       send_size);
+                        send_size);
             }
             // Calculate time difference (milliseconds)
             int diff_ms = (sys_gettime() - ping->req.time);
@@ -397,20 +400,18 @@ void ping_run(Ping *ping, char *dest, size_t count, size_t size, size_t interval
                 cprintf(", time=%dms, TTL=%d\n", diff_ms, iphdr->ttl);
             }
         }
-        if (i < count - 1) {
-            do_sleep(interval);
-        }
+        if (i < count - 1) { do_sleep(interval); }
     }
     closesocket(sk);
 }
 
-void socket_raw_test(){
+void socket_raw_test() {
     // char *dest = "192.168.0.1";
     // char *dest = friend0_ip;
     // char *dest = br0_gw;
     char *dest = "8.8.8.8";
-    size_t count = 4;     // Default count
-    size_t size = 56;     // Default data size
+    size_t count = 4;       // Default count
+    size_t size = 56;       // Default data size
     size_t interval = 500;  // Default interval
     if (size > PING_BUFFER_SIZE) {
         cprintf("The size is too big, should be < %d\n", PING_BUFFER_SIZE);
@@ -418,7 +419,10 @@ void socket_raw_test(){
     }
     Ping ping;
     memset(&ping, 0, sizeof(ping));
-    ping_run(&ping, dest, count, size, interval);
+    // ping_run(&ping, dest, count, size, interval);
+    // ping_run(&ping, "baidu.com", count, size, interval);
+    ping_run(&ping, "baidu.com", count, size, interval);
+    ping_run(&ping, "qq.com", count, size, interval);
     return;
 }
 /////////////////////////////////////////////////////////////
@@ -434,36 +438,36 @@ void udp_echo_server_start(void *arg) {
     memset(&local_addr, 0, sizeof(local_addr));
     local_addr.sin_family = AF_INET;
     // local_addr.sin_addr.s_addr = inet_addr("192.168.8.4");
-    local_addr.sin_port = htons(port);  
+    local_addr.sin_port = htons(port);
     if (bind(s, (struct sockaddr *)&local_addr, sizeof(local_addr)) < 0) {
         cprintf("bind error");
-        closesocket(s); 
+        closesocket(s);
         return;
     }
+    char buf[256];
     while (1) {
         struct sockaddr_in client_addr;
-        char buf[256];
         socklen_t addr_len = sizeof(client_addr);
         ssize_t size = recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr *)&client_addr, &addr_len);
         if (size < 0) {
             cprintf("recvfrom error");
-            break;  
+            break;
         }
         cprintf("UDP echo server: connected IP: %s, Port: %d\n", inet_ntoa(client_addr.sin_addr),
-               ntohs(client_addr.sin_port));
+                ntohs(client_addr.sin_port));
 
         if (strncmp(buf, "quit", 4) == 0) { break; }
         size = sendto(s, buf, size, 0, (struct sockaddr *)&client_addr, addr_len);
         if (size < 0) {
             cprintf("sendto error");
-            break;  
+            break;
         }
     }
     closesocket(s);
     return;
 }
 
-void udp_echo_server(){
+void udp_echo_server() {
     static int default_port = 5050;
     kernel_thread_init(udp_echo_server_start, &default_port);
 }
@@ -517,15 +521,246 @@ int udp_echo_client_start(char *ip, int port) {
 
 // 主函数
 int udp_echo_client() {
-    char* ip = "127.0.0.1";
-//    char *ip = "192.168.8.27";
+    char *ip = "127.0.0.1";
+    //    char *ip = "192.168.8.27";
     int port = 5050;
     return udp_echo_client_start(ip, port);
 }
 
-void udp_echo_test(){
+void udp_echo_test() {
     udp_echo_server();
     udp_echo_client();
+}
+//////////////////////////////////////////////////////////////
+void tcp_echo_server_start(void *arg) {
+    int port = *(int *)arg;
+
+    // 1. 创建 TCP Socket（SOCK_STREAM）
+    int s = socket(AF_INET, SOCK_STREAM, 0);
+    if (s < 0) {
+        cprintf("socket creation failed\n");
+        return;
+    }
+
+    // 2. 绑定端口
+    struct sockaddr_in local_addr;
+    memset(&local_addr, 0, sizeof(local_addr));
+    local_addr.sin_family = AF_INET;
+    // local_addr.sin_addr.s_addr = inet_addr("192.168.8.4"); // 如需要指定IP请自行解注并设置
+    local_addr.sin_port = htons(port);
+    if (bind(s, (struct sockaddr *)&local_addr, sizeof(local_addr)) < 0) {
+        cprintf("bind error\n");
+        closesocket(s);
+        return;
+    }
+
+    // 3. 监听端口
+    if (listen(s, 2) < 0) {
+        cprintf("listen error\n");
+        closesocket(s);
+        return;
+    }
+    cprintf("TCP echo server listening on port %d\n", port);
+
+    while (1) {
+        // 4. 接收连接
+        struct sockaddr_in client_addr;
+        client_addr.sin_port = 0;
+        socklen_t addr_len = sizeof(client_addr);
+        int client_sock = 0;
+        client_sock = accept(s, (struct sockaddr *)&client_addr, &addr_len);
+        if (client_sock < 0) {
+            cprintf("accept error\n");
+            break;
+        }
+        cprintf("TCP echo server: connected IP: %s, Port: %d\n", inet_ntoa(client_addr.sin_addr),
+                ntohs(client_addr.sin_port));
+
+        // 5. 接收并回显
+        char buf[4096];
+        // getstring(buf, sizeof(buf));
+        while (1) {
+            memset(buf, 0, sizeof(buf));
+            ssize_t size = recv(client_sock, buf, sizeof(buf) - 1, 0);
+            if (size <= 0) {
+                // size < 0 是出错，size == 0 是客户端关闭连接
+                cprintf("recv error or connection closed\n");
+                break;
+            }
+            // recv(client_sock, buf, sizeof(buf) - 1, 0);
+            // 判断是否输入 "quit"
+            if (strncmp(buf, "quit", 4) == 0) { break; }
+
+            // 回显
+            ssize_t send_size = send(client_sock, buf, size, 0);
+            if (send_size < 0) {
+                cprintf("send error\n");
+                break;
+            }
+        }
+        // 关闭本次连接
+        closesocket(client_sock);
+        // 如果只想接受一次连接就退出，可在此处 break
+        // break;
+    }
+
+    // 关闭监听socket
+    closesocket(s);
+    return;
+}
+
+void tcp_echo_server() {
+    static int default_port = 5050;
+    kernel_thread_init(tcp_echo_server_start, &default_port);
+}
+
+int tcp_echo_client_start(char *ip, int port) {
+    cprintf("tcp echo client, ip: %s, port: %d\n", ip, port);
+    cprintf("Enter quit to exit\n");
+
+    // 1. 创建 TCP Socket
+    int s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (s < 0) {
+        cprintf("open socket error\n");
+        return -1;
+    }
+
+    // 2. 连接服务器
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr(ip);
+    server_addr.sin_port = htons(port);
+#if 1    
+    while(connect(s, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0);
+#else
+    // if (connect(s, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+    //     cprintf("connect error\n");
+    //     closesocket(s);
+    //     return -1;
+    // }
+# endif
+    int keepalive = 1;
+    int keepidle = 5;  
+    int keepinterval = 1; 
+    int keepcount = 10;   
+    setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, (void *)&keepalive, sizeof(keepalive));
+    setsockopt(s, SOL_TCP, TCP_KEEPIDLE, (void *)&keepidle, sizeof(keepidle));
+    setsockopt(s, SOL_TCP, TCP_KEEPINTVL, (void *)&keepinterval, sizeof(keepinterval));
+    setsockopt(s, SOL_TCP, TCP_KEEPCNT, (void *)&keepcount, sizeof(keepcount));
+    char buf[4096];
+    cprintf(">>");
+#if 0
+    getstring(buf, sizeof(buf));
+    closesocket(s);
+    cprintf("11111111\n");
+    return 0;
+#endif
+
+#if 0
+    char sbuf[4096];
+    for (int i = 0; i < sizeof(sbuf); i++) { sbuf[i] = 'a' + i % 26; }
+    for (int i = 0; i < 2; i++) {
+        ssize_t size = send(s, sbuf, sizeof(sbuf), 0);
+        cprintf("............index is %d   size is %ld\n", i, size);
+        if (size < 0) {
+            cprintf("send error: size=%d\n", (int)size);
+            break;
+        }
+    }
+    cprintf("11111111\n");
+    // getstring(buf, sizeof(buf));
+    closesocket(s);
+    return 0;
+#endif
+
+#if 0
+    ssize_t total_size = 0;
+    ssize_t rcv_size;
+    while ((rcv_size = recv(s, buf, sizeof(buf), 0)) > 0) {
+        // cprintf("4444444444\n");
+        // do_sleep(200);
+        // cprintf("5555555555\n");
+        buf[rcv_size] = '\0';  // 确保字符串以 '\0' 结束
+        cprintf("rcv_size is %ld\n %s\n", rcv_size, buf);
+        total_size += rcv_size;
+    }
+    cprintf("333333333\n");
+    if (rcv_size < 0) {
+        // 接收完毕
+        cprintf("rcv file size: %ld\n", total_size);
+        closesocket(s);
+        return -1;
+    }
+    cprintf("rcv file size: %ld\n", total_size);
+    cprintf("rcv file ok\n");
+    closesocket(s);
+    return 0;
+
+#endif
+
+
+    while (getstring(buf, sizeof(buf)) != 0) {
+        // if (strncmp(buf, "quit", 4) == 0) { break; }
+ 
+        ssize_t size;
+#if 1
+        size_t total_len = strlen(buf);
+        size = send(s, buf, total_len, 0);
+        if (size < 0) {
+            cprintf("send error\n");
+            closesocket(s);
+            return -1;
+        }
+#endif
+#if 0
+        for (int i = 0; i < sizeof(buf); i++) { buf[i] = 'a' + i % 26; }
+        for (int i = 0; i < 1; i++) {
+            ssize_t snd_size = send(s, buf, sizeof(buf), 0);
+            cprintf("............index is %d   snd_size is %ld\n", i, snd_size);
+            if (snd_size < 0) {
+                cprintf("send error: snd_size=%d\n", (int)snd_size);
+                break;
+            }
+        }
+#endif
+        // 接收回显的数据
+        memset(buf, 0, sizeof(buf));
+        size = recv(s, buf, sizeof(buf) - 1, 0);
+        // cprintf("22222222\n");
+        if (size < 0) {
+            cprintf("recv error\n");
+            closesocket(s);
+            return -1;
+        } else if (size == 0) {
+            // 服务器端关闭连接
+            cprintf("connection closed by server\n");
+            break;
+        }
+        buf[size] = '\0';  // 确保字符串以 '\0' 结束
+
+        cprintf("%s", buf);
+        if (strncmp(buf, "quit", 4) == 0) { break; }
+        cprintf(">>\n");
+    }
+
+    closesocket(s);
+    // cprintf("11111111\n");
+    return 0;
+}
+
+int tcp_echo_client() {
+    char *ip = "127.0.0.1";
+    // char* ip = "192.168.8.27";
+    // char *ip = "192.168.8.28";
+    int port = 5050;
+    return tcp_echo_client_start(ip, port);
+}
+
+void tcp_echo_test() {
+    tcp_echo_server();
+    do_sleep(3000);
+    tcp_echo_client();
 }
 //////////////////////////////////////////////////////////////
 int test_func_arg = 0x1234;
@@ -539,12 +774,13 @@ void exmsg_func_test() { exmsg_func_exec(test_func, (void *)&test_func_arg); }
 
 //////////////////////////////////////////////////////////////
 
-void net_test() { 
+void net_test() {
     // pktbuf_test();
     // timer_func_test();
     //  exmsg_func_test();
-    socket_raw_test();
+    // socket_raw_test();
     // udp_echo_test();
+    tcp_echo_test();
 }
 
 void net_main(void *arg) {
@@ -563,5 +799,5 @@ void net_main(void *arg) {
 #ifdef PRINT_NET_TEST
     net_test();
 #endif
-    while (1);
+    // while (1);
 }

@@ -8,6 +8,7 @@
 #include "socket.h"
 
 #define SOCK_DGRAM SOCK_UDP
+#define SOCK_STREAM SOCK_TCP
 
 #define htons(v) x_htons(v)
 #define ntohs(v) x_ntohs(v)

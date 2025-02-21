@@ -1254,16 +1254,33 @@ void del_func_timer(Timer *timer) {
 void exec_timer_func(void) {
     List_entry free_list, *le;
     list_init(&free_list);
+    List_entry do_func_timer_list;
+    list_init(&do_func_timer_list);
     acquire(&timer_func_lock);
     while ((le = list_next(&timer_func_list)) != &timer_func_list) {
         list_del_init(le);
-        list_add_after(&free_list, le);
+        list_add(&free_list, le);
+        Timer *timer = le2timer(le, timer_link);
+        Timer *do_func_timer = (Timer *)kmalloc(sizeof(Timer));
+        assert(do_func_timer != nullptr);
+        *do_func_timer = *timer;
+        list_add(&do_func_timer_list, &do_func_timer->timer_link);
     }
     release(&timer_func_lock);
-    list_for_each(le, &free_list) {
+    // list_for_each(le, &free_list) {
+    //     Timer *timer = le2timer(le, timer_link);
+    //     if(!(timer->timer_type == TIMER_FUNC && timer->expires == 0)){
+    //         int pp = 3;
+    //     }
+    //     assert(timer->timer_type == TIMER_FUNC && timer->expires == 0);
+    //     timer->func(timer);
+    // }
+    while ((le = list_next(&do_func_timer_list)) != &do_func_timer_list) {
         Timer *timer = le2timer(le, timer_link);
         assert(timer->timer_type == TIMER_FUNC && timer->expires == 0);
         timer->func(timer);
+        list_del(le);
+        kfree(timer);
     }
     acquire(&timer_lock);
      while ((le = list_next(&free_list)) != &free_list){

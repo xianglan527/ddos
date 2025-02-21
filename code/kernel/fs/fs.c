@@ -33,7 +33,6 @@ void unlock_fs(Fs_struct *fs_struct){
 }
 
 Fs_struct *fs_create(void){
-    // int pp = FS_STRUCT_NENTRY;
     assert(FS_STRUCT_NENTRY > 128);
     Fs_struct *fs_struct;
     if((fs_struct = kmalloc(sizeof(Fs_struct) + FS_STRUCT_BUFSIZE)) != nullptr){

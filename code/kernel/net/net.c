@@ -12,6 +12,8 @@
 #include "sock.h"
 #include "raw.h"
 #include "udp.h"
+#include "tcp.h"
+#include "dns.h"
 
 int net_init(void){
     dbg_info(DBG_INIT, "init net...");
@@ -26,6 +28,8 @@ int net_init(void){
     sockets_init();
     raws_init();
     udps_init();
+    tcps_init();
+    dnss_init();
     loop_init();
     return NET_OK;
 }

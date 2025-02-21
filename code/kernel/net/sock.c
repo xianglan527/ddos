@@ -1,7 +1,7 @@
 #include "sock.h"
 
-#include "socket.h"
 #include "ipv4.h"
+#include "socket.h"
 
 static Socket *socket_map[MAX_SOCKET_PAGES];
 static List_entry free_socket_list;
@@ -9,6 +9,7 @@ static Spinlock sockets_lock;
 
 extern int raw_init(Socket *socket, int family, int protocol);
 extern int udp_init(Socket *socket, int family, int protocol);
+extern int tcp_init(Socket *socket, int family, int protocol);
 
 int sockets_init(void) {
     for (int i = 0; i < MAX_SOCKET_PAGES; i++) { socket_map[i] = nullptr; }
@@ -17,7 +18,7 @@ int sockets_init(void) {
     return NET_OK;
 }
 
-static Socket *get_socket(int id) {
+Socket *get_socket(int id) {
     if (id >= 0 && id < MAX_SOCKET_NUM) {
         int i = id / SOCKET_P_PAGE, j = id % SOCKET_P_PAGE;
         if (socket_map[i] != nullptr) {
@@ -30,17 +31,18 @@ static Socket *get_socket(int id) {
 
 static void socket_free(Socket *socket) {
     assert(wait_queue_empty(&socket->snd_wait.sem.wait_queue) && socket->snd_wait.sem.valid == 0);
-    assert(wait_queue_empty(&socket->rcv_wait.sem.wait_queue) && socket->snd_wait.sem.valid == 0);
-    assert(wait_queue_empty(&socket->conn_wait.sem.wait_queue) && socket->snd_wait.sem.valid == 0);
+    assert(wait_queue_empty(&socket->rcv_wait.sem.wait_queue) && socket->rcv_wait.sem.valid == 0);
+    assert(wait_queue_empty(&socket->conn_wait.sem.wait_queue) && socket->conn_wait.sem.valid == 0);
+    assert(wait_queue_empty(&socket->close_wait.sem.wait_queue) && socket->close_wait.sem.valid == 0);
     socket->state = SOCKET_STATE_CLOSED;
     socket->sk_type = SOCK_NONE;
     acquire(&sockets_lock);
-    assert(list_empty(&socket->socket_link));
+    // assert(list_empty(&socket->socket_link));
     list_add_before(&free_socket_list, &socket->socket_link);
     release(&sockets_lock);
 }
 
-static Socket *new_socket(void) {
+Socket *new_socket(void) {
     Socket *socket = nullptr;
     acquire(&sockets_lock);
     if (list_empty(&free_socket_list)) {
@@ -54,24 +56,39 @@ static Socket *new_socket(void) {
         id = i * SOCKET_P_PAGE;
         socket = socket_map[i] = (Socket *)page2kva(page);
         for (i = 0; i < SOCKET_P_PAGE; i++, id++, socket++) {
+            memset(socket, 0, sizeof(Socket));
             socket->id = id;
             socket->state = SOCKET_STATE_CLOSED;
-            list_init(&socket->socket_link);
-            sock_wait_init(&socket->snd_wait);
-            sock_wait_init(&socket->rcv_wait);
-            sock_wait_init(&socket->conn_wait);
-            socket->snd_wait.wait_state = WT_SOCK_WRITE;
-            socket->rcv_wait.wait_state = WT_SOCK_READ;
-            socket->conn_wait.wait_state = WT_SOCK_CONN;
-            initlock(&socket->socket_lock, "socket_lock");
+            // list_init(&socket->socket_link);
+            // sock_wait_init(&socket->snd_wait);
+            // sock_wait_init(&socket->rcv_wait);
+            // sock_wait_init(&socket->conn_wait);
+            // sock_wait_init(&socket->close_wait);
+            // socket->snd_wait.wait_state = WT_SOCK_WRITE;
+            // socket->rcv_wait.wait_state = WT_SOCK_READ;
+            // socket->conn_wait.wait_state = WT_SOCK_CONN;
+            // socket->close_wait.wait_state = WT_SOCK_CLOSE;
+            // initlock(&socket->socket_lock, "socket_lock");
             list_add_before(&free_socket_list, &socket->socket_link);
         }
     }
     assert(!list_empty(&free_socket_list));
     socket = le2socket(list_next(&free_socket_list));
     list_del_init(&socket->socket_link);
+    int save_id = socket->id;
+    memset(socket, 0, sizeof(Socket));
+    socket->id = save_id;
     socket->state = SOCKET_STATE_OPENED;
     socket->sk_type = SOCK_NONE;
+    // list_init(&socket->socket_link);
+    sock_wait_init(&socket->snd_wait);
+    sock_wait_init(&socket->rcv_wait);
+    sock_wait_init(&socket->conn_wait);
+    sock_wait_init(&socket->close_wait);
+    socket->snd_wait.wait_state = WT_SOCK_WRITE;
+    socket->rcv_wait.wait_state = WT_SOCK_READ;
+    socket->conn_wait.wait_state = WT_SOCK_CONN;
+    socket->close_wait.wait_state = WT_SOCK_CLOSE;
 out:
     release(&sockets_lock);
     return socket;
@@ -82,21 +99,22 @@ static inline int get_index(Socket *socket) {
     return socket->id;
 }
 
-static int socket_alloc() {
+static int socket_alloc(void) {
     Socket *socket;
     int ret = -E_NO_MEM;
     if ((socket = new_socket()) != nullptr) { ret = socket->id; }
     return ret;
 }
 
-static int socket_close(int id) {
+int socket_close(int id) {
     Socket *socket;
     if ((socket = get_socket(id)) == nullptr) { return -E_INVAL; }
-    acquire(&socket->socket_lock);
+    // acquire(&socket->socket_lock);
     sock_wait_destory(&socket->snd_wait);
     sock_wait_destory(&socket->rcv_wait);
     sock_wait_destory(&socket->conn_wait);
-    release(&socket->socket_lock);
+    sock_wait_destory(&socket->close_wait);
+    // release(&socket->socket_lock);
     socket_free(socket);
     return 0;
 }
@@ -132,6 +150,11 @@ int sock_create_req_in(Func_msg *api_msg) {
             {
                 .protocol = IPPROTO_UDP,
                 .init = udp_init,
+            },
+        [SOCK_TCP] =
+            {
+                .protocol = IPPROTO_TCP,
+                .init = tcp_init,
             },
     };
     Sock_req *req = (Sock_req *)api_msg->param;
@@ -171,6 +194,8 @@ int socket_init(Socket *socket, int family, int protocol, Sock_ops *ops) {
     socket->ret = NET_OK;
     socket->rcv_tmo = 0;
     socket->snd_tmo = 0;
+    socket->close_tmo = NET_CLOSE_MAX_TMO;
+    socket->conn_tmo = 0;
     list_init(&socket->socket_link);
     return NET_OK;
 }
@@ -257,7 +282,7 @@ void sock_wakeup(Socket *socket, uint32_t type, int ret) {
 
 int sock_setopt(Socket *socket, int level, int optname, char *optval, int optlen) {
     if (level != SOL_SOCKET) {
-        dbg_error(DBG_SOCKET, "unknow level: %d", level);
+        dbg_warning(DBG_SOCKET, "unknow level: %d", level);
         return -E_NET_NOT_SUPPORT;
     }
     switch (optname) {
@@ -276,12 +301,12 @@ int sock_setopt(Socket *socket, int level, int optname, char *optval, int optlen
                 socket->snd_tmo = time_ms;
                 return NET_OK;
             } else {
-                return -E_NET_PARAM;
+                return -E_NET_NOT_SUPPORT;
             }
         }
         default: break;
     }
-    return -E_NET_PARAM;
+    return -E_NET_NOT_SUPPORT;
 }
 
 int sock_setsockopt_req_in(Func_msg *api_msg) {
@@ -302,9 +327,10 @@ int sock_close_req_in(Func_msg *api_msg) {
         dbg_error(DBG_SOCKET, "param error: socket = %d.", s);
         return -E_NET_PARAM;
     }
-    int err = s->ops->close(s);
-    socket_close(s->id);
-    return err;
+    int ret = s->ops->close(s);
+    if (ret == NET_NEED_WAIT) { sock_wait_add(&s->close_wait, s->close_tmo, req); }
+    // socket_close(s->id);
+    return ret;
 }
 
 int sock_connect(Socket *socket, Sockaddr *addr, socklen_t len) {
@@ -380,7 +406,7 @@ int sock_recv_req_in(Func_msg *api_msg) {
         return -E_NET_PARAM;
     }
     Sock_data *data = (Sock_data *)&req->data;
-    if (!s->ops->recvfrom) {
+    if (!s->ops->recv) {
         dbg_error(DBG_SOCKET, "this function is not implemented");
         return -E_NET_NOT_SUPPORT;
     }
@@ -409,12 +435,70 @@ int sock_bind(Socket *socket, Sockaddr *addr, socklen_t len) {
     ipaddr_from_buf(&local_ip, local->sin_addr.addr_array);
     if (!ipaddr_is_any(&local_ip)) {
         Rentry *rt = rt_find(&local_ip);
-        if (!rt ||!ipaddr_is_equal(&rt->netif->ipaddr, &local_ip)) {
+        if (!rt || !ipaddr_is_equal(&rt->netif->ipaddr, &local_ip)) {
             dbg_error(DBG_SOCKET, "addr error");
             return -E_NET_PARAM;
         }
     }
     ipaddr_copy(&socket->local_ip, &local_ip);
     socket->local_port = x_ntohs(local->sin_port);
+    return NET_OK;
+}
+
+int sock_listen_req_in(Func_msg *api_msg) {
+    Sock_req *req = (Sock_req *)api_msg->param;
+    Socket *s = get_socket(req->sockfd);
+    if (!s) {
+        dbg_error(DBG_SOCKET, "param error: socket = %d.", s);
+        return -E_NET_PARAM;
+    }
+    Sock_listen *listen = (Sock_listen *)&req->listen;
+    if (!s->ops->listen) {
+        dbg_error(DBG_SOCKET, "this function is not implemented");
+        return -E_NET_NOT_SUPPORT;
+    }
+    return s->ops->listen(s, listen->backlog);
+}
+
+int sock_accept_req_in(Func_msg *api_msg) {
+    Sock_req *req = (Sock_req *)api_msg->param;
+    Socket *s = get_socket(req->sockfd);
+    if (!s) {
+        dbg_error(DBG_SOCKET, "param error: socket = %d.", s);
+        return -E_NET_PARAM;
+    }
+    Sock_accept *accept = (Sock_accept *)&req->accept;
+    if (!s->ops->accept) {
+        dbg_error(DBG_SOCKET, "this function is not implemented");
+        return -E_NET_NOT_SUPPORT;
+    }
+    Socket *client = nullptr;
+    int ret = s->ops->accept(s, accept->addr, accept->len, &client);
+    if (ret < 0) {
+        dbg_error(DBG_SOCKET, "accept error: %d", ret);
+        return ret;
+    } else if (ret == NET_NEED_WAIT) {
+        assert(s->conn_wait.sem.valid == true);
+        sock_wait_add(&s->conn_wait, s->conn_tmo, req);
+    } else {
+        assert(client != nullptr);
+        accept->client_fd = get_index(client);
+    }
+    return NET_OK;
+}
+
+int sock_destroy_req_in(Func_msg *api_msg) {
+    Sock_req *req = (Sock_req *)api_msg->param;
+    Socket *s = get_socket(req->sockfd);
+    if (!s) {
+        dbg_error(DBG_SOCKET, "param error: socket = %d.", s);
+        return -E_NET_PARAM;
+    }
+    // int ret = s->ops->close(s);
+    if (!s->ops->destroy) {
+        dbg_error(DBG_SOCKET, "function not imp");
+        return -E_NET_NOT_SUPPORT;
+    }
+    s->ops->destroy(s);
     return NET_OK;
 }

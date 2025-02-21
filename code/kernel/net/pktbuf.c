@@ -396,7 +396,7 @@ int pktbuf_read(Pktbuf *buf, uint8_t *dest, size_t size) {
     acquire(&buf->pktblk_lock);
     size_t remain_size = buf->total_size - buf->pos;
     if (remain_size < size) {
-        dbg_error(DBG_BUF, "size errorL %d < %d", remain_size, size);
+        dbg_error(DBG_BUF, "size error %d < %d", remain_size, size);
         return -E_NET_SIZE;
         release(&buf->pktblk_lock);
     }
