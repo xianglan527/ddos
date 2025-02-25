@@ -68,6 +68,18 @@ extern uint64_t sys_link(void);
 extern uint64_t sys_unlink(void);
 extern uint64_t sys_mkdir(void);
 extern uint64_t sys_symlink(void);
+extern uint64_t sys_socket(void);
+extern uint64_t sys_sendto(void);
+extern uint64_t sys_recvfrom(void);
+extern uint64_t sys_setsockopt(void);
+extern uint64_t sys_closesocket(void);
+extern uint64_t sys_connect(void);
+extern uint64_t sys_send(void);
+extern uint64_t sys_recv(void);
+extern uint64_t sys_bind(void);
+extern uint64_t sys_accept(void);
+extern uint64_t sys_listen(void);
+extern uint64_t sys_gethostbyname_r(void);
 
 int fetch_addr(uint64_t addr, uint64_t *ip){
     Proc *current = myproc();
@@ -186,6 +198,18 @@ static uint64_t (*syscalls[])(void) = {
     [SYS_unlink] = sys_unlink,
     [SYS_mkdir] = sys_mkdir,
     [SYS_symlink] = sys_symlink,
+    [SYS_socket] = sys_socket,
+    [SYS_sendto] = sys_sendto,
+    [SYS_recvfrom] = sys_recvfrom,
+    [SYS_setsockopt] = sys_setsockopt,
+    [SYS_closesocket] = sys_closesocket,
+    [SYS_connect] = sys_connect,
+    [SYS_send] = sys_send,
+    [SYS_recv] = sys_recv,
+    [SYS_bind] = sys_bind,
+    [SYS_accept] = sys_accept,
+    [SYS_listen] = sys_listen,
+    [SYS_gethostbyname_r] = sys_gethostbyname_r,
 };
 
 void syscall(void) {

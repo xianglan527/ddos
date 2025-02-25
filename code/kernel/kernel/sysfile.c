@@ -6,6 +6,7 @@
 #include "riscv.h"
 #include "signal.h"
 #include "slab.h"
+#include "socket.h"
 #include "spinlock.h"
 #include "stat.h"
 #include "stdio.h"
@@ -106,9 +107,9 @@ uint64_t sys_gettime(void) { return ticks; }
 
 uint64_t sys_get_free_page_size(void) { return nr_free_pages(); }
 
-uint64_t sys_get_slab_allocated_size(void) { 
+uint64_t sys_get_slab_allocated_size(void) {
     // sinode_dump_struct_lock();
-    return slab_allocated(); 
+    return slab_allocated();
 }
 
 uint64_t sys_clone(void) {
@@ -346,7 +347,7 @@ uint64_t sys_close(void) {
     return 0;
 }
 
-#define read_max_onece  (SFS_MAXOPBLOCKS * SFS_BSIZE)
+#define read_max_onece (SFS_MAXOPBLOCKS * SFS_BSIZE)
 
 uint64_t sys_read(void) {
     int ret;
@@ -382,13 +383,11 @@ uint64_t sys_read(void) {
         if (ret != 0 || alen == 0) { break; }
     }
     kfree(buffer);
-    if (copied != 0) { 
-        return copied; 
-    }
+    if (copied != 0) { return copied; }
     return ret;
 }
 
-#define write_max_onece  (((SFS_MAXOPBLOCKS - 1 - 1 - 1 - 2) / 2) * SFS_BSIZE)
+#define write_max_onece (((SFS_MAXOPBLOCKS - 1 - 1 - 1 - 2) / 2) * SFS_BSIZE)
 
 uint64_t sys_write(void) {
     int ret;
@@ -457,7 +456,7 @@ uint64_t sys_mkpipe(void) {
     long __fd_store;
     arg_long(0, &__fd_store);
     int *fd_store = (int *)__fd_store;
-    if(fd_store == nullptr) return -E_INVAL;
+    if (fd_store == nullptr) return -E_INVAL;
     int ret, fd[2];
     Mm_struct *mm = myproc()->mm;
     if ((ret = file_pipe(fd)) == 0) {
@@ -480,7 +479,7 @@ uint64_t sys_mkfifo(void) {
     return ret;
 }
 
-uint64_t sys_seek(void){
+uint64_t sys_seek(void) {
     int fd;
     arg_int(0, &fd);
     long pos;
@@ -490,7 +489,7 @@ uint64_t sys_seek(void){
     return file_seek(fd, (off_t)pos, whence);
 }
 
-uint64_t sys_fsync(void){
+uint64_t sys_fsync(void) {
     int fd;
     arg_int(0, &fd);
     begin_op();
@@ -499,13 +498,13 @@ uint64_t sys_fsync(void){
     return ret;
 }
 
-uint64_t sys_chdir(void){
+uint64_t sys_chdir(void) {
     char path[MAXPATH];
     if (arg_str(0, path, MAXPATH) < 0) return -E_INVAL;
     return vfs_chdir(path);
 }
 
-uint64_t sys_getcwd(void){
+uint64_t sys_getcwd(void) {
     int ret;
     long __buf;
     arg_long(0, &__buf);
@@ -518,17 +517,17 @@ uint64_t sys_getcwd(void){
     if ((buffer = kmalloc(len)) == nullptr) { return -E_NO_MEM; }
     Iobuf __iob, *iob = iobuf_init(&__iob, buffer, len, 0);
     ret = vfs_getcwd(iob);
-    if(ret < 0){
+    if (ret < 0) {
         kfree(buffer);
         return ret;
     }
     lock_mm(mm);
-    copy_kernel2user(mm->pagetable, (uintptr_t)buf, (char *)buffer, iobuf_used(iob)); 
+    copy_kernel2user(mm->pagetable, (uintptr_t)buf, (char *)buffer, iobuf_used(iob));
     unlock_mm(mm);
     kfree(buffer);
     return 0;
 }
-uint64_t sys_getdirentry(void){
+uint64_t sys_getdirentry(void) {
     int ret;
     int fd;
     arg_int(0, &fd);
@@ -541,14 +540,14 @@ uint64_t sys_getdirentry(void){
     copy_user2kernel(mm->pagetable, (char *)&local_dirent, (uint64_t)dirent, sizeof(*dirent));
     unlock_mm(mm);
     ret = file_getdirentry(fd, &local_dirent);
-    if(ret < 0) return ret;
+    if (ret < 0) return ret;
     lock_mm(mm);
     copy_kernel2user(mm->pagetable, (uint64_t)dirent, (char *)&local_dirent, sizeof(*dirent));
     unlock_mm(mm);
     return 0;
 }
 
-uint64_t sys_link(void){
+uint64_t sys_link(void) {
     char old_path[MAXPATH];
     if (arg_str(0, old_path, MAXPATH) < 0) return -E_INVAL;
     char new_path[MAXPATH];
@@ -556,7 +555,7 @@ uint64_t sys_link(void){
     return vfs_link(old_path, new_path);
 }
 
-uint64_t sys_unlink(void){
+uint64_t sys_unlink(void) {
     char path[MAXPATH];
     if (arg_str(0, path, MAXPATH) < 0) return -E_INVAL;
     return vfs_unlink(path);
@@ -574,4 +573,285 @@ uint64_t sys_symlink(void) {
     char new_path[MAXPATH];
     if (arg_str(1, new_path, MAXPATH) < 0) return -E_INVAL;
     return vfs_symlink(old_path, new_path);
+}
+
+uint64_t sys_socket(void) {
+    int family;
+    arg_int(0, &family);
+    int type;
+    arg_int(1, &type);
+    int protocol;
+    arg_int(2, &protocol);
+    return socket(family, type, protocol);
+}
+
+// ssize_t sendto(int sockfd, void *buf, size_t len, int flags, Sockaddr *dest, socklen_t dest_len);
+uint64_t sys_sendto(void) {
+    int sockfd;
+    arg_int(0, &sockfd);
+    long __buf;
+    arg_long(1, &__buf);
+    void *buf = (void *)__buf;
+    long __len;
+    arg_long(2, &__len);
+    size_t len = (size_t)__len;
+    int flags;
+    arg_int(3, &flags);
+    long __dest;
+    arg_long(4, &__dest);
+    Sockaddr *dest = (Sockaddr *)__dest;
+    int _dest_len;
+    arg_int(5, &_dest_len);
+    socklen_t dest_len = (socklen_t)_dest_len;
+    Sockaddr local_dest;
+    Mm_struct *mm = myproc()->mm;
+    char *local_buf;
+    if ((local_buf = kmalloc(len)) == nullptr) { return -E_NO_MEM; }
+    lock_mm(mm);
+    copy_user2kernel(mm->pagetable, (char *)&local_dest, (uint64_t)dest, sizeof(*dest));
+    copy_user2kernel(mm->pagetable, (char *)local_buf, (uint64_t)buf, len);
+    unlock_mm(mm);
+    size_t ret = sendto(sockfd, local_buf, len, flags, &local_dest, dest_len);
+    if (ret < 0) {
+        kfree(local_buf);
+        return ret;
+    } else {
+        lock_mm(mm);
+        copy_kernel2user(mm->pagetable, (uint64_t)dest, (char *)&local_dest, sizeof(*dest));
+        copy_kernel2user(mm->pagetable, (uint64_t)buf, (char *)local_buf, len);
+        unlock_mm(mm);
+        kfree(local_buf);
+        return ret;
+    }
+}
+
+uint64_t sys_recvfrom(void) {
+    int sockfd;
+    arg_int(0, &sockfd);
+    long __buf;
+    arg_long(1, &__buf);
+    void *buf = (void *)__buf;
+    long __len;
+    arg_long(2, &__len);
+    size_t len = (size_t)__len;
+    int flags;
+    arg_int(3, &flags);
+    long __dest;
+    arg_long(4, &__dest);
+    Sockaddr *dest = (Sockaddr *)__dest;
+    long __dest_len;
+    arg_long(5, &__dest_len);
+    socklen_t *dest_len = (socklen_t *)__dest_len;
+    socklen_t local_dest_len = sizeof(Sockaddr);
+    Sockaddr local_dest;
+    Mm_struct *mm = myproc()->mm;
+    char *local_buf;
+    if ((local_buf = kmalloc(len)) == nullptr) { return -E_NO_MEM; }
+    lock_mm(mm);
+    copy_user2kernel(mm->pagetable, (char *)&local_dest, (uint64_t)dest, sizeof(*dest));
+    copy_user2kernel(mm->pagetable, (char *)local_buf, (uint64_t)buf, len);
+    unlock_mm(mm);
+    size_t ret = recvfrom(sockfd, local_buf, len, flags, &local_dest, &local_dest_len);
+    if (ret < 0) {
+        kfree(local_buf);
+        return ret;
+    } else {
+        lock_mm(mm);
+        copy_kernel2user(mm->pagetable, (uint64_t)dest, (char *)&local_dest, sizeof(*dest));
+        copy_kernel2user(mm->pagetable, (uint64_t)buf, (char *)local_buf, len);
+        copy_kernel2user(mm->pagetable, (uint64_t)dest_len, (char *)&local_dest_len, sizeof(*dest_len));
+        unlock_mm(mm);
+        kfree(local_buf);
+        return ret;
+    }
+}
+
+// int setsockopt(int sockfd, int level, int optname, char *optval, int optlen);
+uint64_t sys_setsockopt(void) {
+    int sockfd;
+    arg_int(0, &sockfd);
+    int level;
+    arg_int(1, &level);
+    int optname;
+    arg_int(2, &optname);
+    long __optval;
+    arg_long(3, &__optval);
+    int optlen;
+    arg_int(4, &optlen);
+    char *optval = (char *)__optval;
+    char *local_optval = nullptr;
+    if ((local_optval = kmalloc(optlen)) == nullptr) { return -E_NO_MEM; }
+    Mm_struct *mm = myproc()->mm;
+    lock_mm(mm);
+    copy_user2kernel(mm->pagetable, (char *)local_optval, (uint64_t)optval, optlen);
+    unlock_mm(mm);
+    int ret = setsockopt(sockfd, level, optname, local_optval, optlen);
+    kfree(local_optval);
+    return ret;
+}
+
+uint64_t sys_closesocket(void) {
+    int sockfd;
+    arg_int(0, &sockfd);
+    return closesocket(sockfd);
+}
+
+uint64_t sys_connect(void) {
+    int sockfd;
+    arg_int(0, &sockfd);
+    long __addr;
+    arg_long(1, &__addr);
+    Sockaddr *addr = (Sockaddr *)__addr;
+    int __len;
+    arg_int(2, &__len);
+    socklen_t len = (socklen_t)__len;
+    Mm_struct *mm = myproc()->mm;
+    Sockaddr local_addr;
+    lock_mm(mm);
+    copy_user2kernel(mm->pagetable, (char *)&local_addr, (uint64_t)addr, sizeof(*addr));
+    unlock_mm(mm);
+    return connect(sockfd, &local_addr, len);
+}
+
+uint64_t sys_send(void) {
+    int sockfd;
+    arg_int(0, &sockfd);
+    long __buf;
+    arg_long(1, &__buf);
+    void *buf = (void *)__buf;
+    long __len;
+    arg_long(2, &__len);
+    size_t len = (size_t)__len;
+    int flags;
+    arg_int(3, &flags);
+    Mm_struct *mm = myproc()->mm;
+    char *local_buf;
+    if ((local_buf = kmalloc(len)) == nullptr) { return -E_NO_MEM; }
+    lock_mm(mm);
+    copy_user2kernel(mm->pagetable, (char *)local_buf, (uint64_t)buf, len);
+    unlock_mm(mm);
+    size_t ret = send(sockfd, local_buf, len, flags);
+    kfree(local_buf);
+    return ret;
+}
+
+uint64_t sys_recv(void) {
+    int sockfd;
+    arg_int(0, &sockfd);
+    long __buf;
+    arg_long(1, &__buf);
+    void *buf = (void *)__buf;
+    long __len;
+    arg_long(2, &__len);
+    size_t len = (size_t)__len;
+    int flags;
+    arg_int(3, &flags);
+    Mm_struct *mm = myproc()->mm;
+    char *local_buf;
+    if ((local_buf = kmalloc(len)) == nullptr) { return -E_NO_MEM; }
+    size_t ret = recv(sockfd, local_buf, len, flags);
+    if (ret < 0) {
+        kfree(local_buf);
+        return ret;
+    } else {
+        lock_mm(mm);
+        copy_kernel2user(mm->pagetable, (uint64_t)buf, (char *)local_buf, len);
+        unlock_mm(mm);
+        kfree(local_buf);
+        return ret;
+    }
+    return ret;
+}
+
+uint64_t sys_bind(void) {
+    int sockfd;
+    arg_int(0, &sockfd);
+    long __addr;
+    arg_long(1, &__addr);
+    Sockaddr *addr = (Sockaddr *)__addr;
+    int __len;
+    arg_int(2, &__len);
+    socklen_t len = (socklen_t)__len;
+    Mm_struct *mm = myproc()->mm;
+    Sockaddr local_addr;
+    lock_mm(mm);
+    copy_user2kernel(mm->pagetable, (char *)&local_addr, (uint64_t)addr, sizeof(*addr));
+    unlock_mm(mm);
+    return bind(sockfd, &local_addr, len);
+}
+
+uint64_t sys_accept(void) {
+    int sockfd;
+    arg_int(0, &sockfd);
+    long __addr;
+    arg_long(1, &__addr);
+    Sockaddr *addr = (Sockaddr *)__addr;
+    long __len;
+    arg_long(2, &__len);
+    socklen_t *len = (socklen_t *)__len;
+    Mm_struct *mm = myproc()->mm;
+    Sockaddr local_addr;
+    socklen_t local_len = sizeof(Sockaddr);
+    int ret = accept(sockfd, &local_addr, &local_len);
+    if (ret < 0) {
+        return ret;
+    } else {
+        lock_mm(mm);
+        copy_kernel2user(mm->pagetable, (uint64_t)addr, (char *)&local_addr, sizeof(*addr));
+        copy_kernel2user(mm->pagetable, (uint64_t)len, (char *)&local_len, sizeof(*len));
+        unlock_mm(mm);
+        return ret;
+    }
+}
+
+uint64_t sys_listen(void) {
+    int sockfd;
+    arg_int(0, &sockfd);
+    int backlog;
+    arg_int(1, &backlog);
+    return listen(sockfd, backlog);
+}
+
+// int gethostbyname_r(char *name, Hostent *ret, char *buf, size_t buflen, Hostent **result, int *h_errnop);
+uint64_t sys_gethostbyname_r(void) {
+    Proc *p = myproc();
+    char name[MAXPATH];
+    if (arg_str(0, name, MAXPATH) < 0) return -E_INVAL;
+    long __ret;
+    arg_long(1, &__ret);
+    Hostent *ret = (Hostent *)__ret;
+    long __buf;
+    arg_long(2, &__buf);
+    char *buf = (char *)__buf;
+    long __buflen;
+    arg_long(3, &__buflen);
+    size_t buflen = (size_t)__buflen;
+    long __result;
+    arg_long(4, &__result);
+    Hostent **result = (Hostent **)__result;
+    long __h_errnop;
+    arg_long(5, &__h_errnop);
+    int *h_errnop = (int *)__h_errnop;
+    Hostent local_ret, *local_result;
+    char *local_buf;
+    int local_h_errnop;
+    if ((local_buf = kmalloc(buflen)) == nullptr) { return -E_NO_MEM; }
+    Mm_struct *mm = myproc()->mm;
+    int syscall_ret = gethostbyname_r(name, &local_ret, local_buf, buflen, &local_result, &local_h_errnop);
+
+    // syscall_ret = 0;
+    if (syscall_ret < 0) {
+        kfree(local_buf);
+        return syscall_ret;
+    } else {
+        // lock_mm(mm);
+        // copy_kernel2user(mm->pagetable, (uint64_t)ret, (char *)&local_ret, sizeof(*ret));
+        copy_kernel2user(mm->pagetable, (uint64_t)buf, (char *)local_buf, buflen);
+        // copy_kernel2user(mm->pagetable, (uint64_t)result, (char *)&local_result, sizeof(*result));
+        copy_kernel2user(mm->pagetable, (uint64_t)h_errnop, (char *)&local_h_errnop, sizeof(*h_errnop));
+        // unlock_mm(mm);
+        kfree(local_buf);
+        return syscall_ret;
+    }
+    return 0;
 }

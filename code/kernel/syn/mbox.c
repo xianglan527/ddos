@@ -150,7 +150,6 @@ failed:
     return nullptr;
 }
 
-
 static int send_msg_wait(Msg_mbox *mbox, Msg_msg *msg, Timer *timer) {
     int ret;
     Proc *current = myproc();
@@ -245,17 +244,42 @@ int ipc_mbox_send(int id, Mboxbuf *buf, long timeout) {
     kfree(local_data);
     mbox = get_mbox(id);
     if (ret == 0) {
-        if(timeout >= 0){
+        if (timeout >= 0) {
             ulong saved_ticks;
             Timer __timer, *timer = ipc_timer_init((ulong)timeout, &saved_ticks, &__timer);
             if ((ret = send_msg_wait(mbox, msg, timer)) == 0) { return 0; }
             assert(ret == WT_INTERAUPTED);
             ret = ipc_check_timeout((ulong)timeout, saved_ticks);
             free_msg(msg);
-        }else{
-            if((ret = send_msg_no_wait(mbox, msg)) != 0){
-                free_msg(msg);
-            }
+        } else {
+            if ((ret = send_msg_no_wait(mbox, msg)) != 0) { free_msg(msg); }
+        }
+    }
+    return ret;
+}
+
+int kernel_mbox_send(int id, Mboxbuf *buf, long timeout) {
+    if (get_mbox(id) == nullptr) { return -E_INVAL; }
+    if (timeout < 0 && mbox_slot_isfull(id)) { return -E_MBX_FULL; }
+    Msg_msg *msg;
+    Msg_mbox *mbox;
+    int ret = -E_INVAL;
+    size_t len = buf->len;
+    assert(buf->data != nullptr);
+    if (0 < len && len <= MAX_MSG_BYTES) {
+        ret = ((msg = load_msg(buf->data, len)) != nullptr) ? 0 : -E_NO_MEM;
+    }
+    mbox = get_mbox(id);
+    if (ret == 0) {
+        if (timeout >= 0) {
+            ulong saved_ticks;
+            Timer __timer, *timer = ipc_timer_init((ulong)timeout, &saved_ticks, &__timer);
+            if ((ret = send_msg_wait(mbox, msg, timer)) == 0) { return 0; }
+            assert(ret == WT_INTERAUPTED);
+            ret = ipc_check_timeout((ulong)timeout, saved_ticks);
+            free_msg(msg);
+        } else {
+            if ((ret = send_msg_no_wait(mbox, msg)) != 0) { free_msg(msg); }
         }
     }
     return ret;
@@ -336,7 +360,7 @@ static int recv_msg_no_wait(Msg_mbox *mbox, size_t max_bytes, Msg_msg **msg_stor
 
 int ipc_mbox_recv(int id, Mboxbuf *buf, long timeout) {
     if (get_mbox(id) == nullptr) { return -E_INVAL; }
-    if (timeout < 0 && mbox_slot_isempty(id)) {return -E_MBX_EMPTY;}
+    if (timeout < 0 && mbox_slot_isempty(id)) { return -E_MBX_EMPTY; }
     Proc *current = myproc();
     Msg_msg *msg;
     Msg_mbox *mbox;
@@ -353,16 +377,14 @@ int ipc_mbox_recv(int id, Mboxbuf *buf, long timeout) {
     unlock_mm(mm);
     mbox = get_mbox(id);
     ulong saved_ticks;
-    if(timeout >= 0){
+    if (timeout >= 0) {
         Timer __timer, *timer = ipc_timer_init((ulong)timeout, &saved_ticks, &__timer);
         if ((ret = recv_msg_wait(mbox, size, &msg, timer)) != 0) {
             if (ret == WT_INTERAUPTED) { return ipc_check_timeout((ulong)timeout, saved_ticks); }
             return ret;
         }
-    }else{
-        if((ret = recv_msg_no_wait(mbox, size, &msg)) != 0){
-            return ret;
-        }
+    } else {
+        if ((ret = recv_msg_no_wait(mbox, size, &msg)) != 0) { return ret; }
     }
     lock_mm(mm);
     {
@@ -379,6 +401,29 @@ int ipc_mbox_recv(int id, Mboxbuf *buf, long timeout) {
     }
     unlock_mm(mm);
     kfree(local_data);
+    free_msg(msg);
+    return ret;
+}
+
+int kernel_mbox_recv(int id, Mboxbuf *buf, long timeout) {
+    if (get_mbox(id) == nullptr) { return -E_INVAL; }
+    if (timeout < 0 && mbox_slot_isempty(id)) { return -E_MBX_EMPTY; }
+    Msg_msg *msg;
+    Msg_mbox *mbox;
+    int ret = -E_INVAL;
+    mbox = get_mbox(id);
+    ulong saved_ticks;
+    if (timeout >= 0) {
+        Timer __timer, *timer = ipc_timer_init((ulong)timeout, &saved_ticks, &__timer);
+        if ((ret = recv_msg_wait(mbox, buf->size, &msg, timer)) != 0) {
+            if (ret == WT_INTERAUPTED) { return ipc_check_timeout((ulong)timeout, saved_ticks); }
+            return ret;
+        }
+    } else {
+        if ((ret = recv_msg_no_wait(mbox, buf->size, &msg)) != 0) { return ret; }
+    }
+    size_t len = msg->bytes;
+    store_msg(msg, buf->data);
     free_msg(msg);
     return ret;
 }

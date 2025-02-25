@@ -258,7 +258,7 @@ int netif_put_out(Netif *netif, Pktbuf *pktbuf, long tmo) {
     buf->len = buf->size;
     buf->data = kmalloc(sizeof(Pktbuf *));
     memcpy(buf->data, &pktbuf, sizeof(void *));
-    int ret = ipc_mbox_send(netif->tx_mbox_id, buf, tmo);
+    int ret = kernel_mbox_send(netif->tx_mbox_id, buf, tmo);
     assert(ret == 0 || ret == -E_TIMEOUT || ret == -1 || ret == -E_MBX_FULL);
     if (ret == -E_TIMEOUT || ret == -E_MBX_FULL) {
         dbg_warning(DBG_NETIF, "%s tx mbox full", netif->netif_name);
@@ -288,7 +288,7 @@ int netif_put_in(Netif *netif, Pktbuf *pktbuf, long tmo) {
     buf->len = buf->size;
     buf->data = kmalloc(sizeof(Pktbuf *));
     memcpy(buf->data, &pktbuf, sizeof(void *));
-    int ret = ipc_mbox_send(netif->rx_mbox_id, buf, tmo);
+    int ret = kernel_mbox_send(netif->rx_mbox_id, buf, tmo);
     assert(ret == 0 || ret == -E_TIMEOUT || ret == -1 || ret == -E_MBX_FULL);
     if (ret == -E_TIMEOUT || ret == -E_MBX_FULL) {
         dbg_warning(DBG_NETIF, "%s rx mbox full", netif->netif_name);
@@ -327,7 +327,7 @@ Pktbuf *netif_get_out(Netif *netif, long tmo) {
     buf->size = sizeof(Pktbuf *);
     buf->len = buf->size;
     buf->data = kmalloc(sizeof(Pktbuf *));
-    int ret = ipc_mbox_recv(netif->tx_mbox_id, buf, tmo);
+    int ret = kernel_mbox_recv(netif->tx_mbox_id, buf, tmo);
     assert(ret == 0 || ret == -E_TIMEOUT || ret == -1 || ret == -E_MBX_EMPTY);
     if (ret == -E_TIMEOUT || ret == -E_MBX_EMPTY) {
         dbg_warning(DBG_NETIF, "%s tx mbox empty", netif->netif_name);
@@ -359,7 +359,7 @@ Pktbuf *netif_get_in(Netif *netif, long tmo) {
     buf->size = sizeof(Pktbuf *);
     buf->len = buf->size;
     buf->data = kmalloc(sizeof(Pktbuf *));
-    int ret = ipc_mbox_recv(netif->rx_mbox_id, buf, tmo);
+    int ret = kernel_mbox_recv(netif->rx_mbox_id, buf, tmo);
     assert(ret == 0 || ret == -E_TIMEOUT || ret == -1 || ret == -E_MBX_EMPTY);
     if (ret == -E_TIMEOUT || ret == -E_MBX_EMPTY) {
         dbg_warning(DBG_NETIF, "%s rx mbox empty", netif->netif_name);

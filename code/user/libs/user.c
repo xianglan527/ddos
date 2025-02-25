@@ -2,6 +2,7 @@
 #include "string.h"
 #include "lock.h"
 #include "sysdef.h"
+#include "socket.h"
 
 static lock_t fork_lock = INIT_LOCK;
 
@@ -92,6 +93,18 @@ int __link__(char *oldpath, char *newpath);
 int __unlink__(char *path);
 int __mkdir__(char *path);
 int __symlink__(char *oldpath, char *newpath);
+int __socket__(int family, int type, int protocol);
+ssize_t __sendto__(int sockfd, void *buf, size_t len, int flags, Sockaddr *dest, socklen_t dest_len);
+ssize_t __recvfrom__(int sockfd, void *buf, size_t len, int flags, Sockaddr *dest, socklen_t *dest_len);
+int __setsockopt__(int sockfd, int level, int optname, char *optval, int optlen);
+int __closesocket__(int sockfd);
+int __connect__(int sockfd, Sockaddr *addr, socklen_t len);
+ssize_t __send__(int sockfd, void *buf, size_t len, int flags);
+ssize_t __recv__(int sockfd, void *buf, size_t len, int flags);
+int __bind__(int sockfd, Sockaddr *addr, socklen_t len);
+int __accept__(int sockfd, Sockaddr *addr, socklen_t *len);
+int __listen__(int sockfd, int backlog);
+int __gethostbyname_r__(char *name, Hostent *ret, char *buf, size_t buflen, Hostent **result, int *h_errnop);
 
 long write(int fd, const void *c, size_t len){
     return __write__(fd, c ,len);
@@ -355,4 +368,65 @@ int mkdir(char *path){
 
 int symlink(char *oldpath, char *newpath){
     return __symlink__(oldpath, newpath);
+}
+
+int socket(int family, int type, int protocol){
+    return __socket__(family, type, protocol);
+}
+
+ssize_t sendto(int sockfd, void *buf, size_t len, int flags, Sockaddr *dest, socklen_t dest_len){
+    return __sendto__(sockfd, buf, len, flags, dest, dest_len);
+}
+
+ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags, Sockaddr *dest, socklen_t *dest_len) {
+    return __recvfrom__(sockfd, buf, len, flags, dest, dest_len);
+}
+
+int setsockopt(int sockfd, int level, int optname, char *optval, int optlen){
+    return __setsockopt__(sockfd, level, optname, optval, optlen);
+}
+
+int closesocket(int sockfd){
+    return __closesocket__(sockfd);
+}
+
+int connect(int sockfd, Sockaddr *addr, socklen_t len){
+    return __connect__(sockfd, addr, len);
+}
+
+ssize_t send(int sockfd, void *buf, size_t len, int flags){
+    return __send__(sockfd, buf, len, flags);
+}
+
+ssize_t recv(int sockfd, void *buf, size_t len, int flags){
+    return __recv__(sockfd, buf, len, flags);
+}
+
+int bind(int sockfd, Sockaddr *addr, socklen_t len){
+    return __bind__(sockfd, addr, len);
+}
+
+int accept(int sockfd, Sockaddr *addr, socklen_t *len){
+    return __accept__(sockfd, addr, len);
+}
+
+int listen(int sockfd, int backlog){
+    return __listen__(sockfd, backlog);
+}
+
+int gethostbyname_r(char *name, Hostent *ret, char *buf, size_t buflen, Hostent **result, int *h_errnop){
+    int sys_ret =  __gethostbyname_r__(name, ret, buf, buflen, result, h_errnop);
+    if(sys_ret < 0) return sys_ret;
+    Hostent_extra *extra = (Hostent_extra *)buf;
+    strncpy(extra->name, name, buflen - sizeof(Hostent_extra));
+    buf[buflen - 1] = '\0';
+    ret->h_name = extra->name;
+    ret->h_aliases = (char **)0;
+    ret->h_addrtype = AF_INET;  // IPv4地址
+    ret->h_length = 4;          // IPv4，4字节地址
+    ret->h_addr_list = (char **)extra->addr_tbl;
+    ret->h_addr_list[0] = (char *)&extra->addr;
+    ret->h_addr_list[1] = (char *)0;
+    *result = ret;
+    return sys_ret;
 }

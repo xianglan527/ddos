@@ -21,7 +21,8 @@ def main():
         "sem_init", "sem_post", "sem_wait", "sem_free", "sem_get_value", "event_send", "event_recv",
         "mbox_init", "mbox_send", "mbox_recv", "mbox_free", "mbox_info", "set_sigaction", "send_signal", "sigreturn",
         "setpriority", "getpriority", "get_proc_runticks", "set_proc_cpu", "clear_proc_setcpu", "mkfifo", "seek",
-        "fsync", "getcwd", "getdirentry", "symlink"
+        "fsync", "getcwd", "getdirentry", "symlink", "socket", "sendto", "recvfrom", "setsockopt",
+        "closesocket", "connect", "send", "recv", "bind", "accept", "listen", "gethostbyname_r"
     ]
 
     for syscall in syscalls:

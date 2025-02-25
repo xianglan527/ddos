@@ -24,7 +24,7 @@ int exmsg_netif_in(Netif *netif) {
     msg->type = NET_EXMSG_NETIF_IN;
     msg->netif.netif = netif;
     assert(net_work_thread_mbox_id != -1);
-    int ret = ipc_mbox_send(net_work_thread_mbox_id, buf, -1);
+    int ret = kernel_mbox_send(net_work_thread_mbox_id, buf, -1);
     assert(ret == 0 || ret == -E_MBX_FULL || ret == -1);
     if (ret < 0){
         if(ret == -E_MBX_FULL){
@@ -86,7 +86,7 @@ int exmsg_func_exec(Exmsg_func func, void *param) {
     msg->func = &func_msg;
     dbg_info(DBG_MSG, "1.begin call func: %p", func);
     assert(net_work_thread_mbox_id != -1);
-    int ret = ipc_mbox_send(net_work_thread_mbox_id, buf, 0);
+    int ret = kernel_mbox_send(net_work_thread_mbox_id, buf, 0);
     assert(ret == 0 || ret == -1);
     if (ret < 0) {
         dbg_warning(DBG_MSG, "send func msg to work thread mbox failed");
@@ -114,7 +114,7 @@ static void work_thread(void *arg) {
     buf->len = buf->size;
     buf->data = kmalloc(sizeof(Exmsg));
     while (1) {
-        int ret = ipc_mbox_recv(net_work_thread_mbox_id, buf, -1);
+        int ret = kernel_mbox_recv(net_work_thread_mbox_id, buf, -1);
         assert(ret == 0 || ret == -E_TIMEOUT || ret == -E_MBX_EMPTY);
         if (ret == -E_TIMEOUT || ret == -E_MBX_EMPTY) {
             do_sleep(50);

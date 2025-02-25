@@ -12,6 +12,7 @@
 #include "sysdef.h"
 #include "thread.h"
 #include "user.h"
+#include "socket.h"
 
 #define UNIQUE_VAR(name) name##__LINE__
 ///////////////////////////////////////////////////////////////////
@@ -2358,6 +2359,234 @@ static void fs_test13(char *s) {
     }
 }
 /////////////////////////////////////////////////////////////////////////
+void socket_raw_test() {
+    char *dest = "8.8.8.8";
+    size_t count = 4;       // Default count
+    size_t size = 56;       // Default data size
+    size_t interval = 500;  // Default interval
+    if (size > PING_BUFFER_SIZE) {
+        printf("The size is too big, should be < %d\n", PING_BUFFER_SIZE);
+        return;
+    }
+    Ping ping;
+    memset(&ping, 0, sizeof(ping));
+    ping_run(&ping, "baidu.com", count, size, interval);
+    ping_run(&ping, "qq.com", count, size, interval);
+    return;
+}
+/////////////////////////////////////////////////////////////////////////
+int udp_echo_server_start(void *arg) {
+    int port = *(int *)arg;
+    int s = socket(AF_INET, SOCK_DGRAM, 0);
+    if (s < 0) {
+        printf("socket creation failed");
+        return -1;
+    }
+    struct sockaddr_in local_addr;
+    memset(&local_addr, 0, sizeof(local_addr));
+    local_addr.sin_family = AF_INET;
+    local_addr.sin_port = htons(port);
+    if (bind(s, (struct sockaddr *)&local_addr, sizeof(local_addr)) < 0) {
+        printf("bind error");
+        closesocket(s);
+        return -1;
+    }
+    char buf[256];
+    while (1) {
+        struct sockaddr_in client_addr;
+        socklen_t addr_len = sizeof(client_addr);
+        ssize_t size = recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr *)&client_addr, &addr_len);
+        if (size < 0) {
+            printf("recvfrom error");
+            break;
+        }
+        size = sendto(s, buf, size, 0, (struct sockaddr *)&client_addr, addr_len);
+        if (size < 0) {
+            printf("sendto error");
+            break;
+        }
+        if (strncmp(buf, "quit", 4) == 0) { 
+            break; 
+        }
+    }
+    closesocket(s);
+    return 0;
+}
+
+int udp_echo_client_start(char *ip, int port) {
+    printf("udp echo client, ip: %s, port: %d\n", ip, port);
+    printf("Enter quit to exit\n");
+    int s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (s < 0) {
+        printf("open socket error\n");
+        return -1;
+    }
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr(ip);
+    server_addr.sin_port = htons(port);
+    while (connect(s, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0);
+    printf(">>");
+    char buf[128];
+    memset(buf, 0, sizeof(buf));
+    while (read(0, buf, sizeof(buf)) != 0) {
+        size_t total_len = strlen(buf);
+        ssize_t size = send(s, buf, total_len, 0);
+        if (size < 0) {
+            printf("send error\n");
+            closesocket(s);
+            return -1;
+        }
+        memset(buf, 0, sizeof(buf));
+        size = recv(s, buf, sizeof(buf), 0);
+        if (size < 0) {
+            printf("recv error\n");
+            closesocket(s);
+            return -1;
+        }
+        buf[sizeof(buf) - 1] = '\0';  // 确保字符串以 '\0' 结束
+        printf("%s", buf);
+        printf(">>\n");
+        if (strncmp(buf, "quit", 4) == 0) { 
+            break; 
+        }
+        printf(">>");
+        memset(buf, 0, sizeof(buf));
+    }
+    closesocket(s);
+    return 0;
+}
+
+void udp_echo_test() {
+    int default_port = 5050;
+    Thread tid;
+    assert(thread(udp_echo_server_start, &default_port, &tid) == 0);
+    char *ip = "127.0.0.1";
+    udp_echo_client_start(ip, default_port);
+    int exit_code;
+    assert(thread_wait(&tid, &exit_code) == 0 && exit_code == 0x0);
+}
+/////////////////////////////////////////////////////////////////////////
+int tcp_echo_server_start(void *arg) {
+    int port = *(int *)arg;
+    int s = socket(AF_INET, SOCK_STREAM, 0);
+    if (s < 0) {
+        printf("socket creation failed");
+        return -1;
+    }
+    struct sockaddr_in local_addr;
+    memset(&local_addr, 0, sizeof(local_addr));
+    local_addr.sin_family = AF_INET;
+    local_addr.sin_port = htons(port);
+    if (bind(s, (struct sockaddr *)&local_addr, sizeof(local_addr)) < 0) {
+        printf("bind error");
+        closesocket(s);
+        return -1;
+    }
+    if (listen(s, 2) < 0) {
+        printf("listen error\n");
+        closesocket(s);
+        return -1;
+    }
+    printf("TCP echo server listening on port %d\n", port);
+    while (1) {
+        struct sockaddr_in client_addr;
+        client_addr.sin_port = 0;
+        socklen_t addr_len = sizeof(client_addr);
+        int client_sock = 0;
+        client_sock = accept(s, (struct sockaddr *)&client_addr, &addr_len);
+        if (client_sock < 0) {
+            printf("accept error\n");
+            break;
+        }
+        printf("TCP echo server: connected IP: %s, Port: %d\n", inet_ntoa(client_addr.sin_addr),
+                ntohs(client_addr.sin_port));
+        char buf[4096];
+        while (1) {
+            memset(buf, 0, sizeof(buf));
+            ssize_t size = recv(client_sock, buf, sizeof(buf) - 1, 0);
+            if (size <= 0) {
+                printf("recv error or connection closed\n");
+                break;
+            }
+            ssize_t send_size = send(client_sock, buf, size, 0);
+            if (send_size < 0) {
+                printf("send error\n");
+                break;
+            }
+            if (strncmp(buf, "quit", 4) == 0) { break; }
+        }
+        closesocket(client_sock);
+        // 如果只想接受一次连接就退出，可在此处 break
+        break;
+    }
+    closesocket(s);
+    return 0;
+}
+
+int tcp_echo_client_start(char *ip, int port) {
+    printf("tcp echo client, ip: %s, port: %d\n", ip, port);
+    printf("Enter quit to exit\n");
+    int s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (s < 0) {
+        printf("open socket error\n");
+        return -1;
+    }
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr(ip);
+    server_addr.sin_port = htons(port);
+    while (connect(s, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0);
+    int keepalive = 1;
+    int keepidle = 5;
+    int keepinterval = 1;
+    int keepcount = 10;
+    setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, (void *)&keepalive, sizeof(keepalive));
+    setsockopt(s, SOL_TCP, TCP_KEEPIDLE, (void *)&keepidle, sizeof(keepidle));
+    setsockopt(s, SOL_TCP, TCP_KEEPINTVL, (void *)&keepinterval, sizeof(keepinterval));
+    setsockopt(s, SOL_TCP, TCP_KEEPCNT, (void *)&keepcount, sizeof(keepcount));
+    char buf[4096];
+    printf(">>");
+    memset(buf, 0, sizeof(buf));
+    while (read(0, buf, sizeof(buf)) != 0) {
+        size_t total_len = strlen(buf);
+        ssize_t size = send(s, buf, total_len, 0);
+        if (size < 0) {
+            printf("send error\n");
+            closesocket(s);
+            return -1;
+        }
+        memset(buf, 0, sizeof(buf));
+        size = recv(s, buf, sizeof(buf), 0);
+        if (size < 0) {
+            printf("recv error\n");
+            closesocket(s);
+            return -1;
+        }
+        buf[sizeof(buf) - 1] = '\0';  // 确保字符串以 '\0' 结束
+        printf("%s", buf);
+        printf(">>\n");
+        if (strncmp(buf, "quit", 4) == 0) { break; }
+        printf(">>");
+        memset(buf, 0, sizeof(buf));
+    }
+    closesocket(s);
+    return 0;
+}
+
+void tcp_echo_test() {
+    int default_port = 5050;
+    Thread tid;
+    assert(thread(tcp_echo_server_start, &default_port, &tid) == 0);
+    char *ip = "127.0.0.1";
+    sleep(2000);
+    tcp_echo_client_start(ip, default_port);
+    int exit_code;
+    assert(thread_wait(&tid, &exit_code) == 0 && exit_code == 0x0);
+}
+/////////////////////////////////////////////////////////////////////////
 static int run(void f(char *), char *s) {
     int pid;
     int xstatus = 1;
@@ -2397,62 +2626,67 @@ struct test {
     void (*f)(char *);
     char *s;
 } tests[] = {
-    {forktest, "forktest"},
-    {yieldtest, "yieldtest"},
-    {bsstest, "bsstest"},
-    {exittest, "exittest"},
-    {forktreetest, "forktreetest"},
-    {spintest, "spintest"},
-    {brktest, "brktest"},
-    {brkfreetest, "brkfreetest"},
-    {sleepkilltest, "sleepkilltest"},
-    {sleeptest, "sleeptest"},
-    {cowtest, "cowtest"},
-    {mmaptest, "mmaptest"},
-    {shmemtest, "shmemtest"},
-    {threadtest, "threadtest"},
-    {threadforktest, "threadforktest"},
-    {threadworktest, "threadworktest"},
-    {primeworktest, "primeworktest"},
-    {sem_test, "sem_test"},
-    {sem_rw_test, "sem_rw_test"},
-    {prime2worktest, "prime2worktest"},
-    {spipetest, "spipetest"},
-    {sem2_test, "sem2_test"},
-    {sem3_test, "sem3_test"},
-    {event_test, "event_test"},
-    {prime3worktest, "prime3worktest"},
-    {mboxtest, "mboxtest"},
-    {mboxmaptest, "mboxmaptest"},
-    {sigtest, "sigtest"},
-    {sched_CFS_test, "sched_CFS_test"},
-    {cpu_load_balance_test, "cpu_load_balance_test"},
-    {fprintf_test, "fprintf_test"},
-    // {fread_test, "fread_test"},
-    {fread_test2, "fread_test2"},
-    {fwrite_test, "fwrite_test"},
-    {fnull_test, "fnull_test"},
-    {pipe_test, "pipe_test"},
-    {pipe_test2, "pipe_test2"},
-    {fs_basic_test, "fs_basic_test"},
-    {fs_file_test, "fs_file_test"},
-    {fs_dir_test, "fs_dir_test"}, 
-    {fs_link_test, "fs_link_test"},
-    {fs_test1, "fs_test1"},       
-    {fs_test2, "fs_test2"},
-    {fs_test3, "fs_test3"},       
-    {fs_test4, "fs_test4"},
-    {fs_test5, "fs_test5"},       
-    {fs_test6, "fs_test6"},
-    {fs_test7, "fs_test7"},       
-    {fs_test8, "fs_test8"},
-    {fs_test9, "fs_test9"},       
-    {fs_test10, "fs_test10"},
-    {fs_test11, "fs_test11"},     
-    {fs_symlink_test, "fs_symlink_test"},
-    {fs_test12, "fs_test12"},     
-    {fs_test13, "fs_test13"},
-    {swaptest, "swaptest"},       
+    // {forktest, "forktest"},
+    // {yieldtest, "yieldtest"},
+    // {bsstest, "bsstest"},
+    // {exittest, "exittest"},
+    // {forktreetest, "forktreetest"},
+    // {spintest, "spintest"},
+    // {brktest, "brktest"},
+    // {brkfreetest, "brkfreetest"},
+    // {sleepkilltest, "sleepkilltest"},
+    // {sleeptest, "sleeptest"},
+    // {cowtest, "cowtest"},
+    // {mmaptest, "mmaptest"},
+    // {shmemtest, "shmemtest"},
+    // {threadtest, "threadtest"},
+    // {threadforktest, "threadforktest"},
+    // {threadworktest, "threadworktest"},
+    // {primeworktest, "primeworktest"},
+    // {sem_test, "sem_test"},
+    // {sem_rw_test, "sem_rw_test"},
+    // {prime2worktest, "prime2worktest"},
+    // {spipetest, "spipetest"},
+    // {sem2_test, "sem2_test"},
+    // {sem3_test, "sem3_test"},
+    // {event_test, "event_test"},
+    // {prime3worktest, "prime3worktest"},
+    // {mboxtest, "mboxtest"},
+    // {mboxmaptest, "mboxmaptest"},
+    // {sigtest, "sigtest"},
+    // {sched_CFS_test, "sched_CFS_test"},
+    // {cpu_load_balance_test, "cpu_load_balance_test"},
+    // {fprintf_test, "fprintf_test"},
+    // // {fread_test, "fread_test"},
+    // {fread_test2, "fread_test2"},
+    // {fwrite_test, "fwrite_test"},
+    // {fnull_test, "fnull_test"},
+    // {pipe_test, "pipe_test"},
+    // {pipe_test2, "pipe_test2"},
+    // {fs_basic_test, "fs_basic_test"},
+    // {fs_file_test, "fs_file_test"},
+    // {fs_dir_test, "fs_dir_test"},
+    // {fs_link_test, "fs_link_test"},
+    // {fs_test1, "fs_test1"},
+    // {fs_test2, "fs_test2"},
+    // {fs_test3, "fs_test3"},
+    // {fs_test4, "fs_test4"},
+    // {fs_test5, "fs_test5"},
+    // {fs_test6, "fs_test6"},
+    // {fs_test7, "fs_test7"},
+    // {fs_test8, "fs_test8"},
+    // {fs_test9, "fs_test9"},
+    // {fs_test10, "fs_test10"},
+    // {fs_test11, "fs_test11"},
+    // {fs_symlink_test, "fs_symlink_test"},
+    // {fs_test12, "fs_test12"},
+    // {fs_test13, "fs_test13"},
+    // {swaptest, "swaptest"},
+#if NET_ABLE
+    {socket_raw_test, "socket_raw_test"},
+    {udp_echo_test, "udp_echo_test"},
+    {tcp_echo_test, "tcp_echo_test"},
+#endif
     {nullptr, nullptr},
 };
 

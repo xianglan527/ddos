@@ -61,10 +61,10 @@ ssize_t sendto(int sockfd, void* buf, size_t len, int flags, Sockaddr* dest, soc
 ssize_t recvfrom(int sockfd, void* buf, size_t len, int flags, Sockaddr* dest, socklen_t* dest_len);
 int setsockopt(int sockfd, int level, int optname, char* optval, int optlen);
 int closesocket(int sockfd);
-int connect(int sid, Sockaddr *addr, socklen_t len);
+int connect(int sockfd, Sockaddr *addr, socklen_t len);
 ssize_t send(int sockfd, void* buf, size_t len, int flags);
 ssize_t recv(int sockfd, void* buf, size_t len, int flags);
-int bind(int sid, Sockaddr* addr, socklen_t len);
+int bind(int sockfd, Sockaddr* addr, socklen_t len);
 int accept(int sockfd, Sockaddr* addr, socklen_t* len);
 int listen(int sockfd, int backlog);
 int gethostbyname_r(char* name, Hostent* ret, char* buf, size_t buflen, Hostent** result, int* h_errnop);

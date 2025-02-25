@@ -59,6 +59,18 @@
 #define SYS_getcwd 56
 #define SYS_getdirentry 57
 #define SYS_symlink 58
+#define SYS_socket 59
+#define SYS_sendto 60
+#define SYS_recvfrom 61
+#define SYS_setsockopt 62
+#define SYS_closesocket 63
+#define SYS_connect 64
+#define SYS_send 65
+#define SYS_recv 66
+#define SYS_bind 67
+#define SYS_accept 68
+#define SYS_listen 69
+#define SYS_gethostbyname_r 70
 
 #define CLONE_VM 0x00000100
 #define CLONE_THREAD 0x00000200

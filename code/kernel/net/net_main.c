@@ -778,8 +778,8 @@ void net_test() {
     // pktbuf_test();
     // timer_func_test();
     //  exmsg_func_test();
-    // socket_raw_test();
-    // udp_echo_test();
+    socket_raw_test();
+    udp_echo_test();
     tcp_echo_test();
 }
 

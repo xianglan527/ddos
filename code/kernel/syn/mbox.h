@@ -57,4 +57,6 @@ int ipc_mbox_recv(int id, Mboxbuf *buf, long timeout);
 int ipc_mbox_free(int id);
 int ipc_mbox_info(int id, Mboxinfo *info);
 void mbox_cleanup(void);
+int kernel_mbox_send(int id, Mboxbuf *buf, long timeout);
+int kernel_mbox_recv(int id, Mboxbuf *buf, long timeout);
 #endif

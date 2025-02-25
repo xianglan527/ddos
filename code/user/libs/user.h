@@ -6,6 +6,7 @@
 #include "types.h"
 #include "fs_img.h"
 #include "sysdef.h"
+#include "socket.h"
 
 int sti();
 int cli();
@@ -70,6 +71,18 @@ int link(char *oldpath, char *newpath);
 int unlink(char *path);
 int mkdir(char *path);
 int symlink(char *oldpath, char *newpath);
+int socket(int family, int type, int protocol);
+ssize_t sendto(int sockfd, void *buf, size_t len, int flags, Sockaddr *dest, socklen_t dest_len);
+ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags, Sockaddr *dest, socklen_t *dest_len);
+int setsockopt(int sockfd, int level, int optname, char *optval, int optlen);
+int closesocket(int sockfd);
+int connect(int sockfd, Sockaddr *addr, socklen_t len);
+ssize_t send(int sockfd, void *buf, size_t len, int flags);
+ssize_t recv(int sockfd, void *buf, size_t len, int flags);
+int bind(int sockfd, Sockaddr *addr, socklen_t len);
+int accept(int sockfd, Sockaddr *addr, socklen_t *len);
+int listen(int sockfd, int backlog);
+int gethostbyname_r(char *name, Hostent *ret, char *buf, size_t buflen, Hostent **result, int *h_errnop);
 
 void prework(void);
 #endif
