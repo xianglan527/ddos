@@ -1,1 +1,15 @@
-hello ddos!!!
+This project is a RISC-V operating system running on QEMU with the host machine being Ubuntu 20.04. 
+The project contains approximately 27,000 lines of code (including test code) and features 70 system call APIs, which include:
+Memory Management: Virtual memory, buddy slab memory allocation, shared memory, page swapping.
+Multiprocessor Process Scheduling: Process management, round-robin scheduling, CFS scheduling, CPU load balancing.
+Synchronization Mechanisms: Semaphores, events, message queues, signals, pipes.
+File System: Virtual File System (VFS), logging system.
+Network Stack: ARP, ICMP, IP, UDP, TCP, DNS, and socket interface.
+This project has drawn inspiration from several open-source operating system projects and received assistance from ChatGPT. 
+Many of the code components are not original and are intended purely for the purpose of learning operating system concepts.
+
+The project configuration is based on the XV6 project configuration. For host machine configuration, please refer to XV6. Additionally, 
+before running the project, ensure that the host machine has an ens33 network interface. If not, please add a network interface with that name. 
+Detailed configuration can be found in the Makefile located in the root directory. To run the project, use the command make qemu.
+
+If you have any thoughts or questions about this project, feel free to contact the author via email: 452282415@qq.com.

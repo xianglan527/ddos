@@ -58,9 +58,9 @@ KERNEL_ELF = ${KERNEL_PATH}/kernel.elf
 KERNEL_BIN = ${KERNEL_PATH}/kernel.bin
 
 ifndef CPUS
-CPUS := 1
+CPUS := 8
 endif
-
+  
 DEFS += -DCPUS=$(CPUS)
 
 BR_IF = br0
