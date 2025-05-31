@@ -277,7 +277,7 @@ static int ip_normal_in(Netif *netif, Pktbuf *buf, Ipaddr *src, Ipaddr *dest) {
             pktbuf_remove_header(buf, ipv4_hdr_size(pkt));
             int ret = tcp_in(buf, src, dest);
             if (ret < 0) {
-                dbg_warning(DBG_IP, "udp in error. ret = %d\n", ret);
+                dbg_warning(DBG_IP, "tcp in error. ret = %d\n", ret);
                 return ret;
             }
             return NET_OK;

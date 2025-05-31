@@ -187,8 +187,10 @@ static swap_entry_t try_alloc_swap_entry(void) {
 bool try_free_pages(size_t n) {
     if (!swap_init_ok || daemonproc == nullptr) return false;
     Proc *current = myproc();
-    if (current == daemonproc) panic("daemon process call try_free_pages.\n");
-    if (n >= 1 << 7) { return false; }
+    // if (current == daemonproc) panic("daemon process call try_free_pages.\n");
+    if(current->kernel_proc == true) panic("kernel process call try_free_pages.\n");
+    // if (n >= 1 << 7) { return false; }
+    if (n >= nr_free_pages() >> 2 || n >= max_swap_offset >> 2) { return false; }
     atomic_add(&pressure, (long)n);
     Wait __wait, *wait = &__wait;
     wait_init(wait, current);

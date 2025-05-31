@@ -762,6 +762,108 @@ void tcp_echo_test() {
     do_sleep(3000);
     tcp_echo_client();
 }
+
+///////////////////////////////////////////////////////////////////////////
+
+int tcp_client_start(char *ip, int port) {
+    cprintf("tcp client, ip: %s, port: %d\n", ip, port);
+    cprintf("Enter quit to exit\n");
+
+    // 1. 创建 TCP Socket
+    int s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (s < 0) {
+        cprintf("open socket error\n");
+        return -1;
+    }
+
+    // 2. 连接服务器
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr(ip);
+    server_addr.sin_port = htons(port);
+    while (connect(s, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0);
+
+    // int nodelay = 1;
+    // setsockopt(s, SOL_TCP, TCP_NODELAY, (void *)&nodelay, sizeof(nodelay));
+    char buf[4096];
+
+    for (int i = 0; i < sizeof(buf); i++) { buf[i] = 'a' + i % 26; }
+    for (int i = 0; i < 4; i++) {
+        ssize_t snd_size = send(s, buf, sizeof(buf), 0);
+        cprintf("............index is %d   snd_size is %ld\n", i, snd_size);
+        if (snd_size < 0) {
+            cprintf("send error: snd_size=%d\n", (int)snd_size);
+            break;
+        }
+    }
+    cprintf(">>");
+
+    ssize_t total_size = 0;
+    ssize_t rcv_size;
+    char rev_buf[1200];
+    while ((rcv_size = recv(s, rev_buf, sizeof(rev_buf), 0)) > 0) {
+        rev_buf[rcv_size] = '\0';  // 确保字符串以 '\0' 结束
+        cprintf("rcv_size is %ld\n %s\n", rcv_size, rev_buf);
+        total_size += rcv_size;
+    }
+    if (rcv_size < 0) {
+        // 接收完毕
+        cprintf("rcv file size: %ld\n", total_size);
+        closesocket(s);
+        return -1;
+    }
+    cprintf("rcv file size: %ld\n", total_size);
+    cprintf("rcv file ok\n");
+    closesocket(s);
+    return 0;
+}
+
+int tcp_client_start1(char *ip, int port) {
+    cprintf("tcp client, ip: %s, port: %d\n", ip, port);
+    cprintf("Enter quit to exit\n");
+
+    // 1. 创建 TCP Socket
+    int s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (s < 0) {
+        cprintf("open socket error\n");
+        return -1;
+    }
+
+    // 2. 连接服务器
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr(ip);
+    server_addr.sin_port = htons(port);
+    while (connect(s, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0);
+    ssize_t total_size = 0;
+    ssize_t rcv_size;
+    char rev_buf[1200];
+    while ((rcv_size = recv(s, rev_buf, sizeof(rev_buf), 0)) > 0) {
+        rev_buf[rcv_size] = '\0';  // 确保字符串以 '\0' 结束
+        cprintf("rcv_size is %ld\n %s\n", rcv_size, rev_buf);
+        total_size += rcv_size;
+    }
+    if (rcv_size < 0) {
+        // 接收完毕
+        cprintf("rcv file size: %ld\n", total_size);
+        closesocket(s);
+        return -1;
+    }
+    cprintf("rcv file size: %ld\n", total_size);
+    cprintf("rcv file ok\n");
+    closesocket(s);
+    return 0;
+}
+
+int tcp_client_test() {
+    char *ip = "192.168.0.27";
+    int port = 5050;
+    return tcp_client_start(ip, port);
+    // return tcp_client_start1(ip, port);
+}
+
 //////////////////////////////////////////////////////////////
 int test_func_arg = 0x1234;
 int test_func(Func_msg *msg) {
@@ -778,9 +880,10 @@ void net_test() {
     // pktbuf_test();
     // timer_func_test();
     //  exmsg_func_test();
-    socket_raw_test();
-    udp_echo_test();
-    tcp_echo_test();
+    // socket_raw_test();
+    // udp_echo_test();
+    // tcp_echo_test();
+    tcp_client_test();
 }
 
 void net_main(void *arg) {

@@ -264,7 +264,7 @@ int mm_map_shmem(Mm_struct *mm, uintptr_t addr, uint32_t vm_flags, Shmem_struct 
     return 0;   
 }
 
-    static void vma_resize(Vma_struct *vma, uintptr_t start, uintptr_t end) {
+static void vma_resize(Vma_struct *vma, uintptr_t start, uintptr_t end) {
     assert(start % PGSIZE == 0 && end % PGSIZE == 0);
     assert(vma->vm_start <= start && start < end && end <= vma->vm_end);
     if(vma->vm_flags & VM_SHARE){

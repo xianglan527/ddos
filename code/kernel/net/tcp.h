@@ -2,14 +2,14 @@
 #define __NET_TCP_H__
 
 #include "error.h"
+#include "list.h"
 #include "net_config.h"
 #include "nettool.h"
-#include "types.h"
-#include "list.h"
 #include "pktbuf.h"
+#include "proc.h"
 #include "spinlock.h"
 #include "tcp_buf.h"
-#include "proc.h"
+#include "types.h"
 
 #define TCP_OPT_END 0  // Option End
 #define TCP_OPT_NOP 1  // No-Operation, used for padding
@@ -81,18 +81,27 @@ typedef struct tcp_opt_mss {
 
 #pragma pack()
 
+typedef enum tcp_seg_list_type {
+    TCP_SEG_LIST_TYPE_NONE = 0,
+    TCP_SEG_LIST_TYPE_OFO,
+} Tcp_seg_list_type;
+
 typedef struct tcp_seg {
-    Ipaddr local_ip;   
-    Ipaddr remote_ip;  
-    Tcp_hdr *hdr;      
-    Pktbuf *buf;      
-    uint32_t data_len;   
-    uint32_t seq;     
-    uint32_t seq_len;  
+    Ipaddr local_ip;
+    Ipaddr remote_ip;
+    Tcp_hdr hdr;
+    Pktbuf *buf;
+    uint32_t data_len;
+    uint32_t seq;
+    uint32_t seq_len;
+    List_entry tcp_ofo_link;
+    Tcp_seg_list_type tcp_seg_list_type;
 } Tcp_seg;
 
+#define le2seq(le) to_struct((le), Tcp_seg, tcp_ofo_link)
+
 typedef enum tcp_state {
-    TCP_STATE_FREE = 0, 
+    TCP_STATE_FREE = 0,
     TCP_STATE_CLOSED,
     TCP_STATE_LISTEN,
     TCP_STATE_SYN_SENT,
@@ -109,9 +118,10 @@ typedef enum tcp_state {
 } Tcp_state;
 
 typedef enum tcp_ostate {
-    TCP_OSTATE_IDLE,    
-    TCP_OSTATE_SENDING,  
-    TCP_OSTATE_REXMIT,  
+    TCP_OSTATE_IDLE,
+    TCP_OSTATE_SENDING,
+    TCP_OSTATE_REXMIT,
+    TCP_OSTATE_PERSIST,
 
     TCP_OSTATE_MAX,
 } Tcp_ostate;
@@ -126,15 +136,20 @@ struct tcp {
         uint32_t fin_in : 1;
         uint32_t keep_enable : 1;
         uint32_t inactive : 1;
+        uint32_t rto_going : 1;
+        uint32_t nagle_dis_enble : 1;
+        uint32_t ACK_delay : 1;
+        uint32_t fast_recovery : 1;
     } flags;
     Tcp_state state;
     uint16_t mss;
     struct {
-        int keep_idle;          
-        int keep_intvl;       
-        int keep_cnt;      
-        int keep_retry;     
+        int keep_idle;
+        int keep_intvl;
+        int keep_cnt;
+        int keep_retry;
         Timer *keep_timer;
+        Timer *nagle_timer;
         int backlog;
     } conn;
     struct {
@@ -143,15 +158,28 @@ struct tcp {
         uint32_t nxt;  // Next sequence number to be sent
         uint32_t iss;  // Initial send sequence number
         Timer *snd_timer;
-        int rto;
-        int rexmit_cnt; 
+        int64_t rto;
+        int rexmit_cnt;
         int rexmit_max;
-        Tcp_ostate ostate; 
+        Tcp_ostate ostate;
+        uint32_t wl1_seq;
+        uint32_t wl2_ack;
+        size_t win;        // 对方接收窗口大小
+        size_t cwin;       //拥塞窗口大小
+        size_t sthresh;     // 拥塞的阈值
+        uint64_t rtttime;  // 计算RTT时的时间
+        uint32_t rttseq;   // 计算RTT时的序列号
+        int64_t srtt;      // smoothed round-trip time
+        int64_t rttvar;    // round-trip time variation
+        int dup_ack;       // 快速重传ACK次数
+        int persist_cnt;
+        int persist_max;
     } snd;
     struct {
         Tcp_buf buf;
-        uint32_t nxt;  // Next expected sequence number to receive
-        uint32_t iss;  // Initial receive sequence number
+        uint32_t nxt;             // Next expected sequence number to receive
+        uint32_t iss;             // Initial receive sequence number
+        List_entry ofo_seq_list;  // out of order sequences list
     } rcv;
 };
 
@@ -163,10 +191,12 @@ static inline void tcp_set_hdr_size(Tcp_hdr *hdr, size_t size) { hdr->shdr = (ui
 void tcp_show_info(char *msg, Socket *socket);
 void tcp_display_pkt(char *msg, Tcp_hdr *tcp_hdr, Pktbuf *buf);
 void tcp_show_list(void);
+void tcp_show_ofo_list(Tcp *tcp, char *info);
 #else
 #define tcp_show_info(msg, tcp)
 #define tcp_display_pkt(msg, hdr, buf)
 #define tcp_show_list()
+#define tcp_show_ofo_list(tcp, info)
 #endif
 
 int tcps_init(void);

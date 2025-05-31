@@ -44,6 +44,7 @@ typedef enum socket_type {
 #define TCP_KEEPIDLE 4
 #define TCP_KEEPINTVL 5
 #define TCP_KEEPCNT 6
+#define TCP_NODELAY 7
 
 #define IPV4_ADDR_BROADCAST 0xFFFFFFFF
 #define IPV4_ADDR_SIZE 4

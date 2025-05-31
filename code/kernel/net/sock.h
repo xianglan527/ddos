@@ -38,6 +38,7 @@
 #define TCP_KEEPIDLE 4
 #define TCP_KEEPINTVL 5
 #define TCP_KEEPCNT 6
+#define TCP_NODELAY 7
 
 #define NET_PORT_EMPTY  0
 

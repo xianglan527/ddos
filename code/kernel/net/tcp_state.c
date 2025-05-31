@@ -33,15 +33,16 @@ void tcp_set_state(Tcp *tcp, Tcp_state state) {
 }
 
 int tcp_closed_in(Tcp *tcp, Tcp_seg *seg) {
-    if (seg->hdr->f_rst == 0) {
-        dbg_warning(DBG_TCP, "%s: recieve a rst", tcp ? tcp_state_name(tcp->state) : "unknown");
+    if (seg->hdr.f_rst == 0) {
+        dbg_warning(DBG_TCP, "%s: receive a non-rst packet, sending rst",
+                    tcp ? tcp_state_name(tcp->state) : "unknown");
         tcp_send_reset(seg);
     }
     return NET_OK;
 }
 
 int tcp_syn_sent_in(Tcp *tcp, Tcp_seg *seg) {
-    Tcp_hdr *tcp_hdr = seg->hdr;
+    Tcp_hdr *tcp_hdr = &seg->hdr;
     if (tcp_hdr->f_ack) {
         if ((tcp_hdr->ack - tcp->snd.iss <= 0) || (tcp_hdr->ack - tcp->snd.nxt > 0)) {
             dbg_warning(DBG_TCP, "%s: ack incorrect", tcp_state_name(tcp->state));
@@ -57,13 +58,19 @@ int tcp_syn_sent_in(Tcp *tcp, Tcp_seg *seg) {
         tcp->rcv.iss = tcp_hdr->seq;
         tcp->rcv.nxt = tcp_hdr->seq + 1;
         tcp->flags.irs_valid = 1;
+        tcp->snd.win = tcp_hdr->win;
+        tcp->snd.wl1_seq = seg->seq;
+        tcp->snd.wl2_ack = tcp_hdr->ack;
+        tcp->snd.sthresh = 10 * tcp->mss;
+        tcp->snd.cwin = 2 * tcp->mss;
         tcp_read_options(tcp, tcp_hdr);
         if (tcp_hdr->f_ack) {
             tcp_ack_process(tcp, seg);
             tcp_set_ostate(tcp, TCP_OSTATE_IDLE);
             tcp_send_ack(tcp, seg);
             tcp_set_state(tcp, TCP_STATE_ESTABLISHED);
-            sock_wakeup(info2sk(tcp, tcp), WT_SOCK_CONN, NET_OK);
+            tcp_keepalive_start(tcp, tcp->flags.keep_enable);
+            sock_wakeup(info2sk(tcp, tcp), WT_SOCK_CONN, NET_OK); 
         } else {
             tcp_set_state(tcp, TCP_STATE_SYN_RECVD);
             tcp_send_syn(tcp);
@@ -73,7 +80,7 @@ int tcp_syn_sent_in(Tcp *tcp, Tcp_seg *seg) {
 }
 
 int tcp_established_in(Tcp *tcp, Tcp_seg *seg) {
-    Tcp_hdr *tcp_hdr = seg->hdr;
+    Tcp_hdr *tcp_hdr = &seg->hdr;
     if (tcp_hdr->f_rst) {
         dbg_warning(DBG_TCP, "%s: recieve a rst", tcp_state_name(tcp->state));
         return tcp_abort(tcp, -E_NET_RESET);
@@ -88,14 +95,14 @@ int tcp_established_in(Tcp *tcp, Tcp_seg *seg) {
         return -E_NET;
     }
     tcp_data_in(tcp, seg);
-    tcp_out_event(tcp, TCP_OEVENT_SEND);
+    tcp_out_event(tcp, TCP_OEVENT_XMIT);
     // tcp_transmit(tcp);
     if (tcp->flags.fin_in) { tcp_set_state(tcp, TCP_STATE_CLOSE_WAIT); }
     return NET_OK; 
 }
 
 int tcp_close_wait_in(Tcp *tcp, Tcp_seg *seg) {
-    Tcp_hdr *tcp_hdr = seg->hdr;
+    Tcp_hdr *tcp_hdr = &seg->hdr;
     if (tcp_hdr->f_rst) {
         dbg_warning(DBG_TCP, "%s: recieve a rst", tcp_state_name(tcp->state));
         return tcp_abort(tcp, -E_NET_RESET);
@@ -110,7 +117,7 @@ int tcp_close_wait_in(Tcp *tcp, Tcp_seg *seg) {
         dbg_warning(DBG_TCP, "%s:  ack process failed", tcp_state_name(tcp->state));
         return -E_NET_UNREACH;
     }
-    tcp_out_event(tcp, TCP_OEVENT_SEND);
+    tcp_out_event(tcp, TCP_OEVENT_XMIT);
     // tcp_transmit(tcp);
     return NET_OK;
 }
@@ -122,7 +129,7 @@ static int tcp_up_close_wait(Tcp *tcp){
 }
 
 int tcp_last_ack_in(Tcp *tcp, Tcp_seg *seg) {
-    Tcp_hdr *tcp_hdr = seg->hdr;
+    Tcp_hdr *tcp_hdr = &seg->hdr;
     if (tcp_hdr->f_rst) {
         dbg_warning(DBG_TCP, "%s: recieve a rst", tcp_state_name(tcp->state));
         return tcp_abort(tcp, -E_NET_RESET);
@@ -137,7 +144,7 @@ int tcp_last_ack_in(Tcp *tcp, Tcp_seg *seg) {
         dbg_warning(DBG_TCP, "%s:  ack process failed", tcp_state_name(tcp->state));
         return -E_NET_UNREACH;
     }
-    tcp_out_event(tcp, TCP_OEVENT_SEND);
+    // tcp_out_event(tcp, TCP_OEVENT_SEND);
     // tcp_transmit(tcp);
     if(tcp->flags.fin_out ==0){
         tcp_free(tcp);
@@ -166,7 +173,7 @@ void tcp_time_wait(Tcp *tcp) {
 }
 
 int tcp_fin_wait_1_in(Tcp *tcp, Tcp_seg *seg) {
-    Tcp_hdr *tcp_hdr = seg->hdr;
+    Tcp_hdr *tcp_hdr = &seg->hdr;
     if (tcp_hdr->f_rst) {
         dbg_warning(DBG_TCP, "%s: recieve a rst", tcp_state_name(tcp->state));
         return tcp_abort(tcp, -E_NET_RESET);
@@ -181,7 +188,7 @@ int tcp_fin_wait_1_in(Tcp *tcp, Tcp_seg *seg) {
         return -E_NET;
     }
     tcp_data_in(tcp, seg);
-    tcp_out_event(tcp, TCP_OEVENT_SEND);
+    tcp_out_event(tcp, TCP_OEVENT_XMIT);
     // tcp_transmit(tcp);
     if (tcp->flags.fin_out == 0){
         if (tcp->flags.fin_in) {
@@ -196,7 +203,7 @@ int tcp_fin_wait_1_in(Tcp *tcp, Tcp_seg *seg) {
 }
 
 int tcp_fin_wait_2_in(Tcp *tcp, Tcp_seg *seg) {
-    Tcp_hdr *tcp_hdr = seg->hdr;
+    Tcp_hdr *tcp_hdr = &seg->hdr;
     if (tcp_hdr->f_rst) {
         dbg_warning(DBG_TCP, "%s: recieve a rst", tcp_state_name(tcp->state));
         return tcp_abort(tcp, -E_NET_RESET);
@@ -211,12 +218,13 @@ int tcp_fin_wait_2_in(Tcp *tcp, Tcp_seg *seg) {
         return -E_NET;
     }
     tcp_data_in(tcp, seg);
+    tcp_out_event(tcp, TCP_OEVENT_XMIT);
     if (tcp->flags.fin_in) { tcp_time_wait(tcp); }
      return NET_OK;
 }
 
 int tcp_closing_in(Tcp *tcp, Tcp_seg *seg) {
-    Tcp_hdr *tcp_hdr = seg->hdr;
+    Tcp_hdr *tcp_hdr = &seg->hdr;
     if (tcp_hdr->f_rst) {
         dbg_warning(DBG_TCP, "%s: recieve a rst", tcp_state_name(tcp->state));
         return tcp_abort(tcp, -E_NET_RESET);
@@ -230,14 +238,15 @@ int tcp_closing_in(Tcp *tcp, Tcp_seg *seg) {
         dbg_warning(DBG_TCP, "%s:  ack process failed", tcp_state_name(tcp->state));
         return -E_NET;
     }
-    tcp_out_event(tcp, TCP_OEVENT_SEND);
+    tcp_data_in(tcp, seg);
+    tcp_out_event(tcp, TCP_OEVENT_XMIT);
     // tcp_transmit(tcp);
     if (tcp->flags.fin_out == 0 && tcp->flags.fin_in) { tcp_time_wait(tcp); }
     return NET_OK;
 }
 
 int tcp_time_wait_in(Tcp *tcp, Tcp_seg *seg) {
-    Tcp_hdr *tcp_hdr = seg->hdr;
+    Tcp_hdr *tcp_hdr = &seg->hdr;
     if (tcp_hdr->f_rst) {
         dbg_warning(DBG_TCP, "%s: recieve a rst", tcp_state_name(tcp->state));
         return tcp_abort(tcp, -E_NET_RESET);
@@ -260,7 +269,7 @@ int tcp_time_wait_in(Tcp *tcp, Tcp_seg *seg) {
 }
 
 int tcp_listen_in(Tcp *tcp, Tcp_seg *seg) {
-    Tcp_hdr *tcp_hdr = seg->hdr;
+    Tcp_hdr *tcp_hdr = &seg->hdr;
     if (tcp_hdr->f_rst) {
         dbg_warning(DBG_TCP, "%s: recieve a rst", tcp_state_name(tcp->state));
         return NET_OK;
@@ -288,7 +297,7 @@ int tcp_listen_in(Tcp *tcp, Tcp_seg *seg) {
 }
 
 int tcp_syn_recvd_in(Tcp *tcp, Tcp_seg *seg) {
-    Tcp_hdr *tcp_hdr = seg->hdr;
+    Tcp_hdr *tcp_hdr = &seg->hdr;
     if (tcp_hdr->f_rst) {
         dbg_warning(DBG_TCP, "%s: recieve a rst", tcp_state_name(tcp->state));
         return tcp_abort(tcp, -E_NET_RESET);
@@ -303,14 +312,16 @@ int tcp_syn_recvd_in(Tcp *tcp, Tcp_seg *seg) {
         return -E_NET;
     }
     if (tcp_hdr->f_fin) {
-        dbg_warning(DBG_TCP, "%s: recieve a fin", tcp_state_name(tcp->state));
-        return -E_NET;
+        tcp_set_state(tcp, TCP_STATE_CLOSE_WAIT);
+
+        // 被对方强制关闭
+        if (tcp->parent) { sock_wakeup(info2sk(tcp->parent, tcp), WT_SOCK_CONN, -E_NET_CONNECTED); }
     } else {
         tcp_set_state(tcp, TCP_STATE_ESTABLISHED);
         tcp_keepalive_start(tcp, tcp->flags.keep_enable);
         if (tcp->parent) { sock_wakeup(info2sk(tcp->parent, tcp), WT_SOCK_CONN, NET_OK); }
     }
-    tcp_out_event(tcp, TCP_OEVENT_SEND);
+    tcp_out_event(tcp, TCP_OEVENT_XMIT);
     // tcp_transmit(tcp);
     return NET_OK;
 }

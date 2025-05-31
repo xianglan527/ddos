@@ -247,7 +247,6 @@ void *kmalloc(size_t size) {
     return objp;
 }
 
-
 void *aligned_kmalloc(size_t size, size_t alignment){
     void *original = kmalloc(size + alignment - 1 +sizeof(void *));
     if(original == nullptr) return nullptr;

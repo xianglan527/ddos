@@ -213,7 +213,7 @@ int pktbuf_remove_header(Pktbuf *buf, size_t size) {
             size -= blk->size;
             kfree(blk);
             le = list_next(list);
-            assert(le != list);
+            // assert(le != list);
         }
     }
     pkbuf_wakeup_nolock();

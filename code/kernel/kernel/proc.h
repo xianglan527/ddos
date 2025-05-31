@@ -221,6 +221,7 @@ int do_brk(uintptr_t *brk_store);
 void timer_start_init(void);
 void run_timer_list(void);
 void timer_dump(void);
+void timer_func_dump(void) ;
 int do_sleep(ulong time);
 Timer *timer_func_add(Timer_func func, void *arg, ulong time, uint32_t flags);
 void may_killed(void);

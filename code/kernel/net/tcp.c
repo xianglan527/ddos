@@ -34,7 +34,11 @@ void tcp_show_info(char* msg, Socket* socket) {
     Tcp* tcp = skop_info(socket, tcp);
     cprintf("%s: %s\n", msg, (tcp->state < TCP_STATE_MAX) ? tcp_state_name(tcp->state) : "UNKNOWN");
     cprintf("    local port: %u, remote port: %u\n", socket->local_port, socket->remote_port);
-    cprintf("    snd.una: %u, snd.nxt: %u\n", tcp->snd.una, tcp->snd.nxt);
+    cprintf("    snd.una: %u, snd.nxt: %u, snd.win: %lu, snd.cwin: %lu, snd.sthresh: %lu\n", tcp->snd.una,
+            tcp->snd.nxt, tcp->snd.win, tcp->snd.cwin, tcp->snd.sthresh);
+    cprintf("    rcv.nxt: %u, rcv.win: %u\n", tcp->rcv.nxt, tcp_rcv_window(tcp));
+    cprintf("    ostate: %s, state: %s, rto: %d\n", tcp_ostate_name(tcp), tcp_state_name(tcp->state),
+            tcp->snd.rto);
 }
 
 void tcp_display_pkt(char* msg, Tcp_hdr* tcp_hdr, Pktbuf* buf) {
@@ -70,6 +74,22 @@ void tcp_show_list(void) {
     release(&tcp_list_lock);
     release(&print_struct_lock);
 }
+
+void tcp_show_ofo_list(Tcp *tcp, char *info){
+    int idx = 0;
+    List_entry* le;
+    acquire(&print_struct_lock);
+    cprintf("\n %s \n", info);
+    cprintf("\n-------------dump tcp ofo list ---------- \n");
+    list_for_each(le, &tcp->rcv.ofo_seq_list) {
+        Tcp_seg* seq = le2seq(le);
+        cprintf("[%d]\n", idx++);
+        cprintf("\tseq is %u lens is %u end of seq is %u\n", seq->seq, seq->data_len, seq->seq + seq->data_len - 1);
+        cprintf("\n\n");
+    }
+    cprintf("\n-------------dump tcp ofo list end ---------- \n");
+    release(&print_struct_lock);
+}
 #endif
 
 int tcps_init(void) {
@@ -101,9 +121,16 @@ int tcp_init(Socket* socket, int family, int protocol) {
         return ret;
     }
     tcp->snd.una = tcp->snd.nxt = tcp->snd.iss = 0;
+    tcp->snd.win = 0;
+    tcp->snd.rttseq = 0;
+    tcp->snd.srtt = 0;
+    tcp->snd.rttvar = 0;
     tcp->snd.ostate = TCP_OSTATE_IDLE;
-    tcp->snd.rto = TCP_INIT_RTO;           
-    tcp->snd.rexmit_max = TCP_INT_RETRIES;  
+    tcp->snd.rto = TCP_INIT_RTO;
+    tcp->snd.rexmit_cnt = 0;
+    tcp->snd.rexmit_max = 0;
+    tcp->snd.persist_cnt = 0;
+    tcp->snd.persist_max = 0;
     tcp->rcv.nxt = tcp->rcv.iss = 0;
     tcp->snd.buf.data = nullptr;
     tcp->rcv.buf.data = nullptr;
@@ -115,8 +142,18 @@ int tcp_init(Socket* socket, int family, int protocol) {
     tcp->conn.keep_cnt = TCP_KEEPALIVE_PROBES;
     tcp->conn.keep_retry = 0;
     tcp->conn.keep_timer = nullptr;
+    tcp->conn.nagle_timer = nullptr;
+    tcp->conn.backlog = 0;
     tcp->parent = nullptr;
     tcp->flags.inactive = 0;
+    tcp->snd.wl1_seq = 0;
+    tcp->snd.wl2_ack = 0;
+    tcp->flags.nagle_dis_enble = 0;
+    tcp->flags.ACK_delay = 0;
+    tcp->flags.fast_recovery = 0;
+    tcp->snd.cwin = 1;
+    tcp->snd.sthresh = 0;
+    list_init(&tcp->rcv.ofo_seq_list);
     assert(list_empty(&socket->socket_link));
     acquire(&tcp_list_lock);
     list_add(&tcp_list, &socket->socket_link);
@@ -136,6 +173,14 @@ void tcp_free(Tcp* tcp) {
         kfree(tcp->rcv.buf.data);
         tcp->rcv.buf.data = nullptr;
     }
+    List_entry* next_le = list_next(&tcp->rcv.ofo_seq_list);
+    while (next_le != &tcp->rcv.ofo_seq_list) {
+        Tcp_seg *next_s = le2seq(next_le);
+        next_le = list_next(next_le);
+        list_del_init(&next_s->tcp_ofo_link);
+        pktbuf_free(next_s->buf);
+        kfree(next_s);
+    }
     tcp->state = TCP_STATE_FREE;
     acquire(&tcp_list_lock);
     list_del(&socket->socket_link);
@@ -147,7 +192,7 @@ void tcp_clear_parent(Tcp* tcp) {
     list_for_each(le, &tcp_list) {
         Socket* socket = le2socket(le);
         Tcp* child = skop_info(socket, tcp);
-        if (child->parent == tcp) { tcp_free(tcp); }
+        if (child->parent == tcp) { tcp_free(child); }
     }
 }
 
@@ -228,8 +273,31 @@ static int tcp_init_connect(Tcp* tcp) {
     tcp_buf_init(&tcp->rcv.buf, rcv_buf_data, TCP_RBUF_SIZE);
     tcp->snd.iss = tcp_get_iss();
     tcp->snd.una = tcp->snd.nxt = tcp->snd.iss;
+    tcp->snd.win = tcp->mss;
+    tcp->snd.ostate = TCP_OSTATE_IDLE;
+    tcp->snd.rexmit_max = TCP_INT_RETRIES;
+    tcp->snd.persist_max = TCP_PERSIST_RETRIES;
     tcp->rcv.nxt = 0;
     return NET_OK;
+}
+
+bool tcp_conn_exist(Tcp* tcp) {
+    Socket* socket = info2sk(tcp, tcp);
+    bool ret = false;
+    acquire(&tcp_list_lock);
+    List_entry* le;
+    list_for_each(le, &tcp_list) { 
+        Socket* s = le2socket(le);
+        if (s == socket) { continue; }
+        if (ipaddr_is_equal(&socket->local_ip, &s->local_ip) &&
+            ipaddr_is_equal(&socket->remote_ip, &s->remote_ip) && (socket->local_port == s->local_port) &&
+            (socket->remote_port == s->remote_port)) {
+            ret = false;
+            break;
+        }
+    }
+    release(&tcp_list_lock);
+    return ret;
 }
 
 static int tcp_connect(Socket* socket, Sockaddr* addr, socklen_t len) {
@@ -256,6 +324,10 @@ static int tcp_connect(Socket* socket, Sockaddr* addr, socklen_t len) {
             return -E_NET_UNREACH;
         }
         ipaddr_copy(&socket->local_ip, &rt->netif->ipaddr);
+    }
+    if (tcp_conn_exist(tcp)) {
+        dbg_error(DBG_TCP, "conn already exist");
+        return -E_NET_EXIST;
     }
     int ret;
     if ((ret = tcp_init_connect(tcp)) < 0) {
@@ -344,13 +416,13 @@ int tcp_abort(Tcp* tcp, int ret) {
     return NET_OK;
 }
 
-static size_t tcp_write_sndbuf(Tcp* tcp, uint8_t* buf, size_t len) {
-    size_t free_cnt = tcp_buf_free_cnt(&tcp->snd.buf);
-    if (free_cnt == 0) { return 0; }
-    size_t wr_len = (len > free_cnt) ? free_cnt : len;
-    tcp_buf_write_send(&tcp->snd.buf, buf, wr_len);
-    return wr_len;
-}
+// static size_t tcp_write_sndbuf(Tcp* tcp, uint8_t* buf, size_t len) {
+//     size_t free_cnt = tcp_buf_free_cnt(&tcp->snd.buf);
+//     if (free_cnt == 0) { return 0; }
+//     size_t wr_len = (len > free_cnt) ? free_cnt : len;
+//     tcp_buf_write_send(&tcp->snd.buf, buf, wr_len);
+//     return wr_len;
+// }
 
 static int tcp_send(Socket* socket, void* buf, size_t len, int flags, ssize_t* result_len) {
     Tcp* tcp = skop_info(socket, tcp);
@@ -436,13 +508,15 @@ static int tcp_recv(Socket* socket, void* buf, size_t len, int flags, ssize_t* r
         default: dbg_error(DBG_TCP, "tcp state error"); return -E_NET_STATE;
     }
     *result_len = 0;
+    size_t pre_win = tcp_rcv_window(tcp);
     size_t cnt = tcp_buf_read_rcv(&tcp->rcv.buf, buf, len);
     if (cnt > 0) {
+        if (!pre_win && tcp_rcv_window(tcp)) { tcp_send_win_update(tcp); }
         *result_len = cnt;
         return NET_OK;
     }
     return need_wait;
-}
+} 
 
 size_t tcp_rcv_window(Tcp* tcp) {
     size_t window = tcp_buf_free_cnt(&tcp->rcv.buf);
@@ -490,6 +564,13 @@ static int tcp_setopt(Socket* socket, int level, int optname, char* optval, int 
                 tcp->conn.keep_cnt = *(int*)optval;
                 tcp_keepalive_restart(tcp);
                 return NET_OK;
+            case TCP_NODELAY:
+                if (optlen != sizeof(int)) {
+                    dbg_error(DBG_TCP, "param size error");
+                    return -E_NET_PARAM;
+                }
+                tcp->flags.nagle_dis_enble = *(int*)optval;
+                return NET_OK;
             default: dbg_error(DBG_TCP, "unknowm param"); break;
         }
     }
@@ -525,9 +606,11 @@ void tcp_keepalive_tmo(Timer* timer) {
 }
 
 static void keepalive_start_timer(Tcp* tcp) {
-    tcp->conn.keep_retry = 0;
-    tcp->conn.keep_timer = timer_func_add(tcp_keepalive_tmo, tcp, tcp->conn.keep_idle * 1000, 0);
-    dbg_info(DBG_TCP, "tcp keepalive enabled.");
+    if(tcp->state == TCP_STATE_ESTABLISHED){
+        tcp->conn.keep_retry = 0;
+        tcp->conn.keep_timer = timer_func_add(tcp_keepalive_tmo, tcp, tcp->conn.keep_idle * 1000, 0);
+        dbg_info(DBG_TCP, "tcp keepalive enabled.");
+    }
 }
 
 void tcp_keepalive_start(Tcp* tcp, bool run) {
@@ -554,6 +637,10 @@ void tcp_kill_all_timers(Tcp* tcp) {
     if (tcp->conn.keep_timer) {
         del_func_timer(tcp->conn.keep_timer);
         tcp->conn.keep_timer = nullptr;
+    }
+    if (tcp->conn.nagle_timer) {
+        del_func_timer(tcp->conn.nagle_timer);
+        tcp->conn.nagle_timer = nullptr;
     }
     if (tcp->snd.snd_timer) {
         del_func_timer(tcp->snd.snd_timer);
@@ -680,8 +767,8 @@ Tcp* tcp_create_child(Tcp* parent, Tcp_seg* seg) {
     }
     ipaddr_copy(&child_socket->local_ip, &seg->local_ip);
     ipaddr_copy(&child_socket->remote_ip, &seg->remote_ip);
-    child_socket->local_port = seg->hdr->dport;
-    child_socket->remote_port = seg->hdr->sport;
+    child_socket->local_port = seg->hdr.dport;
+    child_socket->remote_port = seg->hdr.sport;
     child->parent = parent;
     child->flags.irs_valid = 1;
     child->flags.inactive = 1;
@@ -689,7 +776,10 @@ Tcp* tcp_create_child(Tcp* parent, Tcp_seg* seg) {
     tcp_init_connect(child);
     child->rcv.iss = seg->seq;
     child->rcv.nxt = child->rcv.iss + 1;
-    tcp_read_options(child, seg->hdr);
+    child->snd.win = seg->hdr.win;
+    child->snd.wl1_seq = seg->seq;
+    child->snd.wl2_ack = seg->hdr.ack;
+    tcp_read_options(child, &seg->hdr);
     return child;
 }
 

@@ -14,6 +14,7 @@ typedef struct tcp_buf {
     size_t in, out;
     size_t size;
     uint8_t *data; 
+    // Pktbuf *pktbuf;
 } Tcp_buf;
 
 void tcp_buf_init(Tcp_buf *buf, uint8_t *data, size_t size);

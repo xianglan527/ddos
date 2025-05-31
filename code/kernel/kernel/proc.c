@@ -292,7 +292,9 @@ Proc *kernel_thread_init(void (*start_roution)(void *), void *arg) {
     // acquire(&procs_lock);
     Proc *proc = alloc_proc();
     assert(proc != nullptr);
-    daemonproc = proc;
+    if(strcmp((char *)arg, "daemon_proc") == 0){
+        daemonproc = proc;
+    }
     assert(kernel_pagetable != nullptr);
     proc->mm->pagetable = kernel_pagetable;
     proc->context.ra = (uint64_t)kernel_thread_ret;

@@ -105,6 +105,12 @@ uint64_t sys_sleep(void) {
 
 uint64_t sys_gettime(void) { return ticks; }
 
+uint64_t sys_time_goes(uint64_t pre) {
+    uint64_t now = sys_gettime();
+    if (now <= pre) { return 0; }
+    return now - pre;
+}
+
 uint64_t sys_get_free_page_size(void) { return nr_free_pages(); }
 
 uint64_t sys_get_slab_allocated_size(void) {
