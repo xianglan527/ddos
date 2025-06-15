@@ -1,37 +1,15 @@
 #include "printf.h"
-#include "spinlock.h"
+
 #include "error.h"
+#include "spinlock.h"
 #include "string.h"
 #include "sysdef.h"
+#include "error.h"
 
-static const char *const error_string[MAXERROR + 1] = {
-    [0] = nullptr,
-    [E_UNSPECIFIED] = "unspecified error",
-    [E_BAD_PROC] = "bad process",
-    [E_INVAL] = "invalid parameter",
-    [E_NO_MEM] = "out of memory",
-    [E_NO_FREE_PROC] = "out of processes",
-    [E_FAULT] = "segmentation fault",
-    [E_SWAP_FAULT] = "swap disk read/write fault",
-    [E_INVAL_ELF] = "invalid elf file",
-    [E_KILLED] = "process is killed",
-    [E_PANIC] = "panic failure",
-    [E_TIMEOUT] = "timeout",
-    [E_TOO_BIG] = "argument is too big",
-    [E_NO_DEV] = "no such device",
-    [E_NA_DEV] = "device not available",
-    [E_BUSY] = "device/file is busy",
-    [E_NOENT] = "no such file or directory",
-    [E_ISDIR] = "is a directory",
-    [E_NOTDIR] = "not a directory",
-    [E_XDEV] = "cross device link",
-    [E_UNIMP] = "unimplemented feature",
-    [E_SEEK] = "illegal seek",
-    [E_MAX_OPEN] = "too many files are open",
-    [E_EXISTS] = "file or directory already exists",
-    [E_NOTEMPTY] = "directory is not empty",
-    [E_LOOP] = "file is a symlink",
-    [E_OPEN] = "file not open",
+static const char *error_string[] = {
+#define ERROR(k, s) [k] = s,
+#include "error_define.h"
+#undef ERROR
 };
 
 static void printnum(void (*putch)(int, void *, int), int fd, void *putdat, uint64_t num, unsigned base, int width,
@@ -115,7 +93,7 @@ void vprintfmt(void (*putch)(int, void *, int), int fd, void *putdat, const char
             case 'e':
                 err = va_arg(ap, int);
                 if (err < 0) { err = -err; }
-                if (err > MAXERROR || (p = error_string[err]) == NULL) {
+                if (err > ERR_END || (p = error_string[err]) == NULL) {
                     printfmt(putch, fd, putdat, "error %d", err);
                 } else {
                     printfmt(putch, fd, putdat, "%s", p);

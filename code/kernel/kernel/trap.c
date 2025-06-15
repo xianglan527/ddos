@@ -14,6 +14,7 @@
 #include "vmm.h"
 #include "sched.h"
 #include "signal.h"
+#include "clint.h"
 
 Spinlock tickslock;
 uint64_t ticks;
@@ -25,25 +26,6 @@ extern Spinlock print_struct_lock;
 void kernelvec();
 
 void trap_init_hart(void) { w_stvec((uint64_t)kernelvec); }
-
-static const char* exception_msg[] = {
-    "0: Instruction address misaligned",
-    "1: Instruction access fault",
-    "2: Illegal instruction",
-    "3: Breakpoint",
-    "4: Load address misaligned",
-    "5: Load access fault",
-    "6: Store/AMO address misaligned",
-    "7: Store/AMO access fault",
-    "8: Environment call from U-mode",
-    "9: Environment call from S-mode",
-    "10: Reserved",
-    "11: Environment call from M-mode",
-    "12: Instruction page fault",
-    "13: Load page fault",
-    "14: Reserved for future standard use",
-    "15: Store/AMO page fault",
-};
 
 void trap_tick_init(void) { initlock(&tickslock, "time"); }
 
@@ -75,40 +57,45 @@ static int pagetable_handler(bool write) {
 Trap_eum trap_work() {
     uint64_t scause = r_scause();
     int ret = 0;
-    if ((scause & 0x8000000000000000L) && (scause & 0xff) == 9) {
-        int irq = plic_claim();
-        if (!irq) return TRAP_INT;
-
-        switch (irq) {
-            case 1 ... VIRTIO_DEVICE_NUM: {
-                virtio_device_intr_handler(irq);
-            } break;
-            case UART0_IRQ: {
-                char c;
-                c = uart_getc();
+    bool has_int = scause & 0x8000000000000000L;
+    if (has_int) {
+        if ((scause & 0xff) == IRQ_S_EXT) {
+            int irq = plic_claim();
+            if (!irq) return TRAP_INT;
+            switch (irq) {
+                case 1 ... VIRTIO_DEVICE_NUM: {
+                    virtio_device_intr_handler(irq);
+                } break;
+                case UART0_IRQ: {
+                    char c;
+                    c = uart_getc();
 #ifdef PRINT_UART_CHAR
-                cprintf(" \n serial num is:%03x : serial char is %c\n", c, c);
+                    cprintf(" \n serial num is:%03x : serial char is %c\n", c, c);
 #endif
-                // uart_intr(c);
-                extern void dev_stdin_write(char c);
-                dev_stdin_write(c);
-            } break;
+                    // uart_intr(c);
+                    extern void dev_stdin_write(char c);
+                    dev_stdin_write(c);
+                } break;
 
-            default: cprintf("unexpected interrupt irq=%d\n", irq); break;
-        }
-        plic_complete(irq);
-        return TRAP_INT;
-    } else if (scause == 0x8000000000000001L) {
-        if (cpuid() == 0) {
-            clockintr();
-            run_timer_list();
+                default: cprintf("unexpected interrupt irq=%d\n", irq); break;
+            }
+            plic_complete(irq);
+            return TRAP_INT;
+        } else if ((scause & 0xff) == IRQ_S_SOFT) {
+            if (cpuid() == 0) {
+                clockintr();
+                run_timer_list();
 #ifdef PRINT_TRICKS
-            print_ticks();
+                print_ticks();
 #endif
+            }
+            clint_set_ssip(1, cpuid());
+            w_sip(r_sip() & ~SIP_SSIP);
+            return TRAP_SOFT_INT;
+        } else  {
+            return TRAP_OTHER;
         }
-        w_sip(r_sip() & ~2);
-        return TRAP_SOFT_INT;
-    } else if ((scause & 0x8000000000000000L) == 0) {
+    } else {
         int excep_code = scause & 0xff;
 #ifdef PRINT_TRAP_EXCEPTION
         cprintf("excpetion : %s\n", exception_msg[excep_code]);
@@ -118,10 +105,11 @@ Trap_eum trap_work() {
         else
             cprintf("trap_work: exception scause %p\n", r_scause());
 #endif
-        if (excep_code == 12 || excep_code == 13 || excep_code == 15) {
-            if (excep_code == 12 || excep_code == 13)
+        if (excep_code == EXC_INST_PAGE_FAULT || excep_code == EXC_LOAD_PAGE_FAULT ||
+            excep_code == EXC_STORE_AMO_PAGE_FAULT) {
+            if (excep_code == EXC_INST_PAGE_FAULT || excep_code == EXC_LOAD_PAGE_FAULT)
                 ret = pagetable_handler(false);
-            else if (excep_code == 15)
+            else if (excep_code == EXC_STORE_AMO_PAGE_FAULT)
                 ret = pagetable_handler(true);
             if (ret != 0) {
                 acquire(&print_struct_lock);
@@ -148,14 +136,14 @@ Trap_eum trap_work() {
                 cprintf("no hangdle the exception function excep_code %d cpuid is:%d", excep_code, cpuid());
             } else {
                 cprintf("no hangdle the exception function pid : %d excep_code %d cpuid is:%d", myproc()->pid,
-                      excep_code, cpuid());
+                        excep_code, cpuid());
             }
             release(&print_struct_lock);
             panic("no hangdle the exception function");
         }
         return TRAP_EXCEPTION;
-    } else
-        return TRAP_OTHER;
+    }
+    return TRAP_OTHER;
 }
 
 void kerneltrap() {
@@ -253,4 +241,50 @@ void user_trap_ret() {
     uint64_t satp = MAKE_SATP(p->mm->pagetable);
     uint64_t fn = TRAMPOLINE + (userret - trampoline);
     ((void (*)(uint64_t, uint64_t))fn)(TRAPFRAME(p->mm_index), satp);
+}
+
+uint64_t g_sys_tick = 0;
+extern Atomic cpus_num;
+#define M_MODE_INFO 1
+uint64_t handle_trap(uint64_t mcause, uint64_t mepc){
+    bool has_int = mcause & 0x8000000000000000L;
+    mcause = mcause & 0xFF;
+    if (has_int) {
+        switch (mcause) {
+            case IRQ_M_SOFT:           // soft
+                if (atomic_read(&cpus_num) == CPUS && M_MODE_INFO) {
+                    cprintf("cpu %lu soft isr: mcause %d\n", r_mhartid(), mcause);
+                    clint_set_ssip(1, 1);
+                }
+                clint_set_msip(0, r_mhartid());  // clear soft isr
+                break;
+            case IRQ_M_TIMER:  // mtime
+                // clint_add_mtimecmp(TIME_INTERVAL, r_mhartid());
+                clint_set_mtimecmp(clint_get_mtime() + TIME_INTERVAL, r_mhartid());
+                ++g_sys_tick;
+                // test only
+                if ((g_sys_tick & 3) == 0) clint_set_msip(1, r_mhartid());
+                // if ((g_sys_tick & 3) == 0) clint_set_msip(1, 1);
+                // debug only
+                if (atomic_read(&cpus_num) == CPUS && M_MODE_INFO) {
+                    cprintf("cpu %lu mtime: %d\n", r_mhartid(), g_sys_tick);
+                    clint_set_ssip(1, r_mhartid());
+                }
+                // if (atomic_read(&cpus_num) == CPUS){clint_set_ssip(1, r_mhartid());}
+                // clint_set_ssip(1, r_mhartid());
+                break;
+
+            default:
+                if (atomic_read(&cpus_num) == CPUS && M_MODE_INFO) { cprintf("unknow isr"); }
+                break;
+        }
+    } else {
+        if (atomic_read(&cpus_num) == CPUS && M_MODE_INFO) {
+            cprintf("exception:\n");
+            cprintf("mcause: 0x%016x\n", mcause);
+            cprintf("mepc: 0x%016x\n", mepc);
+            cprintf("mtval: 0x%016x\n", r_stval());
+        }
+    }
+    return  mepc;
 }

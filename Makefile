@@ -167,7 +167,7 @@ $K/test/usys.S : $K/test/usys.py
 	python3 $K/test/usys.py > $K/test/usys.S
 
 # 将所有目标文件作为最终目标的依赖
-${KERNEL_ELF}: ${KERNEL_PATH} K_compile_c K_compile_S
+${KERNEL_ELF}: ${KERNEL_PATH} K_compile_c K_compile_S 
 	$(LD) ${LDFLAGS} -o ${KERNEL_ELF} ${K_OBJS}
 	$(OBJDUMP) -S ${KERNEL_ELF} > ${KERNEL_PATH}/kernel.asm
 	$(OBJDUMP) -t ${KERNEL_ELF} | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > ${KERNEL_PATH}/kernel.sym
@@ -294,8 +294,18 @@ debug: uptap.sh clean kernel swap.img disk0.img
 	@${QEMU} ${QEMUOPTS} -s -S &
 	@${GDB} ${KERNEL_ELF} -q -x gdbinit
 
+
+output_log = output.log
+
+backtrace:
+	python3 backtrace.py ${output_log} ${KERNEL_PATH}/kernel.asm
+
+ddos:
+	> ${output_log}
+	stdbuf -o0 make qemu 2>&1 | tee ${output_log}
+
 clean:
-	rm -rf .gdbinit $K/test/usys.S $(KERNEL_PATH) kernel.p $U/libs/usys.S $(U_OUTPUT_PATH)
+	rm -rf .gdbinit $K/test/usys.S $(KERNEL_PATH) kernel.p $U/libs/usys.S $(U_OUTPUT_PATH) 
 
 all-clean: clean
-	rm -rf *.img *.txt mkfs
+	rm -rf *.img *.txt mkfs *.log

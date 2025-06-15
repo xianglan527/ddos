@@ -159,12 +159,12 @@ int connect(int sid, Sockaddr* addr, socklen_t len) {
     req.conn.len = len;
     int ret = exmsg_func_exec(sock_connect_req_in, &req);
     if (ret < 0) {
-        dbg_error(DBG_SOCKET, "try connect failed: %d", ret);
+        dbg_error(DBG_SOCKET, "try connect failed: %e", ret);
         return ret;
     }
     if (req.wait && (ret = sock_wait_enter(req.wait, req.wait_tmo))) {
         if (ret < 0) {
-            dbg_error(DBG_SOCKET, "connect failed %d.", ret);
+            dbg_error(DBG_SOCKET, "connect failed %e.", ret);
             return ret;
         }
     }

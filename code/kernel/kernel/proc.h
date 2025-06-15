@@ -47,11 +47,11 @@ struct context {
 
 #define PROC_NAME_LEN 64
 #define MAX_PID (NPROC * 2)
-#define KSTACKPAGE 8
-#define KSTACKSIZE (KSTACKPAGE * PGSIZE)
-#define USTACKPAGE 8
-#define USTACKSIZE (USTACKPAGE * PGSIZE)
-#define USTACKADDR  PGSIZE
+// #define KSTACKPAGE 8
+// #define KSTACKSIZE (KSTACKPAGE * PGSIZE)
+// #define USTACKPAGE 8
+// #define USTACKSIZE (USTACKPAGE * PGSIZE)
+// #define USTACKADDR  PGSIZE
 
 // map kernel stacks beneath the trampoline,
 // each surrounded by invalid guard pages.

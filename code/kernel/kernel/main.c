@@ -73,6 +73,7 @@ void main(){
         fs_init();
         os_main();
         atomic_set(&cpus_num, 1);
+        dsb();
         // started = 1;
     }else{
         while (atomic_read(&cpus_num) == 0);
@@ -82,6 +83,7 @@ void main(){
         trap_init_hart();
         sched_init();
         atomic_inc(&cpus_num);
+        dsb();
     }
     while(atomic_read(&cpus_num) != CPUS);
     scheduler();

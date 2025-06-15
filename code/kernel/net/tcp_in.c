@@ -298,6 +298,7 @@ static size_t copy_data_to_rcvbuf(Tcp *tcp, Tcp_seg *seg) {
 }
 
 int tcp_data_in(Tcp *tcp, Tcp_seg *seg) {
+    assert(0);
     int wakeup = 0;
     if ((seg->seq == tcp->rcv.nxt) && (seg->data_len == 1) && (tcp_rcv_window(tcp) == 0)) {
         tcp_send_ack(tcp, seg);

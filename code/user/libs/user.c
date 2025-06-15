@@ -4,6 +4,8 @@
 #include "sysdef.h"
 #include "socket.h"
 
+extern volatile bool is_panic;
+
 static lock_t fork_lock = INIT_LOCK;
 
 void lock_fork(void){
@@ -163,9 +165,15 @@ int wait(void) {
     ret = waitpid(0, (void *)0);
     return ret;
 }
-void putc(int fd, char c) { write(fd, &c, 1); };
+void putc(int fd, char c) {
+    if (is_panic) { while (1); }
+    write(fd, &c, 1);
+};
 
-void puts(int fd, char *str) { write(fd, str, strlen(str) + 1); }
+void puts(int fd, char *str) {
+    if (is_panic) { while (1); }
+    write(fd, str, strlen(str) + 1);
+}
 
 int waitpid(int pid, int *exit_code){
     return __waitpid__(pid, exit_code);

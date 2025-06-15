@@ -1,5 +1,5 @@
 #include "panic.h"
-
+#include "config.h"
 #include "printf.h"
 
 
@@ -25,28 +25,33 @@ static inline uint64_t r_fp() {
     return x;
 }
 
-void backtrace(void) {
-    uint64_t fp_address = r_fp();
-    while (fp_address != PGROUNDDOWN(fp_address)) {
-        printf("%p\n", *(uint64_t *)(fp_address - 8));
-        fp_address = *(uint64_t *)(fp_address - 16);
-    }
-}
+// #define USTACKADDR PGSIZE
+// #define USTACKPAGE 8
+// #define USTACKSIZE (USTACKPAGE * PGSIZE)
+// void backtrace(void) {
+//     uint64_t fp_address;
+//     asm volatile("mv %0, fp" : "=r"(fp_address));
+//     uint64_t stackTop = USTACKADDR + USTACKSIZE;
+//     while (fp_address != stackTop) {
+//         printf("%p\n", *(uint64_t *)(fp_address - 8));
+//         fp_address = *(uint64_t *)(fp_address - 16);
+//     }
+// }
 
 void __panic(const char *file, int line, const char *fmt, ...) {
     if (is_panic) goto panic_dead;
-    is_panic = 1;
     va_list ap;
     va_start(ap, fmt);
     fprintf(2,"panic at %s:%d:\n", file, line);
     vcprintf(fmt, ap);
     printf("\n");
     va_end(ap);
-
+    // printf("backtrace......:\n");
+    // backtrace();
+    // printf("end of backtrace......:\n");
+    printf("The program has crashed. Please force shutdown!!!\n ");
 panic_dead:
-    printf("backtrace......:\n");
-    backtrace();
-    printf("end of backtrace......:\n");
+    is_panic = 1;
     while (1);
 }
 

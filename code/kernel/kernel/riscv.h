@@ -113,6 +113,11 @@ static inline void w_sie(uint64_t x) { asm volatile("csrw sie, %0" : : "r"(x)); 
 #define MIE_MEIE (1L << 11)  // external
 #define MIE_MTIE (1L << 7)   // timer
 #define MIE_MSIE (1L << 3)   // software
+
+#define SIP_SEIP (1L << 9)  // SIP external
+#define SIP_STIP (1L << 5)  // SIP timer
+#define SIP_SSIP (1L << 1)  // SIP software
+
 static inline uint64_t r_mie() {
     uint64_t x;
     asm volatile("csrr %0, mie" : "=r"(x));
@@ -261,7 +266,7 @@ static inline uint64_t r_tp() {
 
 static inline uint64_t r_fp() {
     uint64_t x;
-    asm volatile("mv %0, s0" : "=r"(x));
+    asm volatile("mv %0, fp" : "=r"(x));
     return x;
 }
 
@@ -272,6 +277,14 @@ static inline uint64_t r_ra() {
     asm volatile("mv %0, ra" : "=r"(x));
     return x;
 }
+
+#define IRQ_M_SOFT 3
+#define IRQ_M_TIMER 7
+#define IRQ_M_EXT 11
+
+#define IRQ_S_SOFT 1
+#define IRQ_S_TIMER 5
+#define IRQ_S_EXT 9
 
 // flush the TLB.
 static inline void sfence_vma() {

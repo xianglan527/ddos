@@ -1,59 +1,11 @@
 #ifndef __CONFIG_ERROR_H__
 #define __CONFIG_ERROR_H__
-
-/* kernel error codes -- keep in sync with list in lib/printfmt.c */
-#define E_UNSPECIFIED 1   // Unspecified or unknown problem
-#define E_BAD_PROC 2      // Process doesn't exist or otherwise
-#define E_INVAL 3         // Invalid parameter
-#define E_NO_MEM 4        // Request failed due to memory shortage
-#define E_NO_FREE_PROC 5  // Attempt to create a new process beyond
-#define E_FAULT 6         // Memory fault
-#define E_SWAP_FAULT 7    // SWAP READ/WRITE fault
-#define E_INVAL_ELF 8     // Invalid elf file
-#define E_KILLED 9        // Process is killed
-#define E_PANIC 10        // Panic Failure
-#define E_TIMEOUT 11      // Timeout
-#define E_TOO_BIG 12      // Argument is Too Big
-#define E_NO_DEV 13       // No such Device
-#define E_NA_DEV 14       // Device Not Available
-#define E_BUSY 15         // Device/File is Busy
-#define E_NOENT 16        // No Such File or Directory
-#define E_ISDIR 17        // Is a Directory
-#define E_NOTDIR 18       // Not a Directory
-#define E_XDEV 19         // Cross Device-Link
-#define E_UNIMP 20        // Unimplemented Feature
-#define E_SEEK 21         // Illegal Seek
-#define E_MAX_OPEN 22     // Too Many Files are Open
-#define E_EXISTS 23       // File/Directory Already Exists
-#define E_NOTEMPTY 24     // Directory is Not Empty
-#define E_LOOP 25         // file is a symlink
-#define E_OPEN 26         // file not open
-#define E_MBX_FULL 27     // mbox full
-#define E_MBX_EMPTY 28    // mbox empty
-
-//  net error
-#define E_NET 29              // general net error
-#define E_NET_SIZE 30         // net error size
-#define E_NET_PARAM 31        // net error parameter
-#define E_NET_STATE 32        // net error state
-#define E_NET_MBOX 33         // net error mbox
-#define E_NET_CONFIG 34       // net error config
-#define E_NET_SYS 35          // net error system
-#define E_NET_NONE 36         // net error no resources
-#define E_NET_NOT_SUPPORT 37  // net error not support
-#define E_NET_FULL 38         // net error full
-#define E_NET_DATA 39         // net error data
-#define E_NET_MATCH 40        // net error match
-#define E_NET_CHECKSUM 41     // net error checksum
-#define E_NET_EXIST 42        // net error exist
-#define E_NET_CONNECTED 43    // net error connected
-#define E_NET_UNREACH 44    // net port unreach
-#define E_NET_BIND 45    // net port bind
-#define E_NET_RESET 46    // net RESET
-#define E_NET_CLOSE 47    // net close
-#define E_NET_TMO 48    // net timeout
-// end of net error
-
-/* the maximum allowed */
-#define MAXERROR 48
+typedef enum {
+    ERR_BEGIN = 0,
+#define ERROR(k, s) k,
+#include "error_define.h"
+#undef ERROR
+    ERR_END
+} ErrorCode;
+// #define MAXERROR 48
 #endif

@@ -8,9 +8,9 @@
 #define __PRINT_VIRTIO_DEVICE_INFO 1
 #define __PRINT_VIRTIO_DEVICE_TEST 0
 #define __PRINT_MM_TEST 1
-#define __PRINT_NET_TEST 0
+#define __PRINT_NET_TEST 1
 #define __PRINT_VIRTIO_NET_RX_TX_INFO 0
-#define NET_ABLE 1
+#define NET_ABLE 0
 
 #if defined(PRINT_KERNEL_INFO) && (__PRINT_TRICKS)
 #define PRINT_TRICKS
@@ -54,6 +54,12 @@
 #define MAXARG  32
 // #define MAXPATH 128
 #define CLEAN_PROC_EXIT_NUM 32
+
+#define KSTACKPAGE 8
+#define KSTACKSIZE (KSTACKPAGE * PGSIZE)
+#define USTACKPAGE 8
+#define USTACKSIZE (USTACKPAGE * PGSIZE)
+#define USTACKADDR PGSIZE
 
 #define lock_info_lens 100
 // #define lock_info_nums 16000
